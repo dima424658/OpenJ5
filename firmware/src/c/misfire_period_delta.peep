@@ -1,0 +1,382 @@
+// Load the previous ring index and use the two lagged periods for the positive delta.
+replace {
+    mov r0,#_previous_crank_period_index
+    mov ar7,@r0
+    mov a,r7
+    add a,#0x50
+    mov r7,a
+    mov a,r7
+    clr c
+    rrc a
+    mov _stock_r5,a
+    mov c,_deceleration_fuel_cut
+    mov r7,_stock_r5
+    dec r7
+    dec r7
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x03
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x07
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0x19
+    add a, r7
+    mov r7,a
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov _stock_r67,_stock_r23
+    mov (_stock_r67 + 1),(_stock_r23 + 1)
+    mov r7,_stock_r5
+    dec r7
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x02
+    jc %4
+    ljmp %5
+    %4:
+    mov r6,#0x07
+    ljmp %6
+    %5:
+    mov r6,#0x00
+    %6:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0x19
+    add a, r7
+    mov r7,a
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%7
+    ljmp %8
+    %7:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    mov dptr,#_period_positive_delta
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    lcall _continue_misfire_period_checks
+    ljmp %9
+    %8:
+    lcall _correct_misfire_period_delta
+    %9:
+    ret
+} by {
+    mov r0,#_previous_crank_period_index
+    mov a,@r0
+    clr c
+    subb a,#0xb0
+    jz 00940$
+    clr c
+    rrc a
+    00940$:
+    mov r5,a
+    jnb _deceleration_fuel_cut,00941$
+    00941$:
+    mov a,r5
+    clr c
+    subb a,#0x03
+    jnc 00942$
+    add a,#0x07
+    clr c
+    00942$:
+    rlc a
+    add a,#0x19
+    mov dpl,a
+    mov dph,#0xfa
+    movx a,@dptr
+    mov r2,a
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    mov r7,a
+    mov a,r5
+    clr c
+    subb a,#0x02
+    jnc 00943$
+    add a,#0x07
+    clr c
+    00943$:
+    rlc a
+    add a,#0x19
+    mov dpl,a
+    mov dph,#0xfa
+    movx a,@dptr
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    mov r1,a
+    lcall _subtract_u16_register_pairs
+    jnc _correct_misfire_period_delta
+    clr a
+    mov r0,a
+    mov r1,a
+    mov dptr,#_period_positive_delta
+    movx @dptr,a
+    mov dptr,#(_period_positive_delta + 1)
+    movx @dptr,a
+    ljmp _continue_misfire_period_checks
+}
+
+// Store the positive delta and compute the absolute difference across four samples.
+replace {
+    mov dptr,#_period_positive_delta
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov r7,_stock_r5
+    dec r7
+    dec r7
+    dec r7
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x04
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x07
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0x19
+    add a, r7
+    mov r7,a
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov r7,_stock_r5
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0x19
+    add a, r7
+    mov r7,a
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%4
+    ljmp %5
+    %4:
+    clr c
+    clr a
+    subb a,_stock_r01
+    mov _stock_r01,a
+    clr a
+    subb a,(_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    %5:
+    mov dptr,#_period_absolute_delta
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#(_period_positive_delta + 1)
+    movx @dptr,a
+    mov a,r0
+    mov dptr,#_period_positive_delta
+    movx @dptr,a
+    mov a,r5
+    clr c
+    subb a,#0x04
+    jnc 00944$
+    add a,#0x07
+    clr c
+    00944$:
+    rlc a
+    add a,#0x19
+    mov dpl,a
+    mov dph,#0xfa
+    movx a,@dptr
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    mov r1,a
+    mov a,r5
+    clr c
+    subb a,#0x00
+    jnc 00945$
+    add a,#0x07
+    clr c
+    00945$:
+    rlc a
+    add a,#0x19
+    mov dpl,a
+    mov dph,#0xfa
+    movx a,@dptr
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jnc 00946$
+    clr c
+    mov a,r0
+    cpl a
+    add a,#0x01
+    mov r0,a
+    mov a,r1
+    cpl a
+    addc a,#0x00
+    mov r1,a
+    00946$:
+    mov dptr,#_period_absolute_delta
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Divide the correction by four and use it in the second unsigned subtraction.
+replace {
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_4,#0x04
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r6,_mdu_1
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_mdu_0
+    mov r5,#0x00
+    mov a,r4
+    orl a,r6
+    mov _stock_r23,a
+    mov a,r5
+    orl a,r7
+    mov (_stock_r23 + 1),a
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_period_delta_quarter
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_period_positive_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%1
+    ljmp %2
+    %1:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    lcall _continue_misfire_period_checks
+    ljmp %3
+    %2:
+    mov dptr,#_corrected_period_delta
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _calculate_misfire_period_score
+    %3:
+    ret
+} by {
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_4,#0x04
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r2,_mdu_0
+    mov r3,_mdu_1
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_period_delta_quarter
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#_period_positive_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _subtract_u16_register_pairs
+    jnc 00947$
+    clr a
+    mov r0,a
+    mov r1,a
+    ljmp _continue_misfire_period_checks
+    00947$:
+    mov dptr,#_corrected_period_delta
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
