@@ -1,0 +1,108 @@
+// The initial subtraction supplies both the equality and direction checks.
+replace {
+    mov dptr,#_mixture_rate_output
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    cjne a,_requested_mixture,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    ljmp %4
+    %3:
+    clr c
+    mov a,r7
+    subb a,_requested_mixture
+    jc %5
+    ljmp %6
+    %5:
+} by {
+    mov dptr,#_mixture_rate_output
+    movx a,@dptr
+    clr c
+    subb a,_requested_mixture
+    jz %4
+    jnc %6
+}
+
+// Add the fractional increment and propagate only its carry to the output.
+replace {
+    mov dptr,#_mixture_rate_fraction
+    movx a,@dptr
+    mov r7,a
+    mov r6,_B
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a,r7
+    mov r7,a
+    mov a,r4
+    addc a,r5
+    mov r5,a
+    mov a,r7
+    movx @dptr,a
+    mov ar7,r5
+    mov dptr,#_mixture_rate_output
+    movx a,@dptr
+    add a,r7
+    mov _ACC,a
+    ljmp %1
+} by {
+    mov dptr,#_mixture_rate_fraction
+    movx a,@dptr
+    add a,_B
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    addc a,#0x00
+    sjmp %1
+}
+
+// Share the output store and keep the clamped branch after the first RET.
+replace {
+    mov dptr,#_mixture_rate_fraction
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_mixture_rate_output
+    movx a,@dptr
+    clr c
+    subb a,_B
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_requested_mixture
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_mixture_rate_output
+    mov a,_requested_mixture
+    movx @dptr,a
+    ljmp %3
+    %2:
+    mov dptr,#_mixture_rate_output
+    mov a,_ACC
+    movx @dptr,a
+    mov _requested_mixture,_ACC
+    %3:
+    ret
+} by {
+    mov dptr,#_mixture_rate_fraction
+    clr a
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    clr c
+    subb a,_B
+    cjne a,_requested_mixture,.+3
+    jc %1
+    %2:
+    movx @dptr,a
+    mov _requested_mixture,a
+    %3:
+    ret
+    %1:
+    mov a,_requested_mixture
+    movx @dptr,a
+    ret
+}
