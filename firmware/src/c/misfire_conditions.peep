@@ -1,0 +1,219 @@
+// Use the original register-pair ABI for the bounds and XDATA words.
+replace {
+    mov _stock_r2,a
+} by {
+    mov r2,a
+}
+
+replace {
+    mov _stock_r3,a
+} by {
+    mov r3,a
+}
+
+replace {
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+replace {
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+replace {
+    mov _stock_r4,a
+} by {
+    mov r4,a
+}
+
+replace {
+    lcall _evaluate_misfire_conditions
+    %1:
+    ret
+} by {
+    %1:
+}
+
+// CJNE preserves the operand and puts the unsigned comparison in carry.
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,%1
+} by {
+    cjne a,%1,.+3
+}
+
+replace {
+    mov %1,c
+    mov c,%1
+    cpl c
+    mov _CY,c
+} by {
+    cpl c
+    mov _CY,c
+}
+
+replace {
+    mov _CY,c
+    mov _ACC,_stock_r4
+    mov c,_CY
+    mov %1,c
+} by {
+    mov a,r4
+    mov %1,c
+}
+
+replace {
+    mov _stock_r4,_ACC
+} by {
+    mov r4,a
+}
+
+replace {
+    mov a,_rpm_nearest_half_bin
+    add a,#_misfire_min_input_by_rpm
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_misfire_min_input_by_rpm >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#_misfire_min_input_by_rpm
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+}
+
+replace {
+    mov a,_stock_r1
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0xff
+    %2:
+    clr c
+    mov a,_stock_r0
+    subb a,_B
+} by {
+    mov a,r1
+    jz %2
+    mov r0,#0xff
+    %2:
+    mov a,r0
+    cjne a,_B,.+3
+}
+
+replace {
+    lcall _publish_misfire_conditions
+    %1:
+    ret
+} by {
+    %1:
+}
+
+// A failed condition resets the counter. A full window uses the saturated
+// counter and skips the status write until the inhibit bit needs to change.
+replace {
+    mov r7,_ACC
+    anl ar7,#0x7f
+    cjne r7,#0x7f,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_ready_cycles
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jz %4
+    ljmp %5
+    %4:
+    mov _ACC,#0xff
+    %5:
+    mov dptr,#_misfire_ready_cycles
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,_ACC
+    mov _ACC,_stock_r4
+    jb _ACC_SIGN,%6
+    ljmp %7
+    %6:
+    mov dptr,#_misfire_ready_delay
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,.+3
+    jc %8
+    ljmp %7
+    %8:
+    mov dptr,#_misfire_conditions
+    mov a,#0x7f
+    anl a,_stock_r4
+    movx @dptr,a
+    ljmp %7
+    %3:
+    mov dptr,#_misfire_ready_cycles
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_misfire_conditions
+    mov a,#0x80
+    orl a,_stock_r4
+    movx @dptr,a
+    %7:
+    lcall _update_secondary_misfire
+    %9:
+    ret
+} by {
+    anl a,#0x7f
+    cjne a,#0x7f,%3
+    mov dptr,#_misfire_ready_cycles
+    movx a,@dptr
+    inc a
+    jnz %5
+    dec a
+    %5:
+    movx @dptr,a
+    mov _B,a
+    mov a,r4
+    jnb _ACC_SIGN,%7
+    mov dptr,#_misfire_ready_delay
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,.+3
+    jnc %7
+    mov a,r4
+    clr _ACC_SIGN
+    sjmp %8
+    %3:
+    clr a
+    mov dptr,#_misfire_ready_cycles
+    movx @dptr,a
+    mov a,r4
+    setb _ACC_SIGN
+    %8:
+    mov dptr,#_misfire_conditions
+    movx @dptr,a
+    %7:
+}
