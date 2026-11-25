@@ -1,0 +1,452 @@
+// Start the full scan through a contiguous four-byte clear.
+replace {
+    mov dptr,#_flash_checksum_complete
+    movx a,@dptr
+    jz %1
+    ljmp %2
+    %1:
+    jnb _flash_checksum_started,%3
+    ljmp %4
+    %3:
+    mov dptr,#_flash_checksum_partial
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_flash_checksum_next
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    setb _flash_checksum_started
+    %4:
+} by {
+    mov dptr,#_flash_checksum_complete
+    movx a,@dptr
+    jnz _update_calibration_low_checksum
+    jb _flash_checksum_started,00970$
+    clr a
+    mov dptr,#_flash_checksum_partial
+    mov b,#0x04
+    00979$:
+    movx @dptr,a
+    inc dptr
+    djnz b,00979$
+    setb _flash_checksum_started
+    00970$:
+}
+
+// Keep the eight-byte sum in R1:R0 and the CODE cursor in DPTR.
+replace {
+    mov dptr,#%30
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#%31
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov r7,#0x00
+    %1:
+    cjne r7,#0x08,%2
+    %2:
+    jc %3
+    ljmp %4
+    %3:
+    mov dpl,_stock_r23
+    mov dph,(_stock_r23 + 1)
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov r5,#0x00
+    mov r3,_stock_r01
+    mov r4,(_stock_r01 + 1)
+    mov a,r6
+    add a, r3
+    mov r3,a
+    mov a,r5
+    addc a, r4
+    mov r4,a
+    mov _stock_r01,r3
+    mov (_stock_r01 + 1),r4
+    mov a,#0x01
+    add a, _stock_r23
+    mov _stock_r23,a
+    mov a,#0x00
+    addc a, (_stock_r23 + 1)
+    mov (_stock_r23 + 1),a
+    inc r7
+    ljmp %1
+    %4:
+    mov dptr,#%31
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#%30
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#%30
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#%31
+    movx a,@dptr
+    mov b,a
+    inc dptr
+    movx a,@dptr
+    mov dph,a
+    mov dpl,b
+    mov b,#0x08
+    %1:
+    clr a
+    movc a,@a+dptr
+    add a,r0
+    mov r0,a
+    clr a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    inc dptr
+    djnz b,%1
+    mov r2,dpl
+    mov r3,dph
+    mov dptr,#%31
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#%30
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Publish the complete Flash sum on cursor wrap and retain an earlier error.
+replace {
+    mov a,_stock_r23
+    orl a,(_stock_r23 + 1)
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_flash_checksum_complete
+    mov a,#0x01
+    movx @dptr,a
+    clr _flash_checksum_started
+    mov dptr,#_flash_checksum_result
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    jnb _rom_checksum_failed,%3
+    ljmp %2
+    %3:
+    mov dptr,#_flash_checksum_expected
+    clr a
+    movc a,@a+dptr
+    mov _stock_r23,a
+    mov a,#0x01
+    movc a,@a+dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jnz %4
+    ljmp %5
+    %4:
+    setb _rom_checksum_failed
+    ljmp %2
+    %5:
+    clr _rom_checksum_failed
+    %2:
+    lcall _update_calibration_low_checksum
+    %6:
+    ret
+} by {
+    mov a,r3
+    orl a,r2
+    jnz _update_calibration_low_checksum
+    mov dptr,#_flash_checksum_complete
+    movx a,@dptr
+    mov a,#0x01
+    movx @dptr,a
+    clr _flash_checksum_started
+    mov dptr,#_flash_checksum_result
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    jb _rom_checksum_failed,_update_calibration_low_checksum
+
+    mov dptr,#_flash_checksum_expected
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_flash_checksum_expected + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    mov a,r0
+    orl a,r1
+
+    jz 00973$
+    setb _rom_checksum_failed
+    sjmp _update_calibration_low_checksum
+    00973$:
+    clr _rom_checksum_failed
+}
+
+// Start at 0x6000 and dispatch to the upper scan with the state still in ACC.
+replace {
+    mov dptr,#_calibration_checksum_state
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_calibration_checksum_state
+    mov a,#0x01
+    movx @dptr,a
+    mov dptr,#_calibration_low_partial
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_calibration_high_partial
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_calibration_checksum_next
+    movx @dptr,a
+    mov a,#0x60
+    inc dptr
+    movx @dptr,a
+    ljmp %3
+    %2:
+    jnb _ACC_BIT4,%4
+    ljmp %5
+    %4:
+    jnb _ACC_BIT0,%6
+    ljmp %3
+    %6:
+    %5:
+    lcall _update_calibration_high_sum
+    ljmp %7
+    %3:
+} by {
+    mov dptr,#_calibration_checksum_state
+    movx a,@dptr
+    jnz 00971$
+    orl a,#0x01
+    movx @dptr,a
+    clr a
+    mov dptr,#_calibration_low_partial
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_calibration_high_partial
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov a,#0x00
+    mov dptr,#_calibration_checksum_next
+    movx @dptr,a
+    mov a,#0x60
+    inc dptr
+    movx @dptr,a
+    sjmp 00972$
+    00971$:
+    jb _ACC_BIT4,_update_calibration_high_sum
+    jnb _ACC_BIT0,_update_calibration_high_sum
+    00972$:
+}
+
+// Complete the lower calibration range when the cursor reaches 0x8000.
+replace {
+    mov r6,_stock_r23
+    mov r7,(_stock_r23 + 1)
+    cjne r6,#0x00,%1
+    cjne r7,#0x80,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_calibration_checksum_state
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#_calibration_low_expected
+    clr a
+    movc a,@a+dptr
+    mov _stock_r23,a
+    mov a,#0x01
+    movc a,@a+dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jnz %4
+    ljmp %5
+    %4:
+    setb _rom_checksum_failed
+    ljmp %3
+    %5:
+    clr _rom_checksum_failed
+    %3:
+    lcall _run_service_mode_53b1
+    %6:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x80
+    mov b,a
+    mov a,r2
+    xrl a,#0x00
+    orl a,b
+    jnz 00974$
+    mov dptr,#_calibration_checksum_state
+    movx a,@dptr
+    mov a,#0x10
+    movx @dptr,a
+
+    mov dptr,#_calibration_low_expected
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_calibration_low_expected + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    mov a,r0
+    orl a,r1
+
+    jz 00975$
+    setb _rom_checksum_failed
+    00974$:
+    ljmp _run_service_mode_53b1
+    00975$:
+    clr _rom_checksum_failed
+    sjmp _rom_checksums_service_continue
+}
+
+// Initialize the upper range from the previous state held in ACC and DPTR.
+replace {
+    jnb _ACC_BIT5,%1
+    ljmp %2
+    %1:
+    jnb _ACC_BIT1,%3
+    ljmp %4
+    %3:
+    mov dptr,#_calibration_checksum_state
+    mov a,#0x02
+    orl a,_ACC
+    movx @dptr,a
+    mov dptr,#_calibration_checksum_next
+    mov a,#0x00
+    movx @dptr,a
+    mov a,#0x80
+    inc dptr
+    movx @dptr,a
+    %4:
+} by {
+    jb _ACC_BIT5,_rom_checksums_service_continue
+    jb _ACC_BIT1,00976$
+    orl a,#0x02
+    movx @dptr,a
+    mov a,#0x00
+    mov dptr,#_calibration_checksum_next
+    movx @dptr,a
+    mov a,#0x80
+    inc dptr
+    movx @dptr,a
+    00976$:
+}
+
+// Finish the upper range at 0xA000 and fall through into the service cycle.
+replace {
+    mov r6,_stock_r23
+    mov r7,(_stock_r23 + 1)
+    cjne r6,#0x00,%1
+    cjne r7,#0xa0,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_calibration_checksum_state
+    movx a,@dptr
+    orl acc,#0x20
+    movx @dptr,a
+    jnb _rom_checksum_failed,%4
+    ljmp %3
+    %4:
+    mov dptr,#_calibration_high_expected
+    clr a
+    movc a,@a+dptr
+    mov _stock_r23,a
+    mov a,#0x01
+    movc a,@a+dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jnz %5
+    ljmp %6
+    %5:
+    setb _rom_checksum_failed
+    ljmp %3
+    %6:
+    clr _rom_checksum_failed
+    %3:
+    lcall _run_service_mode_53b1
+    %7:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0xa0
+    mov b,a
+    mov a,r2
+    xrl a,#0x00
+    orl a,b
+    jnz _rom_checksums_service_continue
+    mov dptr,#_calibration_checksum_state
+    movx a,@dptr
+    orl a,#0x20
+    movx @dptr,a
+    jb _rom_checksum_failed,_rom_checksums_service_continue
+
+    mov dptr,#_calibration_high_expected
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_calibration_high_expected + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    mov a,r0
+    orl a,r1
+
+    jz 00977$
+    setb _rom_checksum_failed
+    sjmp _rom_checksums_service_continue
+    00977$:
+    clr _rom_checksum_failed
+    _rom_checksums_service_continue:
+}
