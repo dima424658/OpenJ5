@@ -1,0 +1,119 @@
+// Keep the ADC sample in ACC for both the active-bank copy and the sum.
+replace {
+    mov dptr,#_ignition_supply_raw
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r0,_ACC
+    mov r6,#_ignition_supply_sum
+    mov r7,#(_ignition_supply_sum >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _accumulate_u8_xdata_u16
+    lcall _detect_low_ignition_supply
+    %1:
+    ret
+} by {
+    mov dptr,#_ignition_supply_raw
+    movx @dptr,a
+    mov r0,a
+    mov dptr,#_ignition_supply_sum
+    lcall _accumulate_u8_xdata_u16
+}
+
+replace {
+    mov dptr,#_shutdown_voltage_raw
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_bank_zero_r0
+    jnc %1
+    ljmp %2
+    %1:
+    jnb _ignition_supply_low,%3
+    ljmp %4
+    %3:
+} by {
+    mov dptr,#_shutdown_voltage_raw
+    clr a
+    movc a,@a+dptr
+    cjne a,_bank_zero_r0,%1
+    %1:
+    jc %2
+    jb _ignition_supply_low,%4
+}
+
+replace {
+    mov dptr,#_ignition_supply_low_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    setb _ignition_supply_low
+    mov dptr,#_shutdown_elapsed
+    mov a,#0x00
+    movx @dptr,a
+    ljmp %2
+} by {
+    mov dptr,#_ignition_supply_low_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,%1
+    %1:
+    jc %2
+    setb _ignition_supply_low
+    clr a
+    mov dptr,#_shutdown_elapsed
+    movx @dptr,a
+    sjmp %2
+}
+
+replace {
+    clr _ignition_supply_low
+    mov dptr,#_ignition_supply_low_count
+    mov a,#0x00
+    movx @dptr,a
+    %1:
+    lcall _continue_sampling_sensors
+    %2:
+    ret
+} by {
+    clr _ignition_supply_low
+    clr a
+    mov dptr,#_ignition_supply_low_count
+    movx @dptr,a
+    %1:
+}
+
+replace {
+    anl acc,#0xfc
+} by {
+    anl a,#0xfc
+}
+
+replace {
+    orl acc,#0x60
+} by {
+    orl a,#0x60
+}
+
+replace {
+    mov dptr,#_state_f80e
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#_state_f80e
+    movx @dptr,a
+}
