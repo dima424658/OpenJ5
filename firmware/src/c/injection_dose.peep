@@ -1,0 +1,220 @@
+// Apply split dose and the two signed-bias correction factors in stock order.
+replace {
+    jb _split_injection_dose,%1
+    ljmp %2
+    %1:
+    lcall _shift_right_u16_1
+    %2:
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov a,#0x80
+    xrl a,_injection_time_correction
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov a,_injection_time_correction
+    jb acc.7,%3
+    ljmp %4
+    %3:
+    lcall _add_u16_register_pairs
+    jb _CY,%5
+    ljmp %4
+    %5:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %4:
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov a,#0x80
+    xrl a,_idle_injection_correction
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov a,_idle_injection_correction
+    jb acc.7,%6
+    ljmp %7
+    %6:
+    lcall _add_u16_register_pairs
+    jb _CY,%8
+    ljmp %7
+    %8:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %7:
+} by {
+    jnb _split_injection_dose,00950$
+    lcall _shift_right_u16_1
+    00950$:
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov _B,_injection_time_correction
+    cpl b.7
+    lcall _multiply_stock_u16_u8
+    mov a,_injection_time_correction
+    jnb acc.7,00951$
+    lcall _add_u16_register_pairs
+    jnc 00951$
+    mov r0,#0xff
+    mov r1,#0xff
+    00951$:
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov _B,_idle_injection_correction
+    cpl b.7
+    lcall _multiply_stock_u16_u8
+    mov a,_idle_injection_correction
+    jnb acc.7,00952$
+    lcall _add_u16_register_pairs
+    jnc 00952$
+    mov r0,#0xff
+    mov r1,#0xff
+}
+
+// Apply injector static gain, record delivered fuel, and add the voltage offset.
+replace {
+    mov dptr,#_injector_static_factor
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_delivered_cyclic_fuel
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov _stock_r23,_injector_voltage_offset
+    mov (_stock_r23 + 1),#0x00
+    lcall _add_u16_register_pairs
+    lcall _apply_minimum_fuel_dose
+    %1:
+    ret
+} by {
+    00952$:
+    mov dptr,#_injector_static_factor
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_delivered_cyclic_fuel
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov r2,_injector_voltage_offset
+    mov r3,#0x00
+    lcall _add_u16_register_pairs
+}
+
+// Apply the calibrated minimum and fall through to publishing.
+replace {
+    mov dptr,#_minimum_fuel_dose
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_minimum_fuel_dose + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    clr c
+    mov a,_stock_r01
+    subb a,_stock_r23
+    mov a,(_stock_r01 + 1)
+    subb a,(_stock_r23 + 1)
+    jc %1
+    ljmp %2
+    %1:
+    mov _stock_r01,_stock_r23
+    mov (_stock_r01 + 1),(_stock_r23 + 1)
+    %2:
+    lcall _publish_cyclic_fuel
+    %3:
+    ret
+} by {
+    setb c
+    mov dptr,#_minimum_fuel_dose
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    subb a,r0
+    mov a,#0x01
+    movc a,@a+dptr
+    mov r3,a
+    subb a,r1
+    jc _publish_cyclic_fuel
+    mov a,r2
+    mov r0,a
+    mov a,r3
+    mov r1,a
+}
+
+// Store the final dose, convert it to timer units, and dispatch nonzero pulses.
+replace {
+    mov dptr,#_final_injection_dose
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov _B,#0x10
+    lcall _multiply_stock_u16_u8
+    mov _mdu_0,_B
+    mov _mdu_1,_stock_r0
+    mov _mdu_2,_stock_r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,#0x0c
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jz %1
+    ljmp %2
+    %1:
+    lcall _continue_after_injection
+    ljmp %3
+    %2:
+    lcall _schedule_injector_pulses
+    %3:
+    ret
+} by {
+    mov dptr,#_final_injection_dose
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov _B,#0x10
+    lcall _multiply_stock_u16_u8
+    mov _mdu_0,_B
+    mov _mdu_1,r0
+    mov _mdu_2,r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,#0x0c
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov a,r0
+    orl a,r1
+    jnz _schedule_injector_pulses
+    ljmp _continue_after_injection
+}
