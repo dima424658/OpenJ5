@@ -1,0 +1,354 @@
+// Apply the biased retard limit, then reject an invalid sector or slot.
+replace {
+    mov a,_ignition_control_7a
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+    mov a,_ignition_control_7a
+    jb acc.3,%3
+    ljmp %2
+    %3:
+    mov dptr,#_auxiliary_ignition_f88f
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    add a, _base_ignition
+    mov _base_ignition,a
+    %2:
+    mov dptr,#_dynamic_ignition_retard
+    movx a,@dptr
+    mov _B,a
+    mov r7,_base_ignition
+    mov a,#0x0a
+    add a, r7
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %4
+    ljmp %5
+    %4:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %6
+    %5:
+    mov r7,#0x00
+    %6:
+    mov a,r7
+    add a,#0xf6
+    mov _base_ignition,a
+    clr c
+    mov a,_injection_sector
+    subb a,#0x04
+    jc %7
+    ljmp %8
+    %7:
+    clr c
+    mov a,_injection_slot
+    subb a,#0x1e
+    jnc %9
+    ljmp %10
+    %9:
+    %8:
+    lcall _restart_runtime_init
+    ljmp %11
+    %10:
+    lcall _update_injection_phase_step
+    %11:
+    ret
+} by {
+    mov a,_ignition_control_7a
+    anl a,#0x04
+    jnz %2
+    mov a,_ignition_control_7a
+    anl a,#0x08
+    jz %2
+    mov dptr,#_auxiliary_ignition_f88f
+    movx a,@dptr
+    add a,_base_ignition
+    mov _base_ignition,a
+    %2:
+    mov dptr,#_dynamic_ignition_retard
+    movx a,@dptr
+    mov _B,a
+    mov a,_base_ignition
+    add a,#0x0a
+    clr c
+    subb a,_B
+    jnc %6
+    clr c
+    clr a
+    %6:
+    subb a,#0x0a
+    mov _base_ignition,a
+    mov a,_injection_sector
+    cjne a,#0x04,.+3
+    jnc %8
+    mov a,_injection_slot
+    cjne a,#0x1e,.+3
+    jc _update_injection_phase_step
+    %8:
+    ljmp _restart_runtime_init
+}
+
+// Correct and clamp the target phase. Encode the current sector as a linear slot.
+replace {
+    mov a,_next_injection_slot
+    cjne a,_injection_slot,%1
+    ljmp %2
+    %1:
+    lcall _continue_ignition_output
+    ljmp %3
+    %2:
+    mov dptr,#_injection_phase_min
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#_injection_phase_max
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    mov _B,_rpm_axis_code
+    mov dptr,#_injection_phase_delay
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _B,r5
+    mov a,#0x3c
+    add a, _injection_phase
+    mov r7,a
+    mov a,r7
+    clr c
+    subb a,_B
+    mov _ACC,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %4
+    ljmp %5
+    %4:
+    mov a,#0x78
+    add a, _ACC
+    mov _ACC,a
+    %5:
+    mov r7,_ACC
+    mov r6,_ACC
+    mov a,r6
+    add a,#0xf5
+    mov _ACC,a
+    cjne r7,#0x0b,%6
+    %6:
+    jc %7
+    ljmp %8
+    %7:
+    mov a,#0x78
+    add a, _ACC
+    mov _ACC,a
+    %8:
+    lcall _clamp_stock_u8
+    mov _stock_r0,_ACC
+    mov dptr,#_target_injection_phase
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x02
+    xrl a,_injection_sector
+    mov r7,a
+    mov a,r7
+    mov b,#0x1e
+    mul ab
+    mov r7,a
+    mov r6,_injection_slot
+    mov a,r6
+    add a, r7
+    mov _ACC,a
+    mov _stock_r1,_ACC
+} by {
+    mov a,_injection_slot
+    cjne a,_next_injection_slot,_continue_ignition_output
+    mov dptr,#_injection_phase_min
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#_injection_phase_max
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    mov _B,_rpm_axis_code
+    mov dptr,#_injection_phase_delay
+    clr a
+    movc a,@a+dptr
+    mul ab
+    mov a,_injection_phase
+    add a,#0x3c
+    clr c
+    subb a,_B
+    jnc %5
+    add a,#0x78
+    %5:
+    clr c
+    subb a,#0x0b
+    jnc %8
+    add a,#0x78
+    %8:
+    lcall _clamp_stock_u8
+    mov r0,a
+    mov dptr,#_target_injection_phase
+    movx @dptr,a
+    mov a,_injection_sector
+    cpl acc.1
+    mov _B,#0x1e
+    mul ab
+    add a,_injection_slot
+    mov r1,a
+}
+
+// Take the shorter path around the 120-slot ring and publish the pending phase.
+replace {
+    mov dptr,#_current_injection_phase
+    mov a,_ACC
+    movx @dptr,a
+    mov r7,_ACC
+    mov r6,_bank_zero_r0
+    mov a,r7
+    clr c
+    subb a,r6
+    mov r5,a
+    mov a,r5
+    jnz %1
+    ljmp %2
+    %1:
+    clr c
+    mov a,r6
+    subb a,r7
+    jc %3
+    ljmp %4
+    %3:
+    cjne r5,#0x3c,%5
+    %5:
+    jnc %6
+    ljmp %7
+    %6:
+    mov r7,_stock_r1
+    mov a,r7
+    inc a
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,#0x78
+    jnc %8
+    ljmp %9
+    %8:
+    mov a,_ACC
+    add a,#0x88
+    mov _ACC,a
+    ljmp %9
+    %7:
+    mov r7,_stock_r1
+    mov a,r7
+    dec a
+    mov _ACC,a
+    ljmp %9
+    %4:
+    clr c
+    clr a
+    subb a,r5
+    mov r5,a
+    cjne r5,#0x3c,%10
+    %10:
+    jnc %11
+    ljmp %12
+    %11:
+    mov r7,_stock_r1
+    mov a,r7
+    dec a
+    mov _ACC,a
+    mov a,_stock_r1
+    jz %13
+    ljmp %9
+    %13:
+    mov a,#0x78
+    add a, _ACC
+    mov _ACC,a
+    ljmp %9
+    %12:
+    mov r7,_stock_r1
+    mov a,r7
+    inc a
+    mov _ACC,a
+    %9:
+    mov r7,_ACC
+    mov b,#0x1e
+    mov a,r7
+    div ab
+    mov r7,b
+    mov _B,r7
+    mov r7,_ACC
+    mov b,#0x1e
+    mov a,r7
+    div ab
+    mov r7,a
+    mov a,#0x02
+    xrl a,r7
+    mov _ACC,a
+    clr _interrupts_enabled
+    mov _next_injection_slot,_B
+    mov _next_injection_sector,_ACC
+    setb _interrupts_enabled
+    %2:
+    lcall _continue_ignition_output
+    %14:
+    ret
+} by {
+    mov dptr,#_current_injection_phase
+    movx @dptr,a
+    clr c
+    subb a,_bank_zero_r0
+    jz %2
+    jc %4
+    cjne a,#0x3c,.+3
+    jc %7
+    mov a,r1
+    inc a
+    cjne a,#0x78,.+3
+    jc %8
+    subb a,#0x78
+    %8:
+    sjmp %9
+    %7:
+    mov a,r1
+    dec a
+    sjmp %9
+    %4:
+    cpl a
+    inc a
+    cjne a,#0x3c,.+3
+    jc %12
+    mov a,r1
+    clr c
+    subb a,#0x01
+    jnc %13
+    add a,#0x78
+    %13:
+    sjmp %9
+    %12:
+    mov a,r1
+    inc a
+    %9:
+    mov _B,#0x1e
+    div ab
+    cpl acc.1
+    clr _interrupts_enabled
+    mov _next_injection_slot,_B
+    mov _next_injection_sector,a
+    setb _interrupts_enabled
+    %2:
+}
