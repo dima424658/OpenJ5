@@ -441,7 +441,7 @@ replace {
 }
 
 replace {
-    lcall _load_ignition_tail_continue
+    lcall _dispatch_sensor_fault
     %1:
     ret
 } by {
