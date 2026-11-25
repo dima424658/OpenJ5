@@ -48,6 +48,67 @@ replace {
     mov r3,a
 }
 
+// Pass the packed RPM and charge coordinates directly to the active bank.
+replace {
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+} by {
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+}
+
+replace {
+    mov _requested_mixture,_ACC
+} by {
+    mov _requested_mixture,a
+}
+
+replace {
+    mov _base_ignition,_ACC
+} by {
+    mov _base_ignition,a
+}
+
+// Invert the compiler's long conditional branches to nearby alternatives.
+replace {
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _idle_mode,%2
+    %1:
+}
+
+replace {
+    jb _egr_selected,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _egr_selected,%2
+    %1:
+}
+
+replace {
+    lcall _interp_curve_u8
+    ljmp %1
+} by {
+    lcall _interp_curve_u8
+    sjmp %1
+}
+
+// The hold flag is tested with the stock mask-and-branch sequence.
+replace {
+    mov a,_ignition_control_7a
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,_ignition_control_7a
+    anl a,#0x04
+    jnz %2
+    %1:
+}
+
 replace {
     mov r6,#%1
     mov r7,#(%1 >> 8)
@@ -247,6 +308,30 @@ replace {
 }
 
 // The original routine continues immediately after the linked C block.
+replace {
+    lcall _update_base_ignition
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_injection_phase
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _finish_sensor_fault
+    %1:
+    ret
+} by {
+    %1:
+}
+
 replace {
     lcall _idle_ignition_continue
     %1:
