@@ -1,0 +1,881 @@
+// Select a saved F4A0 page when the shutdown record allows restoring it.
+replace {
+    mov a,_stock_r7
+    jb acc.3,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov r7,_stock_r7
+    anl ar7,#0x03
+    mov a,r7
+    swap a
+    rr a
+    anl a,#0xf8
+    mov r7,a
+    mov a,#0x50
+    add a, r7
+    mov _stock_r4,a
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%4
+    ljmp %5
+    %4:
+    setb _eeprom_io_failed
+    %5:
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0xa0
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %6:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov a,r7
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %7
+    ljmp %6
+    %7:
+    %3:
+    ret
+} by {
+    mov a,r7
+    jb acc.3,00970$
+    anl a,#0x03
+    mov 0xf0,#0x08
+    mul ab
+    add a,#0x50
+    mov r4,a
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00971$
+    setb _eeprom_io_failed
+    00971$:
+    mov r1,#0x06
+    mov r0,#0x94
+    mov dptr,#0xf4a0
+    00972$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00972$
+    00970$:
+    ret
+}
+
+// Try up to three F4A0 slots and keep the final status in R7.
+replace {
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0xa0
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %1:
+    mov r1,_stock_r0
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov @r1,ar7
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    clr _eeprom_io_failed
+    anl _stock_r7,#0xf0
+    mov _stock_r4,#0x50
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    lcall _wait_for_eeprom_write
+    inc _stock_r7
+    mov _stock_r4,#0x58
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%5
+    ljmp %4
+    %5:
+    lcall _wait_for_eeprom_write
+    inc _stock_r7
+    mov _stock_r4,#0x60
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    %4:
+    mov a,_stock_r7
+    anl a,#0xfb
+    mov r7,a
+    jb _CARRY,%6
+    ljmp %7
+    %6:
+    mov r6,#0x04
+    ljmp %8
+    %7:
+    mov r6,#0x00
+    %8:
+    mov a,r6
+    orl a,r7
+    mov _stock_r7,a
+    lcall _wait_for_eeprom_write
+    %9:
+    ret
+} by {
+    mov r1,#0x06
+    mov r0,#0x94
+    mov dptr,#0xf4a0
+    00973$:
+    movx a,@dptr
+    mov @r0,a
+    inc r0
+    inc dptr
+    djnz r1,00973$
+    clr _eeprom_io_failed
+    mov a,r7
+    anl a,#0xf0
+    mov r7,a
+    mov r4,#0x50
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00974$
+    lcall _wait_for_eeprom_write
+    inc r7
+    mov r4,#0x58
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00974$
+    lcall _wait_for_eeprom_write
+    inc r7
+    mov r4,#0x60
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    00974$:
+    mov a,r7
+    mov acc.2,c
+    mov r7,a
+    lcall _wait_for_eeprom_write
+    ret
+}
+
+// Compare the selected F4A0 slot with the indirect RAM record.
+replace {
+    mov r7,_stock_r7
+    anl ar7,#0x03
+    mov a,r7
+    swap a
+    rr a
+    anl a,#0xf8
+    mov r7,a
+    mov a,#0x50
+    add a, r7
+    mov _stock_r4,a
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x25
+    mov _stock_r2,#0x06
+    %3:
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov r1,_stock_r1
+    mov ar6,@r1
+    mov a,r7
+    cjne a,ar6,%4
+    ljmp %5
+    %4:
+    setb _CARRY
+    ljmp %2
+    %5:
+    inc _stock_r0
+    inc _stock_r1
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %6
+    ljmp %3
+    %6:
+    %2:
+    mov a,_stock_r7
+    anl a,#0xf7
+    mov r7,a
+    jb _CARRY,%7
+    ljmp %8
+    %7:
+    mov r6,#0x08
+    ljmp %9
+    %8:
+    mov r6,#0x00
+    %9:
+    mov a,r6
+    orl a,r7
+    mov _stock_r7,a
+    %10:
+    ret
+} by {
+    mov a,r7
+    anl a,#0x03
+    mov 0xf0,#0x08
+    mul ab
+    add a,#0x50
+    mov r4,a
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jc 00975$
+    mov r0,#0x94
+    mov r1,#0x25
+    mov r2,#0x06
+    00977$:
+    mov a,@r0
+    xrl a,@r1
+    jnz 00976$
+    inc r0
+    inc r1
+    djnz r2,00977$
+    sjmp 00975$
+    00976$:
+    setb c
+    00975$:
+    mov a,r7
+    mov acc.3,c
+    mov r7,a
+    ret
+}
+
+// Read the three shutdown copies, repair disagreement and publish the saved fields.
+replace {
+    mov _stock_r4,#0x02
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    mov _stock_r7,#0x00
+    jb _CARRY,%1
+    ljmp %2
+    %1:
+    setb _eeprom_io_failed
+    ljmp %3
+    %2:
+    mov _stock_r0,#0x94
+    mov r1,_stock_r0
+    mov _stock_r1,@r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov _stock_r2,@r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov _stock_r3,@r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov _stock_r4,@r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov _stock_r5,@r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov _stock_r6,@r1
+    mov a,_stock_r3
+    cjne a,_stock_r1,%4
+    ljmp %5
+    %4:
+    mov _stock_r7,#0x01
+    %5:
+    mov a,_stock_r5
+    cjne a,_stock_r1,%6
+    ljmp %7
+    %6:
+    mov _stock_r7,#0x01
+    %7:
+    mov a,_stock_r5
+    cjne a,_stock_r3,%8
+    sjmp %9
+    %8:
+    ljmp %10
+    %9:
+    mov _stock_r1,_stock_r3
+    ljmp %11
+    %10:
+    mov _stock_r7,#0x01
+    %11:
+    mov a,_stock_r4
+    cjne a,_stock_r2,%12
+    ljmp %13
+    %12:
+    mov _stock_r7,#0x01
+    %13:
+    mov a,_stock_r6
+    cjne a,_stock_r2,%14
+    ljmp %15
+    %14:
+    mov _stock_r7,#0x01
+    %15:
+    mov a,_stock_r6
+    cjne a,_stock_r4,%16
+    sjmp %17
+    %16:
+    ljmp %18
+    %17:
+    mov _stock_r2,_stock_r4
+    ljmp %3
+    %18:
+    mov _stock_r7,#0x01
+    %3:
+    mov dptr,#_shutdown_block_selector
+    mov a,_stock_r1
+    movx @dptr,a
+    mov dptr,#_shutdown_options
+    mov a,_stock_r2
+    movx @dptr,a
+    mov _stock_r6,_stock_r2
+    mov a,_stock_r2
+    rl a
+    anl a,#0x01
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%19
+    %19:
+    mov _extra_state_enabled,c
+    mov a,_stock_r2
+    rl a
+    rl a
+    anl a,#0x01
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%20
+    %20:
+    mov _shutdown_option_6c,c
+    mov a,_stock_r7
+    jnz %21
+    ljmp %22
+    %21:
+    mov _stock_r0,#0x94
+    mov _stock_r3,#0x03
+    %23:
+    mov r1,_stock_r0
+    mov @r1,_stock_r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov @r1,_stock_r2
+    inc _stock_r0
+    mov a,_stock_r3
+    dec a
+    mov r7,a
+    mov _stock_r3,r7
+    mov a,r7
+    jz %24
+    ljmp %23
+    %24:
+    mov _stock_r4,#0x02
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%25
+    ljmp %26
+    %25:
+    setb _eeprom_io_failed
+    %26:
+    lcall _wait_for_eeprom_write
+    %22:
+    mov dptr,#_shutdown_block_selector
+    movx a,@dptr
+    mov _stock_r7,a
+    mov dptr,#_retained_fault_history
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_shutdown_history
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#(_retained_fault_history + 0x0001)
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#(_shutdown_history + 0x0001)
+    mov a,r7
+    movx @dptr,a
+    %27:
+    ret
+} by {
+    mov r4,#0x02
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    mov r7,#0x00
+    jnc 00978$
+    setb _eeprom_io_failed
+    sjmp 00979$
+    00978$:
+    mov r0,#0x94
+    mov a,@r0
+    mov r1,a
+    inc r0
+    mov a,@r0
+    mov r2,a
+    inc r0
+    mov a,@r0
+    mov r3,a
+    inc r0
+    mov a,@r0
+    mov r4,a
+    inc r0
+    mov a,@r0
+    mov r5,a
+    inc r0
+    mov a,@r0
+    mov r6,a
+    mov a,r1
+    xrl a,r3
+    jz 00980$
+    mov r7,#0x01
+    00980$:
+    mov a,r1
+    xrl a,r5
+    jz 00981$
+    mov r7,#0x01
+    00981$:
+    mov a,r3
+    xrl a,r5
+    jz 00982$
+    mov r7,#0x01
+    sjmp 00983$
+    00982$:
+    mov a,r3
+    mov r1,a
+    00983$:
+    mov a,r2
+    xrl a,r4
+    jz 00984$
+    mov r7,#0x01
+    00984$:
+    mov a,r2
+    xrl a,r6
+    jz 00985$
+    mov r7,#0x01
+    00985$:
+    mov a,r4
+    xrl a,r6
+    jz 00986$
+    mov r7,#0x01
+    sjmp 00979$
+    00986$:
+    mov a,r4
+    mov r2,a
+    00979$:
+    mov dptr,#_shutdown_block_selector
+    mov a,r1
+    movx @dptr,a
+    inc dptr
+    mov a,r2
+    mov r6,a
+    movx @dptr,a
+    mov c,acc.7
+    cpl c
+    mov _extra_state_enabled,c
+    mov c,acc.6
+    cpl c
+    mov _shutdown_option_6c,c
+    mov a,r7
+    jz 00987$
+    mov r0,#0x94
+    mov r3,#0x03
+    00988$:
+    mov a,r1
+    mov @r0,a
+    inc r0
+    mov a,r2
+    mov @r0,a
+    inc r0
+    djnz r3,00988$
+    mov r4,#0x02
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00989$
+    setb _eeprom_io_failed
+    00989$:
+    lcall _wait_for_eeprom_write
+    00987$:
+    mov dptr,#_shutdown_block_selector
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_retained_fault_history
+    movx a,@dptr
+    mov dptr,#_shutdown_history
+    movx @dptr,a
+    mov dptr,#0xf4af
+    movx a,@dptr
+    mov dptr,#0xf47f
+    movx @dptr,a
+    ret
+}
+
+// Write the same two shutdown bytes to all three copies.
+replace {
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x03
+    %1:
+    mov r1,_stock_r0
+    mov @r1,_stock_r7
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov dptr,#_shutdown_options
+    movx a,@dptr
+    mov @r1,a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x02
+    mov _stock_r1,#0x06
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    lcall _wait_for_eeprom_write
+    %3:
+    ret
+} by {
+    mov r0,#0x94
+    mov r1,#0x03
+    mov dptr,#_shutdown_options
+    00990$:
+    mov a,r7
+    mov @r0,a
+    inc r0
+    movx a,@dptr
+    mov @r0,a
+    inc r0
+    djnz r1,00990$
+    mov r4,#0x02
+    mov r1,#0x06
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    lcall _wait_for_eeprom_write
+    ret
+}
+
+// Select a saved F4A6 page when the shutdown record allows restoring it.
+replace {
+    mov a,_stock_r7
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov a,_stock_r7
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    anl ar7,#0x03
+    mov a,r7
+    swap a
+    rr a
+    anl a,#0xf8
+    mov r7,a
+    mov a,#0x70
+    add a, r7
+    mov _stock_r4,a
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%4
+    ljmp %5
+    %4:
+    setb _eeprom_io_failed
+    %5:
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0xa6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %6:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov a,r7
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %7
+    ljmp %6
+    %7:
+    %3:
+    ret
+} by {
+    mov a,r7
+    swap a
+    jb acc.3,00991$
+    anl a,#0x03
+    mov 0xf0,#0x08
+    mul ab
+    add a,#0x70
+    mov r4,a
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00992$
+    setb _eeprom_io_failed
+    00992$:
+    mov r1,#0x08
+    mov r0,#0x94
+    mov dptr,#0xf4a6
+    00993$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00993$
+    00991$:
+    ret
+}
+
+// Write one of the two F4A6 slots and encode the result in R7.
+replace {
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0xa6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %1:
+    mov r1,_stock_r0
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov @r1,ar7
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r6,#0x00
+    mov _stock_r4,#0x70
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    lcall _wait_for_eeprom_write
+    inc _stock_r6
+    mov _stock_r4,#0x78
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    %4:
+    mov a,_stock_r7
+    anl a,#0x0f
+    mov r7,a
+    mov a,_stock_r6
+    swap a
+    anl a,#0xf0
+    mov r6,a
+    mov a,r6
+    orl ar7,a
+    jb _CARRY,%5
+    ljmp %6
+    %5:
+    mov r6,#0x40
+    ljmp %7
+    %6:
+    mov r6,#0x00
+    %7:
+    mov a,r6
+    orl a,r7
+    mov _stock_r7,a
+    lcall _wait_for_eeprom_write
+    %8:
+    ret
+} by {
+    mov r0,#0x94
+    mov dptr,#0xf4a6
+    mov r1,#0x08
+    00994$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,00994$
+    mov r6,#0x00
+    mov r4,#0x70
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00995$
+    lcall _wait_for_eeprom_write
+    inc r6
+    mov r4,#0x78
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    00995$:
+    mov a,r7
+    swap a
+    anl a,#0xf0
+    orl a,r6
+    mov acc.2,c
+    swap a
+    mov r7,a
+    lcall _wait_for_eeprom_write
+    ret
+}
+
+// Compare the selected F4A6 slot with the XDATA record.
+replace {
+    mov a,_stock_r7
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    anl ar7,#0x03
+    mov a,r7
+    swap a
+    rr a
+    anl a,#0xf8
+    mov r7,a
+    mov a,#0x70
+    add a, r7
+    mov _stock_r4,a
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0xa6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    mov _stock_r2,#0x08
+    %3:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov r1,_stock_r0
+    mov ar6,@r1
+    mov a,r7
+    cjne a,ar6,%4
+    ljmp %5
+    %4:
+    setb _CARRY
+    ljmp %2
+    %5:
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %6
+    ljmp %3
+    %6:
+    %2:
+    mov a,_stock_r7
+    anl a,#0x7f
+    mov r7,a
+    jb _CARRY,%7
+    ljmp %8
+    %7:
+    mov r6,#0x80
+    ljmp %9
+    %8:
+    mov r6,#0x00
+    %9:
+    mov a,r6
+    orl a,r7
+    mov _stock_r7,a
+    %10:
+    ret
+} by {
+    mov a,r7
+    swap a
+    anl a,#0x03
+    mov 0xf0,#0x08
+    mul ab
+    add a,#0x70
+    mov r4,a
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jc 00996$
+    mov r0,#0x94
+    mov dptr,#0xf4a6
+    mov r2,#0x08
+    00998$:
+    movx a,@dptr
+    xrl a,@r0
+    jnz 00997$
+    inc r0
+    inc dptr
+    djnz r2,00998$
+    sjmp 00996$
+    00997$:
+    setb c
+    00996$:
+    mov a,r7
+    mov acc.7,c
+    mov r7,a
+    ret
+}
