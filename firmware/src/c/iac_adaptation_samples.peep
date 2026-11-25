@@ -1,0 +1,263 @@
+replace {
+    jb acc.5,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    lcall _prepare_iac_adaptation_window
+    %3:
+    ret
+} by {
+    anl a,#0x20
+    jz _prepare_iac_adaptation_window
+    ret
+}
+
+// The old target is already in A. Reset on entry or a changed target.
+replace {
+    mov _ACC,a
+    jb _was_idle_regulating,%1
+    ljmp %2
+    %1:
+    mov a,_B
+    cjne a,_ACC,%3
+    ljmp %4
+    %3:
+    %2:
+} by {
+    jnb _was_idle_regulating,%2
+    clr c
+    subb a,_B
+    jz %4
+    %2:
+}
+
+replace {
+    mov dptr,#_iac_adaptation_elapsed
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#_iac_adaptation_elapsed
+    movx @dptr,a
+}
+
+// Suppress the write when incrementing the elapsed byte would wrap.
+replace {
+    jb _adaptation_clock_tick_49,%1
+    ljmp %2
+    %1:
+    mov dptr,#_iac_adaptation_elapsed
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %3
+    ljmp %2
+    %3:
+    mov dptr,#_iac_adaptation_elapsed
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    lcall _accumulate_iac_adapt_sample
+    %4:
+    ret
+} by {
+    jnb _adaptation_clock_tick_49,_accumulate_iac_adapt_sample
+    mov dptr,#_iac_adaptation_elapsed
+    movx a,@dptr
+    inc a
+    jz _accumulate_iac_adapt_sample
+    movx @dptr,a
+}
+
+// Both arithmetic helpers leave DPTR at the high byte of the error sum.
+replace {
+    mov dptr,#_adaptation_error_sum
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov _stock_r2,_idle_rpm_error
+    lcall _sign_extend_i24_register_triple
+    lcall _add_u16_register_pairs
+    mov dptr,#_adaptation_error_sum
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#_adaptation_error_sum
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov r2,_idle_rpm_error
+    lcall _sign_extend_i24_register_triple
+    lcall _add_u16_register_pairs
+    mov a,r1
+    movx @dptr,a
+    dec dpl
+    mov a,r0
+    movx @dptr,a
+}
+
+// Accumulate an unsigned square into three adjacent XDATA bytes.
+replace {
+    mov _ACC,_idle_rpm_error
+    lcall _abs_accumulator_i8
+    mov _B,_ACC
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov dptr,#_adaptation_squared_error_lo
+    movx a,@dptr
+    mov r6,a
+    mov ar4,r7
+    mov r3,#0x00
+    mov r2,#0x00
+    mov a,r4
+    add a,r6
+    mov r6,a
+    mov a,r3
+    addc a,r2
+    mov r2,a
+    mov a,r6
+    movx @dptr,a
+    mov dptr,#_adaptation_squared_error_mid
+    movx a,@dptr
+    mov r3,a
+    mov r4,#0x00
+    mov ar7,r5
+    mov r5,#0x00
+    mov a,r7
+    add a,r3
+    mov r3,a
+    mov a,r5
+    addc a,r4
+    mov r4,a
+    mov ar6,r2
+    mov r2,#0x00
+    mov a,r6
+    add a,r3
+    mov r3,a
+    mov a,r2
+    addc a,r4
+    mov r4,a
+    mov a,r3
+    movx @dptr,a
+    mov ar3,r4
+    mov dptr,#_adaptation_squared_error_hi
+    movx a,@dptr
+    add a,r3
+    movx @dptr,a
+} by {
+    mov a,_idle_rpm_error
+    lcall _abs_accumulator_i8
+    mov _B,a
+    mul ab
+    mov r0,a
+    mov dptr,#_adaptation_squared_error_lo
+    movx a,@dptr
+    add a,r0
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    addc a,_B
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    addc a,#0x00
+    movx @dptr,a
+}
+
+// Lower both unsigned sums to byte addition and carry on the same page.
+replace {
+    mov r6,a
+    mov r4,#0x00
+    mov a,r7
+    add a,r5
+} by {
+    mov r6,a
+    mov a,r7
+    add a,r5
+}
+
+replace {
+    mov r7,%1
+    mov dptr,#%2
+    movx a,@dptr
+    mov r5,a
+    inc dptr
+    movx a,@dptr
+    mov r6,a
+    mov a,r7
+    add a,r5
+    mov r5,a
+    mov a,r4
+    addc a,r6
+    mov r6,a
+    mov dptr,#%2
+    mov a,r5
+    movx @dptr,a
+    mov a,r6
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#%2
+    movx a,@dptr
+    add a,%1
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    addc a,#0x00
+    movx @dptr,a
+}
+
+// The 128th sample enters evaluation if the hold bit is still clear.
+replace {
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x80
+    cjne a,_ACC,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov a,_ignition_and_airflow_control_7a
+    jb acc.5,%4
+    ljmp %5
+    %4:
+    ljmp %3
+    %5:
+    lcall _evaluate_iac_adaptation_window
+    %3:
+    ret
+} by {
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    clr c
+    subb a,#0x80
+    jz %2
+    ret
+    %2:
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x20
+    jz _evaluate_iac_adaptation_window
+    ret
+}
