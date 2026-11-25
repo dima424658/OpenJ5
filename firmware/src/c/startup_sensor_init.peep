@@ -1,0 +1,95 @@
+replace {
+    mov _ACC,#0x00
+} by {
+    clr a
+}
+
+replace {
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_startup_state_f9a6
+    mov a,#0x03
+    movx @dptr,a
+    mov dptr,#_startup_state_f9a7
+} by {
+    mov a,#0x03
+    mov dptr,#_startup_state_f9a6
+    movx @dptr,a
+    inc dptr
+}
+
+replace {
+    mov _stock_r0,_ACC
+    clr c
+    mov a,_ACC
+    subb a,#0x28
+    jnc %1
+    ljmp %2
+    %1:
+    clr c
+    mov a,_ACC
+    subb a,#0x3c
+    jc %3
+    ljmp %2
+    %3:
+    mov dptr,#_maf_baseline
+    mov a,_stock_r0
+    movx @dptr,a
+    mov dptr,#_maf_crank_threshold_offset
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_maf_crank_threshold
+    add a,_stock_r0
+    movx @dptr,a
+    %2:
+    lcall _init_startup_iac_offset
+    %4:
+    ret
+} by {
+    mov r0,a
+    clr c
+    subb a,#0x28
+    jc _init_startup_iac_offset
+    mov a,r0
+    clr c
+    subb a,#0x3c
+    jnc _init_startup_iac_offset
+    mov a,r0
+    mov dptr,#_maf_baseline
+    movx @dptr,a
+    mov dptr,#_maf_crank_threshold_offset
+    clr a
+    movc a,@a+dptr
+    add a,r0
+    mov dptr,#_maf_crank_threshold
+    movx @dptr,a
+}
+
+replace {
+    mov a,_coolant_nearest_index
+    add a,#_poststart_iac_upper_offset_8c00
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_poststart_iac_upper_offset_8c00 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_poststart_iac_offset
+    mov a,r7
+    movx @dptr,a
+    lcall _continue_startup_sensor_mode
+    %1:
+    ret
+} by {
+    mov dptr,#_poststart_iac_upper_offset_8c00
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov dptr,#_poststart_iac_offset
+    movx @dptr,a
+}
