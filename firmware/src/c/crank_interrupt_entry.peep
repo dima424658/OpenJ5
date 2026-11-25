@@ -1,0 +1,15 @@
+// Dispatch by tail jump because the interrupt epilogue owns the stack frame.
+replace {
+    jb _knock_sample_pending,%1
+    ljmp %2
+    %1:
+    lcall _prepare_knock_sample
+    ljmp %3
+    %2:
+    lcall _continue_crank_event
+    %3:
+} by {
+    jb _knock_sample_pending,%1
+    ljmp _continue_crank_event
+    %1:
+}

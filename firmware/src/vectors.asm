@@ -4,20 +4,20 @@
         .globl irq_vector_001b
         .globl irq_vector_0023
         .globl irq_vector_006b
+        .globl _crank_interrupt_entry
 
 reset_entry_204d = 0x204d
-irq_handler_078c = 0x078c
 irq_handler_04b4 = 0x04b4
 serial0_handler_5a25 = 0x5a25
 irq_handler_0119 = 0x0119
 
         .org 0x0000
 ; C509-L vector slots observed in J5V05L19. Preserve the bytes between
-; entries as data. Handler bodies are still in the opaque address ranges.
+; entries as data.
 reset_vector:
         ljmp    reset_entry_204d
 irq_vector_0003:
-        ljmp    irq_handler_078c
+        ljmp    _crank_interrupt_entry
         .db 0x00,0x00,0x00,0x00,0x00
 ; RETI at 0x000b comes from src/c/unused_vector.c.
         .org 0x000c

@@ -1,0 +1,116 @@
+// Update the saturating diagnostic count and its comparison flag on cylinder slot zero.
+replace {
+    mov a,_cylinder_slot
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_crank_diagnostic_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov _B,_ACC
+    mov dptr,#_crank_diagnostic_count
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov a,_B
+    jb acc.0,%3
+    ljmp %4
+    %3:
+    mov a,#0xff
+    cjne a,_stock_r01,%5
+    cjne a,(_stock_r01 + 1),%5
+    ljmp %4
+    %5:
+    mov a,#0x01
+    add a, _stock_r01
+    mov _stock_r01,a
+    mov a,#0x00
+    addc a, (_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    %4:
+    mov dptr,#_crank_diagnostic_count
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_crank_diagnostic_limit
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_crank_diagnostic_limit + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    lcall _subtract_u16_register_pairs
+    mov _ACC,_B
+    mov c,_CY
+    mov _ACC_BIT1,c
+    mov dptr,#_crank_diagnostic_flags
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    lcall _count_crank_event
+    %6:
+    ret
+} by {
+    mov a,_cylinder_slot
+    jnz _count_crank_event
+    mov dptr,#_crank_diagnostic_flags
+    movx a,@dptr
+    mov _B,a
+    mov c,acc.0
+    mov dptr,#_crank_diagnostic_count
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov a,r0
+    addc a,#0x00
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    jnc 00950$
+    mov r0,#0xff
+    mov r1,#0xff
+    00950$:
+    mov dptr,#_crank_diagnostic_count
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_crank_diagnostic_limit
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_crank_diagnostic_limit + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    mov a,_B
+    mov _ACC_BIT1,c
+    mov dptr,#_crank_diagnostic_flags
+    movx @dptr,a
+}
+
+// Increment the crank event count and fall through to the interrupt epilogue.
+replace {
+    mov dptr,#_crank_event_count
+    movx a,@dptr
+    add a, #0x01
+    movx @dptr,a
+    lcall _finish_crank_interrupt
+    %1:
+    ret
+} by {
+    mov dptr,#_crank_event_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+}
