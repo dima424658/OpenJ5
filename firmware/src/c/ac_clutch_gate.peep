@@ -1,0 +1,381 @@
+// Preserve the forced on or off request in carry.
+replace {
+    mov a,_output_control_79
+    jb acc.2,%1
+    ljmp %2
+    %1:
+    mov c,_ac_override_on
+    mov _CY,c
+    jnb _CY,%3
+    ljmp %4
+    %3:
+    lcall _skip_to_ac_disable
+    ljmp %5
+    %4:
+    lcall _request_air_conditioning_on
+    ljmp %5
+    %2:
+} by {
+    mov a,_output_control_79
+    anl a,#0x04
+    jz %2
+    mov c,_ac_override_on
+    jnc _skip_to_ac_disable
+    ljmp _request_air_conditioning_on
+    %2:
+}
+
+// Check supply voltage and select the coolant limit by clutch state.
+replace {
+    mov dptr,#_oxygen_heater_supply_cutoff
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ignition_supply_raw
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _disable_air_conditioning
+    ljmp %3
+    %2:
+    jb _air_conditioning_active,%4
+    ljmp %5
+    %4:
+    mov dptr,#_ac_coolant_disable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %6
+    %5:
+    mov dptr,#_ac_coolant_enable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %6:
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,_B
+    jnc %7
+    ljmp %8
+    %7:
+    lcall _disable_air_conditioning
+    ljmp %3
+    %8:
+} by {
+    mov dptr,#_oxygen_heater_supply_cutoff
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ignition_supply_raw
+    movx a,@dptr
+    cjne a,_B,.+3
+    jnc _disable_air_conditioning
+    jb _air_conditioning_active,%4
+    mov dptr,#_ac_coolant_enable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp %6
+    %4:
+    mov dptr,#_ac_coolant_disable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %6:
+    mov a,_coolant_temperature_raw
+    cjne a,_B,.+3
+    jnc _disable_air_conditioning
+}
+
+// Shift the inverted ADC comparison into the debounce history.
+replace {
+    mov _B,#0x08
+    lcall _read_adc_8bit
+    mov c,_ACC_SIGN
+    cpl c
+    mov _CY,c
+    mov dptr,#_ac_request_history
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov c,_CY
+    clr a
+    rlc a
+    mov r6,a
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+    lcall _check_ac_start_and_throttle
+    ljmp %3
+    %2:
+    mov a,#0xff
+    cjne a,_ACC,%4
+    sjmp %5
+    %4:
+    ljmp %6
+    %5:
+    lcall _disable_air_conditioning
+    ljmp %3
+    %6:
+    mov c,_air_conditioning_active
+    mov _CY,c
+    jb _CY,%7
+    ljmp %8
+    %7:
+    lcall _check_ac_start_and_throttle
+    ljmp %3
+    %8:
+    lcall _skip_to_ac_disable
+    %3:
+    ret
+} by {
+    mov _B,#0x08
+    lcall _read_adc_8bit
+    mov c,_ACC_SIGN
+    cpl c
+    mov dptr,#_ac_request_history
+    movx a,@dptr
+    rlc a
+    movx @dptr,a
+    jz _check_ac_start_and_throttle
+    cpl a
+    jz _disable_air_conditioning
+    mov c,_air_conditioning_active
+    jc _check_ac_start_and_throttle
+}
+
+// Retain the stock short branch at the forced-off entry.
+replace {
+    _skip_to_ac_disable:
+    lcall _disable_air_conditioning
+    %1:
+    ret
+} by {
+    _skip_to_ac_disable:
+    sjmp _disable_air_conditioning
+}
+
+// Select the throttle limit and keep the delayed disengagement path.
+replace {
+    mov dptr,#_ac_start_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_time_since_start_f873
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    lcall _disable_air_conditioning
+    ljmp %3
+    %2:
+    mov c,_air_conditioning_active
+    mov _CY,c
+    jb _CY,%4
+    ljmp %5
+    %4:
+    mov dptr,#_ac_throttle_disable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %6
+    %5:
+    mov dptr,#_ac_throttle_enable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %6:
+    clr c
+    mov a,_throttle_position
+    subb a,_B
+    jc %7
+    ljmp %8
+    %7:
+    lcall _request_air_conditioning_on
+    ljmp %3
+    %8:
+    mov dptr,#_ac_throttle_off_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ac_throttle_off_ticks
+    movx a,@dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %9
+    ljmp %10
+    %9:
+    mov r7,_ACC
+    mov dptr,#_ac_throttle_off_ticks
+    mov a,r7
+    inc a
+    movx @dptr,a
+    lcall _prepare_ac_idle_compensation
+    ljmp %3
+    %10:
+    lcall _disable_air_conditioning
+    %3:
+    ret
+} by {
+    mov dptr,#_ac_start_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_time_since_start_f873
+    movx a,@dptr
+    cjne a,_B,.+3
+    jc _disable_air_conditioning
+    mov c,_air_conditioning_active
+    jc %4
+    mov dptr,#_ac_throttle_enable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp %6
+    %4:
+    mov dptr,#_ac_throttle_disable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %6:
+    mov a,_throttle_position
+    cjne a,_B,.+3
+    jc _request_air_conditioning_on
+    mov dptr,#_ac_throttle_off_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ac_throttle_off_ticks
+    movx a,@dptr
+    cjne a,_B,.+3
+    jnc _disable_air_conditioning
+    inc a
+    mov dptr,#_ac_throttle_off_ticks
+    movx @dptr,a
+    sjmp _prepare_ac_idle_compensation
+}
+
+// Clear the relay and retain the active flag until the release condition is met.
+replace {
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnb acc.0,%1
+    ljmp %2
+    %1:
+    jb _air_conditioning_active,%3
+    ljmp %4
+    %3:
+    %2:
+    mov dptr,#_relay_output_latch
+    mov a,#0xfe
+    anl a,_ACC
+    movx @dptr,a
+    mov dptr,#_ac_idle_delay_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_idle_rpm_correction
+    movx @dptr,a
+    mov dptr,#_ac_release_speed_threshold
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %5
+    ljmp %6
+    %5:
+    jb _tick_1s,%7
+    ljmp %4
+    %7:
+    mov dptr,#_ac_release_seconds_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ac_release_seconds
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %8
+    ljmp %4
+    %8:
+    %6:
+    clr _air_conditioning_active
+    mov dptr,#_ac_release_seconds
+    mov a,#0x00
+    movx @dptr,a
+    %4:
+    lcall _continue_after_ac_control
+    %9:
+    ret
+} by {
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov c,acc.0
+    orl c,_air_conditioning_active
+    jnc %4
+    anl a,#0xfe
+    mov dptr,#_relay_output_latch
+    movx @dptr,a
+    clr a
+    mov dptr,#_ac_idle_delay_ticks
+    movx @dptr,a
+    mov dptr,#_idle_rpm_correction
+    movx @dptr,a
+    mov dptr,#_ac_release_speed_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    cjne a,_B,.+3
+    jnc %6
+    jnb _tick_1s,%4
+    mov dptr,#_ac_release_seconds_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ac_release_seconds
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,.+3
+    jc %4
+    %6:
+    clr _air_conditioning_active
+    clr a
+    mov dptr,#_ac_release_seconds
+    movx @dptr,a
+    %4:
+    sjmp _continue_after_ac_control
+}

@@ -10,9 +10,9 @@ C_REGISTER_HELPERS := a33a a381 a3f9
 C_IGNITION := 280e 3f74 3f95 3fad 3fbb 3fef 400d 4042 406d 4081 430d
 C_INTERPOLATION := a5ff a611
 C_SIGNED_BOUNDS := a412 a42f
-C_FUNCTIONS := 2041 2291 2328 240e 2474 252b 26d2 277e 27d3 2818 28b5 28f7 2990 29d0 2a4a 2a91 2b1b 2b42 2bcd 2be6 2c3f 2c6c 2cff 2e0e 2e9e 2f70 2ff0 30c3 3187 324f 328f 32f2 3396 33c2 34a3 3561 35c9 3630 36de 37aa 381d 38bd 3927 39f2 3a85 3aea 3bb1 3c2b $(C_IGNITION) 4077 409a 4119 41aa 421a 428d 433a 4383 4427 4453 44db 454e 4598 47b1 47d4 4866 4912 49cc 4a95 4b1a 518f 5952 596e 9bb9 9dac 9dc8 9e62 9ed3 9f32 a020 a0b3 a153 a1de a22e a23a a2db a314 $(C_REGISTER_HELPERS) a352 a39e a3d9 $(C_SIGNED_BOUNDS) a429 a43e a4dc a575 a59d $(C_INTERPOLATION) a62f a6cd a7e3 a822 a962 abca ac05 ac2d acea ad95 cd7c ce94 d2f1 f090 f275
+C_FUNCTIONS := 2041 2291 2328 240e 2474 252b 26d2 277e 27d3 2818 28b5 28f7 2990 29d0 2a4a 2a91 2b1b 2b42 2bcd 2be6 2c3f 2c6c 2cff 2e0e 2e9e 2f70 2ff0 30c3 3187 324f 328f 32f2 3396 33c2 34a3 3561 35c9 3630 36de 37aa 381d 38bd 3927 39f2 3a85 3aea 3bb1 3c2b $(C_IGNITION) 4077 409a 4119 41aa 421a 428d 433a 4383 4427 4453 44db 454e 4598 47b1 47d4 4866 4912 49cc 4a95 4b1a 4b81 518f 5952 596e 9bb9 9dac 9dc8 9e62 9ed3 9f32 a020 a0b3 a153 a1de a22e a23a a2db a314 $(C_REGISTER_HELPERS) a352 a39e a3d9 $(C_SIGNED_BOUNDS) a429 a43e a4dc a575 a59d $(C_INTERPOLATION) a62f a6cd a7e3 a822 a962 abca ac05 ac2d acea ad95 cd7c ce94 d2f1 f090 f275
 C_VECTORS := 000b 0013 002b 0043 004b 0053 005b 0063 0083 0093 009b 00a3 00ab
-C_DATA := 4a89 5f50 5f57 5f58 5f62 5f6d 5f6e 5f70 5f71 5f77 5f7d 5f7e 5f7f 5f80 5f81 5f84 5f85 5f86 5f87 5f88 5f89 5f8a 5f8b 5f8c 5f8d 5f8e 5f8f 5f90 5f91 5f93 5f94 5f96 5f97 5f99 5f9a 5f9b 5f9c 5f9d 5fa1 5fa2 5fa3 5fa4 5fa6 5fa7 5faa 5fad 5fae 5faf 5fb5 5fd2 5fd5 5fdb 5fdc 5fe0 5fe5 5fe7 5fe8 5fed 5ff2 6051 605d 605e 605f 6060 6061 6062 6067 6068 6069 606a 606b 606d 6076 6077 6078 6079 607a 607b 607c 607d 607e 607f 6080 6081 6086 608a 608b 608d 608f 6091 6093 6098 609d 609e 60a4 60aa 60ad 60ae 60b1 60b5 60ba 60c0 60c7 60c9 60ce 60d5 60d7 60de 60e1 60e3 60e5 60e6 60e9 60ea 60eb 60ed 60ef 60f5 60f8 6104 613c 62ac 63ac 64d3 65d3 6613 6ac8 6eef 6f56 6fc4 6fe4 700b 710b 75ef 76ef 782f 7877 7977 7ac7 7df7 7e07 7f8e 8193 83ba 852f 862f 864f 866f 8796 87e4 8a32 8a59 8a99 8ac0 8c00 8e0a 8e2a 8f2a 924a 926a 93d8 93dd 975d 977d 987d 98a4 98cb 98f2 99b9
+C_DATA := 4a89 5f50 5f57 5f58 5f5d 5f5e 5f60 5f61 5f62 5f6d 5f6e 5f70 5f71 5f77 5f7d 5f7e 5f7f 5f80 5f81 5f84 5f85 5f86 5f87 5f88 5f89 5f8a 5f8b 5f8c 5f8d 5f8e 5f8f 5f90 5f91 5f93 5f94 5f96 5f97 5f99 5f9a 5f9b 5f9c 5f9d 5fa1 5fa2 5fa3 5fa4 5fa6 5fa7 5faa 5fad 5fae 5faf 5fb5 5fba 5fbb 5fd2 5fd5 5fdb 5fdc 5fe0 5fe3 5fe4 5fe5 5fe7 5fe8 5fed 5ff2 6051 605d 605e 605f 6060 6061 6062 6067 6068 6069 606a 606b 606d 6076 6077 6078 6079 607a 607b 607c 607d 607e 607f 6080 6081 6086 608a 608b 608d 608f 6091 6093 6098 609d 609e 60a4 60aa 60ad 60ae 60b1 60b5 60ba 60c0 60c7 60c9 60ce 60d5 60d7 60de 60e1 60e3 60e5 60e6 60e9 60ea 60eb 60ed 60ef 60f5 60f8 6104 613c 62ac 63ac 64d3 65d3 6613 6ac8 6eef 6f56 6fc4 6fe4 700b 710b 75ef 76ef 782f 7877 7977 7ac7 7df7 7e07 7f8e 8193 83ba 852f 862f 864f 866f 8796 87e4 8a32 8a59 8a99 8ac0 8c00 8e0a 8e2a 8f2a 924a 926a 93d8 93dd 975d 977d 987d 98a4 98cb 98f2 99b9
 C_FLAGS := -mmcs51 --model-small
 C_OBJECTS := $(addprefix build/,$(addsuffix .rel,$(C_FUNCTIONS) $(C_VECTORS) $(C_DATA)))
 C_PLACEMENT := $(foreach address,$(C_FUNCTIONS) $(C_VECTORS),-b code_$(address)=0x$(address)) \
@@ -49,6 +49,9 @@ build/abca.rel: src/c/engine_outputs.peep
 
 build/2041.rel: C_OPTIONS += --no-peep --peep-file src/c/fuel_history.peep
 build/2041.rel: src/c/fuel_history.peep
+
+build/4b81.rel: C_OPTIONS += --no-peep --peep-file src/c/ac_clutch_gate.peep
+build/4b81.rel: src/c/ac_clutch_gate.peep src/c/stock_registers.h
 
 build/4b1a.rel: C_OPTIONS += --no-peep --peep-file src/c/fan.peep
 build/4b1a.rel: src/c/fan.peep
