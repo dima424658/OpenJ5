@@ -1,0 +1,163 @@
+// Start with the first boundary and retain DPTR for the rest of the ladder.
+replace {
+    mov dptr,#_misfire_rpm_boundaries
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_rpm_eighth
+    jnc %1
+    ljmp %2
+    %1:
+    mov _B,#0x00
+    mov _ACC,#0x00
+    ljmp %3
+    %2:
+} by {
+    mov dptr,#_misfire_rpm_boundaries
+    clr a
+    movc a,@a+dptr
+    cjne a,_rpm_eighth,.+3
+    jc %2
+    mov _B,#0x00
+    mov a,#0x00
+    sjmp %3
+    %2:
+}
+
+replace {
+    mov dptr,#(_misfire_rpm_boundaries + %1)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_rpm_eighth
+    jnc %2
+    ljmp %3
+    %2:
+    mov _B,#%4
+    mov _ACC,#%5
+    ljmp %6
+    %3:
+} by {
+    mov a,#%1
+    movc a,@a+dptr
+    cjne a,_rpm_eighth,.+3
+    jc %3
+    mov _B,#%4
+    mov a,#%5
+    sjmp %6
+    %3:
+}
+
+replace {
+    mov _ACC,#0x0a
+    mov _B,#0x10
+    %1:
+    lcall _publish_misfire_rpm_bin
+    %2:
+    ret
+} by {
+    mov a,#0x0a
+    mov _B,#0x10
+    %1:
+}
+
+replace {
+    mov dptr,#_misfire_rpm_bin_offset
+    mov a,_ACC
+    movx @dptr,a
+    mov _ACC,_B
+    mov dptr,#_misfire_rpm_bin_mask
+    mov a,_ACC
+    movx @dptr,a
+    anl _ACC,#0x0f
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+} by {
+    mov dptr,#_misfire_rpm_bin_offset
+    movx @dptr,a
+    mov a,_B
+    mov dptr,#_misfire_rpm_bin_mask
+    movx @dptr,a
+    anl a,#0x0f
+    jz %2
+    mov dptr,#_misfire_status
+    movx a,@dptr
+}
+
+replace {
+    jb %1,%2
+    ljmp %3
+    %2:
+} by {
+    jnb %1,%3
+}
+
+replace {
+    mov dptr,#_misfire_summary
+    movx a,@dptr
+    mov _ACC,a
+    setb _ACC_BIT0
+    ljmp %1
+    %2:
+    mov dptr,#_misfire_summary
+    movx a,@dptr
+    mov _ACC,a
+    clr _ACC_BIT0
+    %1:
+    mov dptr,#_misfire_summary
+    mov a,_ACC
+    movx @dptr,a
+    lcall _load_misfire_thresholds
+    %3:
+    ret
+} by {
+    mov dptr,#_misfire_summary
+    movx a,@dptr
+    setb _ACC_BIT0
+    sjmp %1
+    %2:
+    mov dptr,#_misfire_summary
+    movx a,@dptr
+    clr _ACC_BIT0
+    %1:
+    movx @dptr,a
+}
+
+// Both threshold curves use the same half-step RPM index.
+replace {
+    mov a,_rpm_nearest_half_bin
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#%2
+    mov a,r7
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov dptr,#%2
+    movx @dptr,a
+}
+
+replace {
+    lcall _select_misfire_threshold
+    %1:
+    ret
+} by {
+    %1:
+}
