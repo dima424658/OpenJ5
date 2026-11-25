@@ -233,3 +233,175 @@ replace {
     inc dptr
     djnz r2,%1
 }
+
+// A warm restart skips the RAM check and the bulk clear.
+replace {
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    lcall _reset_startup_ram_fields
+    ljmp %4
+    %3:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    lcall _accept_startup_ram
+    ljmp %4
+    %6:
+    lcall _validate_startup_ram
+    %4:
+    ret
+} by {
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    cjne a,#0x55,%3
+    ljmp _reset_startup_ram_fields
+    %3:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jb acc.1,_accept_startup_ram
+}
+
+replace {
+    mov dptr,#_retained_ram_checksum
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jnz %1
+    ljmp %2
+    %1:
+    setb _retained_ram_checksum_failed
+    lcall _clear_startup_ram
+    ljmp %3
+    %2:
+    lcall _accept_startup_ram
+    %3:
+    ret
+} by {
+    mov dptr,#_retained_ram_checksum
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    mov a,r0
+    orl a,r1
+    jz _accept_startup_ram
+    setb _retained_ram_checksum_failed
+    sjmp _clear_startup_ram
+}
+
+replace {
+    clr _retained_ram_checksum_failed
+    lcall _clear_startup_ram
+    %1:
+    ret
+} by {
+    clr _retained_ram_checksum_failed
+}
+
+// Keep the byte counter in B and the cursor in DPTR.
+replace {
+    mov _B,#%1
+    mov r6,#%2
+    mov r7,#(%2 >> 8)
+    %3:
+    mov dpl,r6
+    mov dph,r7
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    mov a,_B
+    dec a
+    mov r5,a
+    mov _B,r5
+    mov a,r5
+    jz %4
+    ljmp %3
+    %4:
+} by {
+    mov _B,#%1
+    mov dptr,#%2
+    clr a
+    %3:
+    movx @dptr,a
+    inc dptr
+    djnz _B,%3
+}
+
+replace {
+    mov dptr,#_startup_ram_ff80
+    clr a
+} by {
+    mov dptr,#_startup_ram_ff80
+}
+
+// The final bulk region is a complete page. DPL wraps to zero at the end.
+replace {
+    mov r6,#_startup_ram_f800
+    mov r7,#(_startup_ram_f800 >> 8)
+    %1:
+    mov dpl,r6
+    mov dph,r7
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    cjne r6,#(_startup_ram_f800 + 0x0100),%2
+    cjne r7,#((_startup_ram_f800 + 0x0100) >> 8),%2
+    sjmp %3
+    %2:
+    ljmp %1
+    %3:
+    mov dptr,#_startup_state_f4b8
+    mov a,#0x00
+    movx @dptr,a
+    lcall _reset_startup_ram_fields
+    %4:
+    ret
+} by {
+    mov dptr,#_startup_ram_f800
+    %1:
+    clr a
+    movx @dptr,a
+    inc dptr
+    mov a,dpl
+    jnz %1
+    clr a
+    mov dptr,#_startup_state_f4b8
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_startup_count_f965
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#_startup_count_f965
+    movx @dptr,a
+}
+
+replace {
+    lcall _continue_startup_calibrations
+    %1:
+    ret
+} by {
+    %1:
+}

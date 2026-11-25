@@ -1,4 +1,4 @@
-#include "stock_registers.h"
+#include "retained_ram.h"
 
 enum { IGNITION_SUPPLY_ADC_CHANNEL = 1 };
 
@@ -14,12 +14,9 @@ static __sbit __at (0xbe) iac_tick_high_priority;
 
 static volatile __data __at (0) uint8_t bank_zero_supply_threshold;
 static volatile __data __at (0x47) uint8_t retained_byte_source;
-static volatile __xdata __at (0xf4d2) uint8_t retained_entries[64];
 static volatile __xdata __at (0xf8c2) uint8_t startup_iac_state_marker;
-static volatile __xdata __at (0xf8fe) uint16_t retained_ram_checksum;
 static volatile __xdata __at (0xf999) uint8_t relay_outputs;
 static volatile __xdata __at (0xf9ad) uint8_t retained_flags;
-static volatile __xdata __at (0xfd00) uint8_t retained_table_pages[512];
 static volatile __xdata __at (0xffcf) uint8_t retained_byte;
 
 extern volatile __code const uint8_t shutdown_voltage_raw;
@@ -49,18 +46,7 @@ void save_shutdown_state(void)
 
 void sum_retained_ram(void)
 {
-    const volatile __xdata uint8_t *entry = retained_table_pages;
-    stock_r01 = 1;
-    do {
-        stock_r01 += *entry++;
-    } while (entry != retained_table_pages + sizeof(retained_table_pages));
-
-    entry = retained_entries;
-    uint8_t remaining = sizeof(retained_entries);
-    do {
-        stock_r01 += *entry++;
-    } while (--remaining != 0);
-
+    ACCUMULATE_RETAINED_RAM();
     retained_ram_checksum = stock_r01;
     recheck_shutdown_supply();
 }
