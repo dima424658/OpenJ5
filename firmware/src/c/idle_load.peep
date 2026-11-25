@@ -1,0 +1,70 @@
+// Clear the counter with A zero and use the same accumulator to fetch the
+// scalar. The temperature curve uses A as its direct CODE index.
+replace {
+    mov dptr,#_idle_adaptation_count_f986
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_poststart_fuel_decay_gain
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_nearest_index
+    add a,#_poststart_fuel_decay_by_temp
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_poststart_fuel_decay_by_temp >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r01,r7
+    mov (_stock_r01 + 1),r5
+} by {
+    clr a
+    mov dptr,#_idle_adaptation_count_f986
+    movx @dptr,a
+    mov dptr,#_poststart_fuel_decay_gain
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_poststart_fuel_decay_by_temp
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mul ab
+    mov r0,a
+    mov r1,_B
+}
+
+// Read the shifted word from the active bank and write it low byte first.
+// Both addresses share the same XDATA page.
+replace {
+    mov dptr,#_poststart_fuel_decay
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _run_airflow_control
+    %1:
+    ret
+} by {
+    mov dptr,#_poststart_fuel_decay
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+replace {
+    lcall _apply_idle_airflow
+    %1:
+    ret
+} by {
+    ljmp _apply_idle_airflow
+}
