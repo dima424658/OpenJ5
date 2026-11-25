@@ -34,7 +34,14 @@ extern __code const uint8_t knock_maximum_retard_raw[32];
 extern volatile __code const uint8_t knock_event_masks[16];
 static volatile __data __at (4) uint8_t stock_r4;
 
-void update_knock_history(void)
+/* Both entry points share the cylinder logic. Only one keeps zone history. */
+#ifndef KNOCK_CYLINDER_ONLY
+#define UPDATE_KNOCK_HISTORY update_knock_history
+#else
+#define UPDATE_KNOCK_HISTORY update_knock_history_alternate
+#endif
+
+void UPDATE_KNOCK_HISTORY(void)
 {
     if (!previous_fuel_mode_63) {
         previous_knock_mask = 0;
@@ -56,8 +63,10 @@ void update_knock_history(void)
     knock_event_seen = 0;
     active_knock_zone = knock_zone;
     for (stock_r1 = 0; stock_r1 < CYLINDER_COUNT; ++stock_r1) {
+#ifndef KNOCK_CYLINDER_ONLY
         const uint8_t zone_index = (uint8_t)(ZONES_PER_CYLINDER * stock_r1 + active_knock_zone);
         stock_r4 = zone_retard_page[zone_index];
+#endif
         stock_r3 = cylinder_retard[stock_r1];
 
         stock_r2 = knock_event_masks[stock_r1];
@@ -72,7 +81,9 @@ void update_knock_history(void)
             if ((previous_knock_mask & stock_r2) &&
                 cylinder_knock_interval[stock_r1] < minimum_knock_interval) {
                 stock_r3 += RETARD_STEP;
+#ifndef KNOCK_CYLINDER_ONLY
                 stock_r4 += RETARD_STEP;
+#endif
             }
             cylinder_knock_interval[stock_r1] = 0;
             previous_knock_mask |= stock_r2;
@@ -85,13 +96,16 @@ void update_knock_history(void)
                 if (stock_r3 != 0) {
                     --stock_r3;
                 }
+#ifndef KNOCK_CYLINDER_ONLY
                 if (stock_r4 != 0) {
                     --stock_r4;
                 }
+#endif
                 previous_knock_mask &= ~stock_r2;
             }
         }
 
+#ifndef KNOCK_CYLINDER_ONLY
         // The comparison uses the physical bank-zero R3 address.
         if (stock_r4 >= bank_zero_r3) {
             stock_r3 = stock_r4;
@@ -104,14 +118,19 @@ void update_knock_history(void)
             }
         }
 
+#endif
         B = knock_maximum_retard_raw[rpm_half_step_index];
+#ifndef KNOCK_CYLINDER_ONLY
         if (stock_r4 >= B) {
             stock_r4 = B;
         }
+#endif
         if (stock_r3 >= B) {
             stock_r3 = B;
         }
+#ifndef KNOCK_CYLINDER_ONLY
         zone_retard_page[zone_index] = stock_r4;
+#endif
         if (!(knock_window_override & HOLD_CYLINDER_RETARD)) {
             cylinder_retard[stock_r1] = stock_r3;
         }
