@@ -1,0 +1,154 @@
+// Move a little-endian XDATA word directly to the active register bank.
+// The low-byte increment is valid for the addresses used here.
+replace restart {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+replace restart {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+}
+
+replace restart {
+    mov dptr,#%1
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Limit the scaled airflow and round its Q3 index in A.
+replace {
+    mov a,_stock_r1
+    jz %1
+    ljmp %2
+    %1:
+    clr c
+    mov a,_stock_r0
+    subb a,#0xf0
+    jnc %3
+    ljmp %4
+    %3:
+    %2:
+    mov _ACC,#0xf0
+    ljmp %5
+    %4:
+    mov _ACC,_stock_r0
+    %5:
+    mov dptr,#_exhaust_airflow_q3
+    mov a,_ACC
+    movx @dptr,a
+    mov r7,_ACC
+    mov a,r7
+    add a,#0x04
+    mov r7,a
+    mov a,r7
+    swap a
+    rl a
+    anl a,#0x1f
+    mov _ACC,a
+    mov dptr,#_exhaust_airflow_index
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,_ACC
+} by {
+    mov a,r1
+    jnz %2
+    mov a,r0
+    cjne a,#0xf0,.+3
+    jc %5
+    %2:
+    mov a,#0xf0
+    %5:
+    mov dptr,#_exhaust_airflow_q3
+    movx @dptr,a
+    add a,#0x04
+    swap a
+    rl a
+    anl a,#0x1f
+    mov dptr,#_exhaust_airflow_index
+    movx @dptr,a
+    mov _B,a
+}
+
+// Read the two curves using the index already in A or B.
+replace {
+    jb _deceleration_fuel_cut,%1
+    ljmp %2
+    %1:
+    mov dptr,#_exhaust_temperature_fuel_cut
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    ljmp %3
+    %2:
+    mov a,_ACC
+    add a,#_exhaust_temperature_running
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_exhaust_temperature_running >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    %3:
+    mov _stock_r1,_ACC
+    mov _ACC,_B
+    mov a,_ACC
+    add a,#_exhaust_pipe_filter_q8
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_exhaust_pipe_filter_q8 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov _stock_r0,#0x00
+} by {
+    jnb _deceleration_fuel_cut,%2
+    mov dptr,#_exhaust_temperature_fuel_cut
+    clr a
+    movc a,@a+dptr
+    sjmp %3
+    %2:
+    mov dptr,#_exhaust_temperature_running
+    movc a,@a+dptr
+    %3:
+    mov r1,a
+    mov a,_B
+    mov dptr,#_exhaust_pipe_filter_q8
+    movc a,@a+dptr
+    mov _B,a
+    mov r0,#0x00
+}

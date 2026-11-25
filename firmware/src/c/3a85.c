@@ -21,7 +21,7 @@ static volatile __xdata __at (0xf965) uint8_t startup_count_f965;
 extern volatile __code const uint8_t ac_idle_rpm_offset_min;
 extern volatile __code const uint8_t ac_idle_rpm_offset_decay;
 
-extern void service_second_event_ad95(void);
+extern void update_exhaust_temperature(void);
 extern void update_engine_stop_counters(void);
 
 void finish_sensor_diagnostics(void)
@@ -35,7 +35,7 @@ void finish_sensor_diagnostics(void)
     if (ACC == SENSOR_TICKS_PER_SECOND) {
         sensor_ticks_in_second = 0;
         if (oxygen_threshold_set_4f) {
-            service_second_event_ad95();
+            update_exhaust_temperature();
         }
         tick_1s = 1;
 
