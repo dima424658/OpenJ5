@@ -1,0 +1,351 @@
+// Clear the marker and test the five ADC windows in order.
+replace {
+    mov r1,_stock_r0
+    mov @r1,#0x00
+    mov _alternate_startup_marker,#0x00
+    mov _B,#0x00
+    lcall _read_adc_8bit
+    mov _stock_r0,_ACC
+    clr c
+    mov a,_stock_r0
+    subb a,#0xdd
+    jnc %1
+    ljmp %2
+    %1:
+    clr c
+    mov a,_stock_r0
+    subb a,#0xe8
+    jc %3
+    ljmp %2
+    %3:
+    mov _B,#0x0d
+    lcall _read_adc_8bit
+    mov _stock_r0,_ACC
+    clr c
+    mov a,_stock_r0
+    subb a,#0xf5
+    jnc %4
+    ljmp %2
+    %4:
+    clr c
+    mov a,_stock_r0
+    subb a,#0xfe
+    jc %5
+    ljmp %2
+    %5:
+    mov _B,#0x04
+    lcall _read_adc_8bit
+    mov _stock_r0,_ACC
+    clr c
+    mov a,_stock_r0
+    subb a,#0xf5
+    jnc %6
+    ljmp %2
+    %6:
+    clr c
+    mov a,_stock_r0
+    subb a,#0xfe
+    jc %7
+    ljmp %2
+    %7:
+    mov _B,#0x03
+    lcall _read_adc_8bit
+    mov _stock_r0,_ACC
+    clr c
+    mov a,_stock_r0
+    subb a,#0x15
+    jnc %8
+    ljmp %2
+    %8:
+    clr c
+    mov a,_stock_r0
+    subb a,#0x1e
+    jc %9
+    ljmp %2
+    %9:
+    mov _B,#0x0b
+    lcall _read_adc_8bit
+    mov _stock_r0,_ACC
+    clr c
+    mov a,_stock_r0
+    subb a,#0xf5
+    jnc %10
+    ljmp %2
+    %10:
+    clr c
+    mov a,_stock_r0
+    subb a,#0xfe
+    jnc %11
+    ljmp %12
+    %11:
+    %2:
+    lcall _read_eeprom_record_f485
+    lcall _read_eeprom_record_f48d
+    lcall _read_eeprom_record_f495
+    lcall _read_eeprom_record_f460
+    lcall _read_eeprom_record_f474
+    lcall _read_eeprom_record_f480
+    lcall _check_eeprom_record_9d
+    mov a,#0x55
+    cjne a,_stock_r5,%13
+    sjmp %14
+    %13:
+    ljmp %15
+    %14:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jb acc.1,%16
+    ljmp %17
+    %16:
+    %15:
+    lcall _restore_startup_eeprom_bd12
+    %17:
+    lcall _restore_startup_eeprom_c470
+    lcall _restart_runtime_init
+    ljmp %18
+    %12:
+    mov _alternate_startup_marker,#0x55
+    lcall _enter_alternate_startup
+    %18:
+    ret
+} by {
+    clr a
+    mov @r0,a
+    mov _alternate_startup_marker,a
+    mov _B,#0x00
+    lcall _read_adc_8bit
+    mov r0,a
+    clr c
+    subb a,#0xdd
+    jc 00970$
+    mov a,r0
+    clr c
+    subb a,#0xe8
+    jnc 00970$
+    mov _B,#0x0d
+    lcall _read_adc_8bit
+    mov r0,a
+    clr c
+    subb a,#0xf5
+    jc 00970$
+    mov a,r0
+    clr c
+    subb a,#0xfe
+    jnc 00970$
+    mov _B,#0x04
+    lcall _read_adc_8bit
+    mov r0,a
+    clr c
+    subb a,#0xf5
+    jc 00970$
+    mov a,r0
+    clr c
+    subb a,#0xfe
+    jnc 00970$
+    mov _B,#0x03
+    lcall _read_adc_8bit
+    mov r0,a
+    clr c
+    subb a,#0x15
+    jc 00970$
+    mov a,r0
+    clr c
+    subb a,#0x1e
+    jnc 00970$
+    mov _B,#0x0b
+    lcall _read_adc_8bit
+    mov r0,a
+    clr c
+    subb a,#0xf5
+    jc 00970$
+    mov a,r0
+    clr c
+    subb a,#0xfe
+    jnc 00970$
+    mov _alternate_startup_marker,#0x55
+    ljmp _enter_alternate_startup
+    00970$:
+    lcall _read_eeprom_record_f485
+    lcall _read_eeprom_record_f48d
+    lcall _read_eeprom_record_f495
+    lcall _read_eeprom_record_f460
+    lcall _read_eeprom_record_f474
+    lcall _read_eeprom_record_f480
+    lcall _check_eeprom_record_9d
+    mov a,r5
+    xrl a,#0x55
+    jnz 00971$
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jnb acc.1,00972$
+    00971$:
+    lcall _restore_startup_eeprom_bd12
+    00972$:
+    lcall _restore_startup_eeprom_c470
+}
+
+// Keep the indirect RAM clear loops in R0.
+replace {
+    mov _stock_r0,#0x2c
+    %1:
+    mov r1,_stock_r0
+    mov @r1,#0x00
+    mov a,_stock_r0
+    dec a
+    mov r7,a
+    mov _stock_r0,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r0,#0x2e
+    %3:
+    mov r1,_stock_r0
+    mov @r1,#0x00
+    mov a,_stock_r0
+    inc a
+    mov r7,a
+    mov _stock_r0,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+} by {
+    mov r0,#0x2c
+    00970$:
+    mov @r0,#0x00
+    djnz r0,00970$
+    mov r0,#0x2e
+    00971$:
+    mov @r0,#0x00
+    inc r0
+    mov a,r0
+    jnz 00971$
+}
+
+// Clear peripheral registers through the accumulator.
+replace {
+    mov _sfr_d8,#0x00
+    mov _sfr_dc,#0x00
+    mov _sfr_da,#0x00
+    mov _sfr_d9,#0x00
+    mov _sfr_ef,#0x00
+    mov _sfr_c2,#0x00
+    mov _sfr_c3,#0x00
+    mov _sfr_c4,#0x00
+    mov _sfr_c5,#0x00
+    mov _sfr_c6,#0x00
+    mov _sfr_c7,#0x00
+    mov _sfr_ce,#0x00
+    mov _sfr_cf,#0x00
+    mov _sfr_f6,#0x00
+    mov _sfr_d2,#0x00
+    mov _sfr_d3,#0x00
+    mov _sfr_d4,#0x00
+    mov _sfr_d5,#0x00
+    mov _sfr_d6,#0x00
+    mov _sfr_d7,#0x00
+    mov _sfr_e2,#0x00
+    mov _sfr_e3,#0x00
+    mov _sfr_e4,#0x00
+    mov _sfr_e5,#0x00
+    mov _sfr_e6,#0x00
+    mov _sfr_e7,#0x00
+    mov _sfr_f2,#0x00
+    mov _sfr_f3,#0x00
+    mov _sfr_f4,#0x00
+    mov _sfr_f5,#0x00
+    mov _RCAP2L,#0x00
+    mov _RCAP2H,#0x00
+    mov _PCON,#0x00
+    mov _SBUF,#0x00
+    mov _sfr_9c,#0x00
+    mov _SCON,#0x00
+    mov _TCON,#0x00
+    mov _TL0,#0x00
+    mov _TH0,#0x00
+    mov _TL1,#0x00
+    mov _TH1,#0x00
+    mov _TL2,#0x00
+    mov _TH2,#0x00
+} by {
+    clr a
+    mov _sfr_d8,a
+    mov _sfr_dc,a
+    mov _sfr_da,a
+    mov _sfr_d9,a
+    mov _sfr_ef,a
+    mov _sfr_c2,a
+    mov _sfr_c3,a
+    mov _sfr_c4,a
+    mov _sfr_c5,a
+    mov _sfr_c6,a
+    mov _sfr_c7,a
+    mov _sfr_ce,a
+    mov _sfr_cf,a
+    mov _sfr_f6,a
+    mov _sfr_d2,a
+    mov _sfr_d3,a
+    mov _sfr_d4,a
+    mov _sfr_d5,a
+    mov _sfr_d6,a
+    mov _sfr_d7,a
+    mov _sfr_e2,a
+    mov _sfr_e3,a
+    mov _sfr_e4,a
+    mov _sfr_e5,a
+    mov _sfr_e6,a
+    mov _sfr_e7,a
+    mov _sfr_f2,a
+    mov _sfr_f3,a
+    mov _sfr_f4,a
+    mov _sfr_f5,a
+    mov _RCAP2L,a
+    mov _RCAP2H,a
+    mov _PCON,a
+    mov _SBUF,a
+    mov _sfr_9c,a
+    mov _SCON,a
+    mov _TCON,a
+    mov _TL0,a
+    mov _TH0,a
+    mov _TL1,a
+    mov _TH1,a
+    mov _TL2,a
+    mov _TH2,a
+}
+
+// Check the service-save marker and fall through to retained-RAM validation after serial setup.
+replace {
+    mov a,_sfr_a9
+    jb acc.6,%1
+    ljmp %2
+    %1:
+    mov dptr,#_service_save_marker
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%3
+    ljmp %2
+    %3:
+    setb _reset_adaptive_state
+    %2:
+    mov _sfr_b9,#0x28
+    mov _sfr_a9,#0x30
+    lcall _initialize_serial_interface
+    lcall _check_startup_ram
+    %4:
+    ret
+} by {
+    mov a,_sfr_a9
+    anl a,#0x40
+    jz 00972$
+    mov dptr,#_service_save_marker
+    movx a,@dptr
+    xrl a,#0x55
+    jz 00972$
+    setb _reset_adaptive_state
+    00972$:
+    mov _sfr_b9,#0x28
+    mov _sfr_a9,#0x30
+    lcall _initialize_serial_interface
+}
