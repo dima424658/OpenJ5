@@ -9,7 +9,7 @@ static volatile __xdata __at (0xf807) uint8_t warmup_elapsed;
 extern __code const int8_t idle_ignition_by_rpm[32];
 extern __code const int8_t idle_ignition_temp_correction[39];
 extern __code const int8_t idle_warmup_ignition[39];
-extern void idle_ignition_continue(void);
+extern void update_idle_airflow(void);
 
 /* The angle is stored as a byte in half-degrees, with wrapping arithmetic. */
 void update_idle_ignition(void)
@@ -27,5 +27,5 @@ void update_idle_ignition(void)
     }
     idle_ignition_target_raw = corrected + warmup_correction;
 
-    idle_ignition_continue();
+    update_idle_airflow();
 }

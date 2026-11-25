@@ -409,7 +409,7 @@ replace {
 }
 
 replace {
-    lcall _idle_ignition_continue
+    lcall _update_idle_airflow
     %1:
     ret
 } by {
