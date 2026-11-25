@@ -7,7 +7,8 @@ IMAGE := build/J5v05l19
 REFERENCE ?= ../bins/J5v05l19.bin
 SOURCES := src/j5v05l19.asm src/vectors.asm src/interpolation.asm src/opaque.asm
 C_REGISTER_HELPERS := a33a a381 a3f9
-C_FUNCTIONS := 2bcd 2c3f 3396 430d $(C_REGISTER_HELPERS) a429 cd7c d2f1 f090 f275
+C_IGNITION := 280e 4042 430d
+C_FUNCTIONS := 2bcd 2c3f 3396 $(C_IGNITION) $(C_REGISTER_HELPERS) a429 cd7c d2f1 f090 f275
 C_VECTORS := 000b 0013 002b 0043 004b 0053 005b 0063 0083 0093 009b 00a3 00ab
 C_DATA := 60c7 613c 62ac 6ac8 6f56 710b 75ef 7ac7 83ba 99b9
 C_FLAGS := -mmcs51 --model-small
@@ -44,8 +45,9 @@ build/2c3f.rel: src/c/knock_noise_zone.peep
 build/3396.rel: C_OPTIONS += --no-peep --peep-file src/c/coolant_axis.peep
 build/3396.rel: src/c/coolant_axis.peep
 
-build/430d.rel: C_OPTIONS += --no-peep --peep-file src/c/idle_ignition.peep
-build/430d.rel: src/c/idle_ignition.peep
+$(addprefix build/,$(addsuffix .rel,$(C_IGNITION))): C_OPTIONS += \
+	--no-peep --peep-file src/c/ignition.peep
+$(addprefix build/,$(addsuffix .rel,$(C_IGNITION))): src/c/ignition.peep
 
 $(addprefix build/,$(addsuffix .rel,$(C_REGISTER_HELPERS))): C_OPTIONS += \
 	--std-sdcc23 --no-peep --peep-file src/c/stock_registers.peep
