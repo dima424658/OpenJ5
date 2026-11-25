@@ -1,0 +1,166 @@
+replace {
+    jb _evap_fitted,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _evap_fitted,_enable_startup_timers
+}
+
+replace {
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+} by {
+    mov a,_coolant_temperature_raw
+    clr c
+    subb a,_B
+    jc %2
+}
+
+replace {
+    mov _ACC,a
+    jnb _startup_mode_15,%1
+    ljmp %2
+    %1:
+    jnb _ACC_BIT1,%3
+    ljmp %2
+    %3:
+    jb _retained_ram_checksum_failed,%4
+    ljmp %5
+    %4:
+    %2:
+} by {
+    mov c,_startup_mode_15
+    orl c,_ACC_BIT1
+    orl c,_retained_ram_checksum_failed
+    jnc %5
+}
+
+// The input map is on page FD and the output on FE. Only DPL advances.
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_B
+    add a,_ACC
+    mov _ACC,a
+    inc _DPH
+    movx @dptr,a
+    dec _DPH
+    mov a,_DPL
+    inc a
+    mov r7,a
+    mov _DPL,r7
+    mov _ACC,r7
+    mov _DPSEL,#0x02
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    movx a,@dptr
+    add a,_B
+    inc _DPH
+    movx @dptr,a
+    dec _DPH
+    inc _DPL
+    mov a,_DPL
+    mov _DPSEL,#0x02
+    jnz %2
+}
+
+replace {
+    mov dptr,#_startup_purge_duration
+    movx @dptr,a
+    ljmp %1
+} by {
+    mov dptr,#_startup_purge_duration
+    movx @dptr,a
+    sjmp _enable_startup_timers
+}
+
+// Starting at zero, DJNZ visits 00, FF, FE, ..., 01 in that order.
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    inc _DPH
+    movx @dptr,a
+    dec _DPH
+    mov a,_DPL
+    dec a
+    mov r7,a
+    mov _DPL,r7
+    mov a,r7
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    movx a,@dptr
+    inc _DPH
+    movx @dptr,a
+    dec _DPH
+    djnz _DPL,%2
+}
+
+replace {
+    lcall _enable_startup_timers
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _select_startup_iac_position
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%1
+    ljmp %2
+    %1:
+    jb _retained_ram_checksum_failed,%3
+    ljmp %4
+    %3:
+    lcall _reset_saved_state_ac3c
+    lcall _reset_saved_state_ac95
+    %4:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT1,%5
+    ljmp %6
+    %5:
+    jb _retained_ram_checksum_failed,%7
+    ljmp %2
+    %7:
+    %6:
+    lcall _home_and_seed_iac_feedback
+    ljmp %8
+    %2:
+    lcall _restore_startup_iac_position
+    %8:
+    ret
+} by {
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    xrl a,#0x55
+    jz _restore_startup_iac_position
+    jnb _retained_ram_checksum_failed,%4
+    lcall _reset_saved_state_ac3c
+    lcall _reset_saved_state_ac95
+    %4:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    mov c,_ACC_BIT1
+    orl c,_retained_ram_checksum_failed
+    jnc _restore_startup_iac_position
+}
