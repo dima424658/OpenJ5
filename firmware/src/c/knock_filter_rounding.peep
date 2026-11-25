@@ -1,0 +1,106 @@
+// Update the retained sum, rotate the rounding bit and shift the rounded word.
+replace {
+    mov r6,_stock_r2
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_stock_r1
+    mov r5,#0x00
+    mov a,r4
+    orl ar6,a
+    mov a,r5
+    orl ar7,a
+    mov r5,_ACC
+    mov r4,#0x00
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,r4
+    addc a, r7
+    mov r7,a
+    mov r5,_stock_r3
+    mov a,r6
+    clr c
+    subb a,r5
+    mov r6,a
+    mov a,r7
+    subb a,r4
+    mov r7,a
+    mov _stock_r1,r6
+    mov _stock_r2,r7
+    mov r5,_B
+    dec r5
+    anl ar5,#0x07
+    mov b,r5
+    inc b
+    mov r5,#0x01
+    mov r4,#0x00
+    sjmp %1
+    %2:
+    mov a,r5
+    add a,acc
+    mov r5,a
+    mov a,r4
+    rlc a
+    mov r4,a
+    %1:
+    djnz b,%2
+    mov a,r5
+    add a, r6
+    mov r5,a
+    mov a,r4
+    addc a, r7
+    mov r4,a
+    mov _stock_r4,_B
+    %3:
+    mov a,r4
+    clr c
+    rrc a
+    xch a,r5
+    rrc a
+    xch a,r5
+    mov r4,a
+    mov a,_stock_r4
+    dec a
+    mov r7,a
+    mov _stock_r4,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    mov _stock_r3,r5
+    mov _ACC,_stock_r3
+    %5:
+    ret
+} by {
+    add a,r1
+    xch a,r2
+    addc a,#0x00
+    clr c
+    xch a,r2
+    subb a,r3
+    mov r1,a
+    mov a,r2
+    subb a,#0x00
+    mov r2,a
+    mov r4,_B
+    dec r4
+    mov a,#0x01
+    00940$:
+    rl a
+    djnz r4,00940$
+    add a,r1
+    mov r3,a
+    mov a,r2
+    addc a,#0x00
+    mov r4,_B
+    00941$:
+    clr c
+    rrc a
+    xch a,r3
+    rrc a
+    xch a,r3
+    djnz r4,00941$
+    mov a,r3
+    ret
+}
