@@ -1,0 +1,14 @@
+[package]
+name = "janvar-editor"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = ["desktop"]
+default-members = [".", "desktop"]
+resolver = "3"
+
+[dependencies]
+encoding_rs = "0.8.35"
+tempfile = "3"
+thiserror = "2"
