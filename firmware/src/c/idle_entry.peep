@@ -1,0 +1,174 @@
+replace {
+    jb _poststart_iac_enabled,%1
+    ljmp %2
+    %1:
+    lcall _enter_poststart_idle
+    ljmp %3
+    %2:
+} by {
+    jb _poststart_iac_enabled,_enter_poststart_idle
+}
+
+// Write the current RPM before comparing it. Below the normal target,
+// reload the target from XDATA and enter the feedback path.
+replace {
+    mov _ACC,_engine_rpm_10
+    mov dptr,#_idle_feedback_rpm_target
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_rpm_target
+    movx a,@dptr
+    mov dptr,#_idle_feedback_rpm_target
+    movx @dptr,a
+    lcall _keep_idle_feedback
+    ljmp %3
+    %2:
+} by {
+    mov a,_engine_rpm_10
+    mov dptr,#_idle_feedback_rpm_target
+    movx @dptr,a
+    clr c
+    subb a,_B
+    jnc %2
+    mov dptr,#_idle_rpm_target
+    movx a,@dptr
+    mov dptr,#_idle_feedback_rpm_target
+    movx @dptr,a
+    sjmp _keep_idle_feedback
+    %2:
+}
+
+// With the transition hold set, cap the initial feedback target at F847.
+replace {
+    jb _idle_transition_hold_62,%1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_transition_rpm_1
+    movx a,@dptr
+    mov _B,a
+    clr c
+    mov a,_engine_rpm_10
+    subb a,_B
+    jnc %3
+    ljmp %2
+    %3:
+    mov dptr,#_idle_transition_rpm_1
+    movx a,@dptr
+    mov dptr,#_idle_feedback_rpm_target
+    movx @dptr,a
+    %2:
+    lcall _keep_idle_feedback
+    %4:
+    ret
+} by {
+    jnb _idle_transition_hold_62,_keep_idle_feedback
+    mov dptr,#_idle_transition_rpm_1
+    movx a,@dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    cjne a,_B,%3
+    %3:
+    jc _keep_idle_feedback
+    mov dptr,#_idle_transition_rpm_1
+    movx a,@dptr
+    mov dptr,#_idle_feedback_rpm_target
+    movx @dptr,a
+    sjmp _keep_idle_feedback
+}
+
+// Use the temperature index as the direct offset into either CODE curve.
+replace {
+    jb _air_conditioning_active,%1
+    ljmp %2
+    %1:
+    mov a,_coolant_nearest_index
+    add a,#_idle_ac_airflow_by_temp
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_idle_ac_airflow_by_temp >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _airflow_for_iac,a
+    ljmp %3
+    %2:
+    mov a,_coolant_nearest_index
+    add a,#_idle_airflow_by_temp
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_idle_airflow_by_temp >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _airflow_for_iac,a
+    %3:
+} by {
+    jb _air_conditioning_active,%1
+    mov dptr,#_idle_airflow_by_temp
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    sjmp %3
+    %1:
+    mov dptr,#_idle_ac_airflow_by_temp
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    %3:
+    mov _airflow_for_iac,a
+}
+
+replace {
+    jnb acc.5,%1
+    ljmp %2
+    %1:
+} by {
+    anl a,#0x20
+    jnz %2
+}
+
+replace {
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+} by {
+    anl a,#0x02
+    jnz %2
+}
+
+replace {
+    mov dptr,#%1
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#%1
+    movx @dptr,a
+}
+
+replace {
+    lcall _continue_after_idle_airflow
+    ljmp %1
+} by {
+    ljmp _continue_after_idle_airflow
+}
+
+replace {
+    lcall _keep_idle_feedback
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _continue_after_idle_airflow
+    %1:
+    ret
+} by {
+    ljmp _continue_after_idle_airflow
+}
