@@ -1,0 +1,501 @@
+// Saturate the consecutive fuel-cut counter and gate to even cylinder slots after the delay.
+replace {
+    jb _deceleration_fuel_cut,%1
+    ljmp %2
+    %1:
+    mov dptr,#_crank_diagnostic_flags
+    movx a,@dptr
+    jnb acc.1,%3
+    ljmp %4
+    %3:
+    %2:
+    lcall _skip_misfire_period_scaling
+    ljmp %5
+    %4:
+    mov dptr,#_misfire_fuel_cut_events
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0xff,%6
+    %6:
+    jc %7
+    ljmp %8
+    %7:
+    inc r7
+    %8:
+    mov dptr,#_misfire_fuel_cut_events
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#_misfire_fuel_cut_event_limit
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    clr c
+    mov a,r6
+    subb a,r7
+    jc %9
+    ljmp %10
+    %9:
+    mov a,_knock_mask_index
+    jb acc.0,%11
+    ljmp %12
+    %11:
+    %10:
+    lcall _combine_misfire_event_flags
+    ljmp %5
+    %12:
+} by {
+    jb _deceleration_fuel_cut,00950$
+    ljmp _skip_misfire_period_scaling
+    00950$:
+    mov dptr,#_crank_diagnostic_flags
+    movx a,@dptr
+    jb acc.1,00951$
+    ljmp _skip_misfire_period_scaling
+    00951$:
+    mov dptr,#_misfire_fuel_cut_events
+    movx a,@dptr
+    inc a
+    jnz 00952$
+    dec a
+    00952$:
+    movx @dptr,a
+    mov b,a
+    mov dptr,#_misfire_fuel_cut_event_limit
+    clr a
+    movc a,@a+dptr
+    cjne a,b,00953$
+    00953$:
+    jc 00954$
+    ljmp _combine_misfire_event_flags
+    00954$:
+    mov a,_knock_mask_index
+    jnb acc.0,00955$
+    ljmp _combine_misfire_event_flags
+}
+
+// Subtract p[n-5] from p[n-1], preserving the physical reference pair and the range checks.
+replace {
+    mov r7,_stock_r5
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x01
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x07
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0xb0
+    add a, r7
+    mov r7,a
+    mov _stock_r0,r7
+    mov r7,_stock_r5
+    mov a,r7
+    add a,#0xfb
+    mov r7,a
+    clr c
+    mov a,_stock_r5
+    subb a,#0x05
+    jc %4
+    ljmp %5
+    %4:
+    mov r6,#0x07
+    ljmp %6
+    %5:
+    mov r6,#0x00
+    %6:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0xb0
+    add a, r7
+    mov r7,a
+    mov _stock_r1,r7
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov r1,_stock_r1
+    mov ar6,@r1
+    mov a,_stock_r0
+    inc a
+    mov r5,a
+    mov _stock_r0,r5
+    mov ar1,r5
+    mov ar5,@r1
+    mov a,_stock_r1
+    inc a
+    mov r4,a
+    mov _stock_r1,r4
+    mov ar1,r4
+    mov ar4,@r1
+    mov r3,#0x00
+    mov ar3,r4
+    mov r4,#0x00
+    mov r2,#0x00
+    mov a,r6
+    orl ar4,a
+    mov a,r2
+    orl ar3,a
+    mov _bank_one_r67,r4
+    mov (_bank_one_r67 + 1),r3
+    mov r6,#0x00
+    mov ar6,r5
+    mov r5,#0x00
+    mov r2,#0x00
+    mov a,r7
+    orl ar5,a
+    mov a,r2
+    orl ar6,a
+    mov a,r5
+    clr c
+    subb a,r4
+    mov r2,a
+    mov a,r6
+    subb a,r3
+    mov r7,a
+    mov _stock_r2,r2
+    clr c
+    mov a,r5
+    subb a,r4
+    mov a,r6
+    subb a,r3
+    jc %7
+    ljmp %8
+    %7:
+    mov dptr,#_raw_period_delta
+    mov a,#0x00
+    movx @dptr,a
+    lcall _skip_misfire_period_update
+    ljmp %9
+    %8:
+    clr c
+    mov a,#0xff
+    subb a,r2
+    mov a,#0x00
+    subb a,r7
+    jc %10
+    ljmp %11
+    %10:
+    lcall _skip_misfire_period_update
+    ljmp %9
+    %11:
+} by {
+    00955$:
+    mov a,r5
+    clr c
+    subb a,#0x01
+    jnc 00956$
+    add a,#0x07
+    clr c
+    00956$:
+    rlc a
+    add a,#0xb0
+    mov r0,a
+    mov a,r5
+    clr c
+    subb a,#0x05
+    jnc 00957$
+    add a,#0x07
+    clr c
+    00957$:
+    rlc a
+    add a,#0xb0
+    mov r1,a
+    mov a,@r0
+    mov b,@r1
+    mov _bank_one_r67,@r1
+    clr c
+    subb a,b
+    mov r2,a
+    inc r0
+    mov a,@r0
+    inc r1
+    mov b,@r1
+    mov (_bank_one_r67 + 1),@r1
+    subb a,b
+    jnc 00958$
+    clr a
+    mov dptr,#_raw_period_delta
+    movx @dptr,a
+    ljmp _skip_misfire_period_update
+    00958$:
+    jz 00959$
+    ljmp _skip_misfire_period_update
+}
+
+// Derive the early and late offsets from the positive byte-sized delta.
+replace {
+    mov dptr,#_raw_period_delta
+    mov a,_stock_r2
+    movx @dptr,a
+    mov r7,_stock_r2
+    mov a,r7
+    mov b,#0x03
+    mul ab
+    mov r7,a
+    mov r6,b
+    mov ar4,r7
+    mov ar5,r6
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r5
+    jc %1
+    ljmp %2
+    %1:
+    mov r4,#0xff
+    mov r5,#0x00
+    ljmp %3
+    %2:
+    mov ar4,r7
+    mov ar5,r6
+    %3:
+    inc r4
+    inc r4
+    mov b,#0x04
+    mov a,r4
+    div ab
+    mov r4,a
+    mov dptr,#_late_period_offset
+    mov a,r4
+    movx @dptr,a
+    mov dptr,#_raw_period_delta
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_late_period_offset
+    movx a,@dptr
+    mov r6,a
+    mov dptr,#_early_period_offset
+    mov a,r7
+    clr c
+    subb a,r6
+    movx @dptr,a
+    lcall _build_misfire_period_residuals
+    %4:
+    ret
+} by {
+    00959$:
+    mov a,r2
+    mov dptr,#_raw_period_delta
+    movx @dptr,a
+    mov b,#0x03
+    mul ab
+    xch a,b
+    jz 00960$
+    mov b,#0xff
+    00960$:
+    mov a,b
+    add a,#0x02
+    mov b,#0x04
+    div ab
+    mov dptr,#_late_period_offset
+    movx @dptr,a
+    mov b,a
+    mov dptr,#_raw_period_delta
+    movx a,@dptr
+    clr c
+    subb a,b
+    mov dptr,#_early_period_offset
+    movx @dptr,a
+}
+
+// Publish p[n-4] and the corresponding signed residual around the reference period.
+replace {
+    mov r7,_stock_r5
+    dec r7
+    dec r7
+    dec r7
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x04
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x07
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0xb0
+    add a, r7
+    mov r7,a
+    mov _stock_r0,r7
+    mov r1,_stock_r0
+    mov _stock_r2,@r1
+    mov a,_stock_r0
+    inc a
+    mov r7,a
+    mov _stock_r0,r7
+    mov ar1,r7
+    mov _stock_r3,@r1
+    mov dptr,#_early_raw_period
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    mov _bank_one_r01,_stock_r67
+    mov (_bank_one_r01 + 1),(_stock_r67 + 1)
+    lcall _subtract_u16_register_pairs
+    mov dptr,#_early_period_offset
+    movx a,@dptr
+    mov _stock_r23,a
+    mov (_stock_r23 + 1),#0x00
+    lcall _add_u16_register_pairs
+    mov dptr,#_early_period_residual
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov a,r5
+    clr c
+    subb a,#0x04
+    jnc 00961$
+    add a,#0x07
+    clr c
+    00961$:
+    rlc a
+    add a,#0xb0
+    mov r0,a
+    mov a,@r0
+    mov r2,a
+    inc r0
+    mov a,@r0
+    mov r3,a
+    mov dptr,#_early_raw_period
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov _bank_one_r01,r6
+    mov (_bank_one_r01 + 1),r7
+    lcall _subtract_u16_register_pairs
+    mov dptr,#_early_period_offset
+    movx a,@dptr
+    mov r2,a
+    mov r3,#0x00
+    lcall _add_u16_register_pairs
+    mov dptr,#_early_period_residual
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Publish p[n-2] and its residual, then fall through to the shared selector.
+replace {
+    mov r7,_stock_r5
+    dec r7
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x02
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x07
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0xb0
+    add a, r7
+    mov r7,a
+    mov _stock_r0,r7
+    mov r1,_stock_r0
+    mov _stock_r2,@r1
+    mov a,_stock_r0
+    inc a
+    mov r7,a
+    mov _stock_r0,r7
+    mov ar1,r7
+    mov _stock_r3,@r1
+    mov dptr,#_late_raw_period
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    mov _bank_one_r01,_stock_r67
+    mov (_bank_one_r01 + 1),(_stock_r67 + 1)
+    lcall _subtract_u16_register_pairs
+    mov dptr,#_late_period_offset
+    movx a,@dptr
+    mov _stock_r23,a
+    mov (_stock_r23 + 1),#0x00
+    lcall _add_u16_register_pairs
+    mov dptr,#_late_period_residual
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _select_misfire_period_residual
+    %4:
+    ret
+} by {
+    mov a,r5
+    clr c
+    subb a,#0x02
+    jnc 00962$
+    add a,#0x07
+    clr c
+    00962$:
+    rlc a
+    add a,#0xb0
+    mov r0,a
+    mov a,@r0
+    mov r2,a
+    inc r0
+    mov a,@r0
+    mov r3,a
+    mov dptr,#_late_raw_period
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov _bank_one_r01,r6
+    mov (_bank_one_r01 + 1),r7
+    lcall _subtract_u16_register_pairs
+    mov dptr,#_late_period_offset
+    movx a,@dptr
+    mov r2,a
+    mov r3,#0x00
+    lcall _add_u16_register_pairs
+    mov dptr,#_late_period_residual
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
