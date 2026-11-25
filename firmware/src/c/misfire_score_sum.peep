@@ -1,0 +1,208 @@
+// Preserve the carry accumulation of the four scores, including doubling the high byte.
+replace {
+    mov dptr,#_filtered_misfire_scores
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov _stock_r2,#0x00
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov r6,#0x00
+    mov r7,#0x00
+    mov dptr,#(_filtered_misfire_scores + 0x0002)
+    movx a,@dptr
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    mov ar0,r2
+    mov ar1,r3
+    mov r2,#0x00
+    mov r3,#0x00
+    mov a,r0
+    add a, r4
+    mov r4,a
+    mov a,r1
+    addc a, r5
+    mov r5,a
+    mov a,r2
+    addc a, r6
+    mov r6,a
+    mov a,r3
+    addc a, r7
+    mov r7,a
+    mov _stock_r01,r4
+    mov (_stock_r01 + 1),r5
+    mov r3,_stock_r2
+    mov a,r3
+    add a,acc
+    mov r3,a
+    mov ar4,r6
+    mov a,r4
+    add a, r3
+    mov _stock_r2,a
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov r6,#0x00
+    mov r7,#0x00
+    mov dptr,#(_filtered_misfire_scores + 0x0004)
+    movx a,@dptr
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    mov ar0,r2
+    mov ar1,r3
+    mov r2,#0x00
+    mov r3,#0x00
+    mov a,r0
+    add a, r4
+    mov r4,a
+    mov a,r1
+    addc a, r5
+    mov r5,a
+    mov a,r2
+    addc a, r6
+    mov r6,a
+    mov a,r3
+    addc a, r7
+    mov r7,a
+    mov _stock_r01,r4
+    mov (_stock_r01 + 1),r5
+    mov r3,_stock_r2
+    mov a,r3
+    add a,acc
+    mov r3,a
+    mov ar4,r6
+    mov a,r4
+    add a, r3
+    mov _stock_r2,a
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov r6,#0x00
+    mov r7,#0x00
+    mov dptr,#(_filtered_misfire_scores + 0x0006)
+    movx a,@dptr
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    mov ar0,r2
+    mov ar1,r3
+    mov r2,#0x00
+    mov r3,#0x00
+    mov a,r0
+    add a, r4
+    mov r4,a
+    mov a,r1
+    addc a, r5
+    mov r5,a
+    mov a,r2
+    addc a, r6
+    mov r6,a
+    mov a,r3
+    addc a, r7
+    mov r7,a
+    mov _stock_r01,r4
+    mov (_stock_r01 + 1),r5
+    mov r3,_stock_r2
+    mov a,r3
+    add a,acc
+    mov r3,a
+    mov ar4,r6
+    mov a,r4
+    add a, r3
+    mov _stock_r2,a
+} by {
+    mov dptr,#_filtered_misfire_scores
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#(_filtered_misfire_scores + 2)
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    addc a,r1
+    mov r1,a
+    clr a
+    addc a,#0x00
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    addc a,r1
+    mov r1,a
+    mov a,r2
+    addc a,r2
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    addc a,r1
+    mov r1,a
+    mov a,r2
+    addc a,r2
+    mov r2,a
+}
+
+// Shift the accumulated result by two through the MDU and store the low word.
+replace {
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_2,_stock_r2
+    mov _mdu_3,r2
+    mov _mdu_control,#0x22
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov dptr,#_misfire_period_correction
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    %1:
+    ret
+} by {
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_2,r2
+    mov _mdu_3,#0x00
+    mov _mdu_control,#0x22
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov dptr,#_misfire_period_correction
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    ret
+}
