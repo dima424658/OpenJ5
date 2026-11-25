@@ -8,19 +8,32 @@ enum {
 };
 
 static volatile __data __at (4) uint8_t stock_r4;
-static __sfr16 __at (0x8382) STOCK_DPTR;
 
-/* DPTR addresses a row-major 16 by 16 table in CODE. R2 and R3 supply
- * the column and row in Q4.4. A receives the high byte of the weighted sum.
+#ifdef BILINEAR_XDATA
+static __sfr __at (0x83) STOCK_DPH;
+#define INTERP_FUNCTION interp_bilinear_xdata
+#define TABLE_MEMORY __xdata
+#define TABLE_ADDRESS ((uint16_t)STOCK_DPH << 8)
+#else
+static __sfr16 __at (0x8382) STOCK_DPTR;
+#define INTERP_FUNCTION interp_bilinear_u8
+#define TABLE_MEMORY __code
+#define TABLE_ADDRESS STOCK_DPTR
+#endif
+
+/* R2 and R3 supply the column and row of a row-major 16 by 16 table in Q4.4.
+ * The CODE variant keeps the full base in DPTR. The XDATA variant uses DPH
+ * as a page number and writes the requested byte offsets to DPL.
+ * A receives the high byte of the weighted sum.
  */
-void interp_bilinear_u8(void)
+void INTERP_FUNCTION(void)
 {
     /* R4 holds the top-left offset; R2 and R3 retain the fractional parts. */
     stock_r4 = (stock_r3 & ROW_MASK) + (stock_r2 >> 4);
     stock_r2 &= FRACTION_MASK;
     stock_r3 &= FRACTION_MASK;
 
-    const __code uint8_t *table = (const __code uint8_t *)STOCK_DPTR;
+    const TABLE_MEMORY uint8_t *table = (const TABLE_MEMORY uint8_t *)TABLE_ADDRESS;
     if ((stock_r2 | stock_r3) == 0) {
         ACC = table[stock_r4];
         return;

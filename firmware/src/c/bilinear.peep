@@ -20,12 +20,25 @@ replace {
     mov r4,a
 }
 
-// Extract both fractions without touching the original table base in DPTR.
+// The CODE base stays in DPTR; the XDATA page stays in DPH.
+replace {
+    mov r6,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r7,((_STOCK_DPTR >> 8) & 0xFF)
+} by {
+}
+
+replace {
+    mov r6,_STOCK_DPH
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+} by {
+}
+
+// Extract both fractions without touching the table base.
 replace {
     anl _stock_r2,#0x0f
     anl _stock_r3,#0x0f
-    mov r6,((_STOCK_DPTR >> 0) & 0xFF)
-    mov r7,((_STOCK_DPTR >> 8) & 0xFF)
     mov a,_stock_r3
     orl a,_stock_r2
     jz %1
@@ -43,6 +56,19 @@ replace {
     %1:
 }
 
+// An XDATA offset replaces DPL. The page cannot carry into another page.
+replace {
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    movx a,@dptr
+} by {
+    mov dpl,a
+    movx a,@dptr
+}
+
 // Read the integer cell directly when both fractions are zero.
 replace {
     mov a,_stock_r4
@@ -58,6 +84,19 @@ replace {
 } by {
     mov a,r4
     movc a,@a+dptr
+    ret
+}
+
+replace {
+    mov a,_stock_r4
+    mov dpl,a
+    movx a,@dptr
+    mov _ACC,a
+    ljmp %1
+} by {
+    mov a,r4
+    mov dpl,a
+    movx a,@dptr
     ret
 }
 
@@ -137,6 +176,26 @@ replace {
     mul ab
 }
 
+replace {
+    mov r4,_stock_r4
+    mov a,#%1
+    add a,r4
+    mov r4,a
+    mov a,r4
+    mov dpl,a
+    movx a,@dptr
+    mov r4,a
+    mov b,r4
+    mov a,r5
+    mul ab
+} by {
+    mov a,r4
+    add a,#%1
+    mov dpl,a
+    movx a,@dptr
+    mul ab
+}
+
 // Read and multiply the top cells with the same CODE base.
 replace {
     mov r4,_stock_r4
@@ -176,6 +235,39 @@ replace {
 } by {
     mov a,r4
     movc a,@a+dptr
+    mul ab
+}
+
+replace {
+    mov r4,_stock_r4
+    inc r4
+    mov a,r4
+    mov dpl,a
+    movx a,@dptr
+    mov r4,a
+    mov b,r4
+    mov a,r5
+    mul ab
+} by {
+    mov a,r4
+    inc a
+    mov dpl,a
+    movx a,@dptr
+    mul ab
+}
+
+replace {
+    mov a,_stock_r4
+    mov dpl,a
+    movx a,@dptr
+    mov r7,a
+    mov b,r7
+    mov a,r5
+    mul ab
+} by {
+    mov a,r4
+    mov dpl,a
+    movx a,@dptr
     mul ab
 }
 
