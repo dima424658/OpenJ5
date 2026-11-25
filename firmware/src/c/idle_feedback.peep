@@ -1,0 +1,246 @@
+// A stays zero during the three state clears on entry to feedback.
+replace {
+    jnb _was_idle_regulating,%1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_feedback_state_f8a0
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_idle_feedback_state_f8a1
+    movx @dptr,a
+    mov dptr,#_idle_rpm_ramp_elapsed
+    movx @dptr,a
+    lcall _calculate_idle_rpm_error
+    ljmp %3
+    %2:
+} by {
+    jb _was_idle_regulating,%2
+    clr a
+    mov dptr,#_idle_feedback_state_f8a0
+    movx @dptr,a
+    mov dptr,#_idle_feedback_state_f8a1
+    movx @dptr,a
+    mov dptr,#_idle_rpm_ramp_elapsed
+    movx @dptr,a
+    sjmp _calculate_idle_rpm_error
+    %2:
+}
+
+replace {
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+} by {
+    movx a,@dptr
+    clr c
+    subb a,_B
+}
+
+// The first clamp reloads DPTR. The clamp after decrement keeps it live.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_feedback_rpm_target
+    mov a,_B
+    movx @dptr,a
+    %2:
+    mov dptr,#_idle_transition_rpm_1
+} by {
+    jnc %2
+    mov a,_B
+    mov dptr,#_idle_feedback_rpm_target
+    movx @dptr,a
+    %2:
+    mov dptr,#_idle_transition_rpm_1
+}
+
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_feedback_rpm_target
+    mov a,_B
+    movx @dptr,a
+    %2:
+} by {
+    jnc %2
+    mov a,_B
+    movx @dptr,a
+    %2:
+}
+
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_rpm_ramp_period_above
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %3
+    %2:
+    mov dptr,#_idle_rpm_ramp_period_below
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %3:
+} by {
+    jc %2
+    mov dptr,#_idle_rpm_ramp_period_above
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp %3
+    %2:
+    mov dptr,#_idle_rpm_ramp_period_below
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %3:
+}
+
+// The timer and target updates both store the updated byte before SUBB.
+replace {
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    %1 a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+} by {
+    movx a,@dptr
+    %1 a
+    movx @dptr,a
+    clr c
+    subb a,_B
+}
+
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_rpm_ramp_elapsed
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    jc %2
+    clr a
+    movx @dptr,a
+}
+
+replace {
+    lcall _calculate_idle_rpm_error
+    %1:
+    ret
+} by {
+    %1:
+}
+
+// For an unsigned-byte subtraction, CY gives the mathematical sign.
+// A different sign in the low byte means overflow of the signed result.
+replace {
+    mov dptr,#_idle_feedback_rpm_target
+    movx a,@dptr
+    mov r7,a
+    mov r5,_engine_rpm_10
+    mov r6,#0x00
+    mov r4,#0x00
+    mov a,r7
+    clr c
+    subb a,r5
+    mov r5,a
+    mov a,r4
+    subb a,r6
+    mov r6,a
+    mov ar4,r5
+    mov ar7,r6
+    clr c
+    mov a,#0x7f
+    subb a,r4
+    mov a,#0x00
+    xrl a,#0x80
+    mov b,r7
+    xrl b,#0x80
+    subb a,b
+    jc %1
+    ljmp %2
+    %1:
+    mov r5,#0x7f
+    mov r6,#0x00
+    ljmp %3
+    %2:
+    clr c
+    mov a,r5
+    subb a,#0x80
+    mov a,r6
+    xrl a,#0x80
+    subb a,#0x7f
+    jc %4
+    ljmp %3
+    %4:
+    mov r5,#0x80
+    mov r6,#0xff
+    %3:
+    mov _idle_rpm_error,r5
+} by {
+    mov dptr,#_idle_feedback_rpm_target
+    movx a,@dptr
+    clr c
+    subb a,_engine_rpm_10
+    jc %2
+    jnb _ACC_SIGN,%3
+    mov a,#0x7f
+    sjmp %3
+    %2:
+    jb _ACC_SIGN,%3
+    mov a,#0x80
+    sjmp %3
+    %3:
+    mov _idle_rpm_error,a
+}
+
+// Initialise the previous error and the Q4 position on the first cycle.
+replace {
+    jnb _was_idle_regulating,%1
+    ljmp %2
+    %1:
+    mov dptr,#_previous_idle_rpm_error
+    mov a,_idle_rpm_error
+    movx @dptr,a
+    mov _stock_r01,_iac_target
+    mov (_stock_r01 + 1),#0x00
+    lcall _shift_left_saturating_4
+    mov dptr,#_iac_feedback_position_q4
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    %2:
+    lcall _apply_idle_ignition_correction
+    %3:
+    ret
+} by {
+    jb _was_idle_regulating,%2
+    mov a,_idle_rpm_error
+    mov dptr,#_previous_idle_rpm_error
+    movx @dptr,a
+    mov a,_iac_target
+    mov r0,a
+    mov r1,#0x00
+    lcall _shift_left_saturating_4
+    mov dptr,#_iac_feedback_position_q4
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    %2:
+}
