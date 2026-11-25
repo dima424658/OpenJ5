@@ -1,0 +1,139 @@
+// The carry from the high-byte addition is the doubled word's overflow.
+replace {
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    mov r5,#0x00
+    mov a,r6
+    add a,acc
+    mov r6,a
+    mov a,r7
+    rlc a
+    mov r7,a
+    mov a,r5
+    rlc a
+    mov r5,a
+    clr c
+    mov a,#0xff
+    subb a,r6
+    mov a,#0xff
+    subb a,r7
+    mov a,#0x00
+    subb a,r5
+    jc %1
+    ljmp %2
+    %1:
+    lcall _saturate_stock_word
+    ljmp %3
+    %2:
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r7
+} by {
+    mov a,r0
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,r1
+    jc _saturate_stock_word
+    mov r1,a
+}
+
+replace {
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+} by {
+    mov r0,#0xff
+    mov r1,#0xff
+}
+
+// Shift the word using A and R1. After a successful iteration CY is
+// already clear, so only the initial rotation needs an explicit CLR.
+replace {
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    mov r5,#%1
+    %2:
+    clr c
+    mov a,#0xff
+    subb a,r6
+    mov a,#0x7f
+    subb a,r7
+    jc %3
+    ljmp %4
+    %3:
+    lcall _saturate_stock_word
+    ljmp %5
+    %4:
+    mov a,r6
+    add a,acc
+    mov r6,a
+    mov a,r7
+    rlc a
+    mov r7,a
+    dec r5
+    mov a,r5
+    jz %6
+    ljmp %2
+    %6:
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r7
+} by {
+    mov a,r0
+    mov r0,#%1
+    clr c
+    %2:
+    rlc a
+    xch a,r1
+    rlc a
+    jc _saturate_stock_word
+    xch a,r1
+    djnz r0,%2
+    mov r0,a
+}
+
+// A nonzero high nibble overflows a four-bit shift.
+replace {
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    clr c
+    mov a,#0xff
+    subb a,r6
+    mov a,#0x0f
+    subb a,r7
+    jc %1
+    ljmp %2
+    %1:
+    lcall _saturate_stock_word
+    ljmp %3
+    %2:
+} by {
+    mov a,r1
+    anl a,#0xf0
+    jnz _saturate_stock_word
+}
+
+// Pack the shifted high byte from the previous two upper nibbles.
+replace {
+    mov _stock_r01,r6
+    mov a,r7
+    swap a
+    anl a,#0xf0
+    xch a,_stock_r01
+    swap a
+    xch a,_stock_r01
+    xrl a,_stock_r01
+    xch a,_stock_r01
+    anl a,#0xf0
+    xch a,_stock_r01
+    xrl a,_stock_r01
+    mov (_stock_r01 + 1),a
+} by {
+    mov a,r0
+    anl a,#0xf0
+    orl a,r1
+    swap a
+    mov r1,a
+    mov a,r0
+    anl a,#0x0f
+    swap a
+    mov r0,a
+}
