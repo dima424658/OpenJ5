@@ -1,0 +1,606 @@
+// Keep the transmit byte and loop counters in the stock registers.
+replace {
+    mov _ACC,_stock_r4
+    mov _stock_r2,#0x08
+    %1:
+    mov c,_CARRY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CARRY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    mov c,_CARRY
+    mov _eeprom_sda,c
+    nop
+    nop
+    nop
+    nop
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    nop
+    nop
+    setb _eeprom_sda
+    nop
+    nop
+    nop
+    nop
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    nop
+    mov c,_eeprom_sda
+    mov _CARRY,c
+    nop
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    nop
+    nop
+    nop
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    %3:
+    ret
+} by {
+    mov a,r4
+    mov r2,#0x08
+    00970$:
+    rlc a
+    mov _eeprom_sda,c
+    nop
+    nop
+    nop
+    nop
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    djnz r2,00970$
+    nop
+    nop
+    setb _eeprom_sda
+    nop
+    nop
+    nop
+    nop
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    nop
+    mov c,_eeprom_sda
+    nop
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    nop
+    nop
+    nop
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    ret
+}
+
+// Keep the ACK level in carry across eight sampled bits.
+replace {
+    mov _stock_r2,#0x08
+    mov c,_CARRY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CARRY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    setb _eeprom_sda
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    %1:
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov c,_eeprom_sda
+    mov _CARRY,c
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    mov c,_CARRY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CARRY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    nop
+    mov c,_CARRY
+    mov _eeprom_sda,c
+    nop
+    nop
+    nop
+    nop
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    mov _stock_r4,_ACC
+    nop
+    nop
+    nop
+    %3:
+    ret
+} by {
+    mov r2,#0x08
+    rlc a
+    setb _eeprom_sda
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    00971$:
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov c,_eeprom_sda
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    rlc a
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    djnz r2,00971$
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    nop
+    mov _eeprom_sda,c
+    nop
+    nop
+    nop
+    nop
+    setb _eeprom_scl
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    clr _eeprom_scl
+    mov r4,a
+    nop
+    nop
+    nop
+    ret
+}
+
+// Read the first EEPROM page with a repeated start.
+replace {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov _stock_r3,_stock_r4
+    lcall _eeprom_bus_start
+    mov _stock_r4,#0xa0
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r4,_stock_r3
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%3
+    ljmp %2
+    %3:
+    lcall _eeprom_bus_start
+    mov _stock_r4,#0xa1
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%4
+    ljmp %2
+    %4:
+    %5:
+    mov a,#0x01
+    cjne a,_stock_r1,%6
+    setb c
+    sjmp %7
+    %6:
+    clr c
+    %7:
+    mov _CARRY,c
+    lcall _eeprom_bus_receive_byte
+    mov r1,_stock_r0
+    mov @r1,_stock_r4
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %8
+    ljmp %5
+    %8:
+    lcall _eeprom_bus_stop
+    clr _CARRY
+    ljmp %9
+    %2:
+    setb _CARRY
+    %9:
+    ret
+} by {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov 0x03,r4
+    lcall _eeprom_bus_start
+    mov r4,#0xa0
+    lcall _eeprom_bus_send_byte
+    jc 00970$
+    mov r4,0x03
+    lcall _eeprom_bus_send_byte
+    jc 00970$
+    lcall _eeprom_bus_start
+    mov r4,#0xa1
+    lcall _eeprom_bus_send_byte
+    jc 00970$
+    00973$:
+    mov a,r1
+    dec a
+    jnz 00971$
+    setb c
+    sjmp 00972$
+    00971$:
+    clr c
+    00972$:
+    lcall _eeprom_bus_receive_byte
+    mov a,r4
+    mov @r0,a
+    inc r0
+    djnz r1,00973$
+    lcall _eeprom_bus_stop
+    clr c
+    sjmp 00974$
+    00970$:
+    setb c
+    00974$:
+    ret
+}
+
+// Write the first EEPROM page and return the ACK status.
+replace {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov _stock_r3,_stock_r4
+    lcall _eeprom_bus_start
+    mov _stock_r4,#0xa0
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r4,_stock_r3
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%3
+    ljmp %2
+    %3:
+    %4:
+    mov r1,_stock_r0
+    mov _stock_r4,@r1
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%5
+    ljmp %2
+    %5:
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %6
+    ljmp %4
+    %6:
+    lcall _eeprom_bus_stop
+    clr _CARRY
+    ljmp %7
+    %2:
+    setb _CARRY
+    %7:
+    ret
+} by {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov 0x03,r4
+    lcall _eeprom_bus_start
+    mov r4,#0xa0
+    lcall _eeprom_bus_send_byte
+    jc 00975$
+    mov r4,0x03
+    lcall _eeprom_bus_send_byte
+    jc 00975$
+    00976$:
+    mov a,@r0
+    mov r4,a
+    lcall _eeprom_bus_send_byte
+    jc 00975$
+    inc r0
+    djnz r1,00976$
+    lcall _eeprom_bus_stop
+    clr c
+    sjmp 00977$
+    00975$:
+    setb c
+    00977$:
+    ret
+}
+
+// Read the second EEPROM page with a repeated start.
+replace {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov _stock_r3,_stock_r4
+    lcall _eeprom_bus_start
+    mov _stock_r4,#0xa2
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r4,_stock_r3
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%3
+    ljmp %2
+    %3:
+    lcall _eeprom_bus_start
+    mov _stock_r4,#0xa3
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%4
+    ljmp %2
+    %4:
+    %5:
+    mov a,#0x01
+    cjne a,_stock_r1,%6
+    setb c
+    sjmp %7
+    %6:
+    clr c
+    %7:
+    mov _CARRY,c
+    lcall _eeprom_bus_receive_byte
+    mov r1,_stock_r0
+    mov @r1,_stock_r4
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %8
+    ljmp %5
+    %8:
+    lcall _eeprom_bus_stop
+    clr _CARRY
+    ljmp %9
+    %2:
+    setb _CARRY
+    %9:
+    ret
+} by {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov 0x03,r4
+    lcall _eeprom_bus_start
+    mov r4,#0xa2
+    lcall _eeprom_bus_send_byte
+    jc 00978$
+    mov r4,0x03
+    lcall _eeprom_bus_send_byte
+    jc 00978$
+    lcall _eeprom_bus_start
+    mov r4,#0xa3
+    lcall _eeprom_bus_send_byte
+    jc 00978$
+    00981$:
+    mov a,r1
+    dec a
+    jnz 00979$
+    setb c
+    sjmp 00980$
+    00979$:
+    clr c
+    00980$:
+    lcall _eeprom_bus_receive_byte
+    mov a,r4
+    mov @r0,a
+    inc r0
+    djnz r1,00981$
+    lcall _eeprom_bus_stop
+    clr c
+    sjmp 00982$
+    00978$:
+    setb c
+    00982$:
+    ret
+}
+
+// Write the second EEPROM page and return the ACK status.
+replace {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov _stock_r3,_stock_r4
+    lcall _eeprom_bus_start
+    mov _stock_r4,#0xa2
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r4,_stock_r3
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%3
+    ljmp %2
+    %3:
+    %4:
+    mov r1,_stock_r0
+    mov _stock_r4,@r1
+    lcall _eeprom_bus_send_byte
+    jnb _CARRY,%5
+    ljmp %2
+    %5:
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %6
+    ljmp %4
+    %6:
+    lcall _eeprom_bus_stop
+    clr _CARRY
+    ljmp %7
+    %2:
+    setb _CARRY
+    %7:
+    ret
+} by {
+    mov _sfr_86,#0x80
+    setb _iac_tick_enabled
+    setb _iac_tick_high_priority
+    mov 0x03,r4
+    lcall _eeprom_bus_start
+    mov r4,#0xa2
+    lcall _eeprom_bus_send_byte
+    jc 00983$
+    mov r4,0x03
+    lcall _eeprom_bus_send_byte
+    jc 00983$
+    00984$:
+    mov a,@r0
+    mov r4,a
+    lcall _eeprom_bus_send_byte
+    jc 00983$
+    inc r0
+    djnz r1,00984$
+    lcall _eeprom_bus_stop
+    clr c
+    sjmp 00985$
+    00983$:
+    setb c
+    00985$:
+    ret
+}
