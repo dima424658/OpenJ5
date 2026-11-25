@@ -2558,6 +2558,8 @@ _idle_ignition_continue:
 
 ; CODE [0xa575, 0xa59d) comes from src/c/a575.c.
 
+; CODE [0xa59d, 0xa5ff) comes from src/c/a59d.c.
+
 ; CODE [0xa5ff, 0xa611) comes from src/c/a5ff.c.
 
 ; CODE [0xa62f, 0xb000)

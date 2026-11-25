@@ -1,0 +1,227 @@
+// Use the active register bank and hold the integer row offset in B.
+replace {
+    mov r7,_stock_r3
+    anl ar7,#0xf0
+    mov a,_stock_r2
+    swap a
+    anl a,#0x0f
+    mov r6,a
+    mov a,r6
+    add a,r7
+    mov _stock_r4,a
+} by {
+    mov a,r3
+    anl a,#0xf0
+    mov b,a
+    mov a,r2
+    anl a,#0xf0
+    swap a
+    add a,b
+    mov r4,a
+}
+
+// Extract both fractions without touching the original table base in DPTR.
+replace {
+    anl _stock_r2,#0x0f
+    anl _stock_r3,#0x0f
+    mov r6,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r7,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_stock_r3
+    orl a,_stock_r2
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    mov a,r2
+    anl a,#0x0f
+    mov r2,a
+    mov a,r3
+    anl a,#0x0f
+    mov r3,a
+    orl a,r2
+    jnz %2
+    %1:
+}
+
+// Read the integer cell directly when both fractions are zero.
+replace {
+    mov a,_stock_r4
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    ljmp %1
+} by {
+    mov a,r4
+    movc a,@a+dptr
+    ret
+}
+
+// Keep each computed byte weight in B for the table byte multiplication.
+// Lower the complementary row weight before the generic product rule.
+replace {
+    mov r5,_stock_r3
+    mov a,#0x10
+    clr c
+    subb a,r5
+    mov _stock_r3,a
+    mov b,_stock_r2
+    mov a,_stock_r3
+    mul ab
+    mov r5,a
+} by {
+    mov a,#0x10
+    clr c
+    subb a,r3
+    mov r3,a
+    mov b,r2
+    mul ab
+    mov b,a
+}
+
+replace {
+    mov b,_stock_r2
+    mov a,_stock_r3
+    mul ab
+    mov r5,a
+} by {
+    mov a,r2
+    mov b,r3
+    mul ab
+    mov b,a
+}
+
+replace {
+    mov r5,_stock_r2
+    mov a,#0x10
+    clr c
+    subb a,r5
+    mov b,_stock_r3
+    mul ab
+    mov r5,a
+} by {
+    mov a,#0x10
+    clr c
+    subb a,r2
+    mov b,r3
+    mul ab
+    mov b,a
+}
+
+// Read either bottom cell via the byte offset in A and multiply it by B.
+replace {
+    mov r4,_stock_r4
+    mov a,#%1
+    add a,r4
+    mov r4,a
+    mov a,r4
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r4,a
+    mov b,r4
+    mov a,r5
+    mul ab
+} by {
+    mov a,r4
+    add a,#%1
+    movc a,@a+dptr
+    mul ab
+}
+
+// Read and multiply the top cells with the same CODE base.
+replace {
+    mov r4,_stock_r4
+    inc r4
+    mov a,r4
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r4,a
+    mov b,r4
+    mov a,r5
+    mul ab
+} by {
+    mov a,r4
+    inc a
+    movc a,@a+dptr
+    mul ab
+}
+
+replace {
+    mov a,_stock_r4
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov b,r7
+    mov a,r5
+    mul ab
+} by {
+    mov a,r4
+    movc a,@a+dptr
+    mul ab
+}
+
+// Seed and accumulate the products using the original pair R1:R0.
+replace {
+    mov r4,a
+    mov r3,b
+    mov _stock_r01,r4
+    mov (_stock_r01 + 1),r3
+} by {
+    mov r0,a
+    mov r1,b
+}
+
+replace {
+    mov r4,a
+    mov r3,b
+    mov a,r4
+    add a,_stock_r01
+    mov _stock_r01,a
+    mov a,r3
+    addc a,(_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+} by {
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,b
+    mov r1,a
+}
+
+// On the last addition, return the high byte in A.
+replace {
+    mov r7,a
+    mov r6,b
+    mov a,r7
+    add a,_stock_r01
+    mov r7,a
+    mov a,r6
+    addc a,(_stock_r01 + 1)
+    mov r6,a
+    mov _stock_r0,r7
+    mov _ACC,r6
+} by {
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,b
+}
