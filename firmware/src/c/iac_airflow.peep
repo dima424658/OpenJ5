@@ -1,0 +1,193 @@
+// The limit helpers take R0 and R1 in the active register bank.
+replace {
+    mov _stock_r0,a
+} by {
+    mov r0,a
+}
+
+replace {
+    mov _stock_r1,a
+} by {
+    mov r1,a
+}
+
+replace {
+    mov _B,a
+    clr c
+    mov a,%1
+    subb a,_B
+} by {
+    mov _B,a
+    mov a,%1
+    clr c
+    subb a,_B
+}
+
+// Open throttle uses a separate offset. Above the second RPM threshold
+// at closed throttle, use the upper adaptation bound and reset the timer.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jnc %3
+    ljmp %4
+    %3:
+    mov _ACC,_stock_r1
+    ljmp %5
+    %4:
+} by {
+    jnc %2
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jc %4
+    mov a,r1
+    sjmp %5
+    %4:
+}
+
+// Keep the incremented timer byte in A, with CJNE supplying the borrow.
+// The decrement of the offset similarly feeds the stock signed limit in A.
+replace {
+    mov dptr,#_iac_offset_elapsed
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_iac_offset_elapsed
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_iac_airflow_offset
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    dec a
+    mov _ACC,a
+    lcall _limit_stock_i8_by_sign
+    mov dptr,#_iac_airflow_offset
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %3
+    %2:
+    mov dptr,#_iac_offset_elapsed
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %3
+} by {
+    mov dptr,#_iac_offset_elapsed
+    movx a,@dptr
+    inc a
+    cjne a,_B,%1
+    %1:
+    jc %2
+    clr a
+    mov dptr,#_iac_offset_elapsed
+    movx @dptr,a
+    mov dptr,#_iac_airflow_offset
+    movx a,@dptr
+    dec a
+    lcall _limit_stock_i8_by_sign
+    mov dptr,#_iac_airflow_offset
+    movx @dptr,a
+    sjmp %3
+    %2:
+    mov dptr,#_iac_offset_elapsed
+    movx @dptr,a
+    sjmp %3
+}
+
+replace {
+    mov a,_B
+    add a,_stock_r1
+    mov _ACC,a
+    %1:
+    mov dptr,#_iac_airflow_offset
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_iac_offset_elapsed
+    mov a,#0x00
+    movx @dptr,a
+    %2:
+    lcall _convert_iac_airflow_to_position
+    %3:
+    ret
+} by {
+    mov a,r1
+    add a,_B
+    %1:
+    mov dptr,#_iac_airflow_offset
+    movx @dptr,a
+    clr a
+    mov dptr,#_iac_offset_elapsed
+    movx @dptr,a
+    %2:
+}
+
+// MUL clears carry. Two rotations form (B:A product >> 7) modulo 256.
+replace {
+    mov _ACC,_airflow_for_iac
+    lcall _clamp_stock_u8
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov a,r5
+    mov c,acc.7
+    xch a,r7
+    rlc a
+    xch a,r7
+    rlc a
+    xch a,r7
+    anl a,#0x01
+    mov r5,a
+    mov _B,r7
+    mov dptr,#_iac_airflow_offset
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    add a,_B
+    mov _B,a
+    mov _stock_r0,#0x00
+} by {
+    mov a,_airflow_for_iac
+    lcall _clamp_stock_u8
+    mul ab
+    rlc a
+    mov a,_B
+    rlc a
+    mov _B,a
+    mov dptr,#_iac_airflow_offset
+    movx a,@dptr
+    add a,_B
+    mov _B,a
+    mov r0,#0x00
+}
+
+replace {
+    mov _ACC,_B
+    lcall _clamp_stock_u8
+    mov _iac_target,_ACC
+} by {
+    mov a,_B
+    lcall _clamp_stock_u8
+    mov _iac_target,a
+}
