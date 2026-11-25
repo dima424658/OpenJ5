@@ -1,0 +1,188 @@
+// Select the measured or voltage-indexed pause, leaving the table index in A.
+replace {
+    jnb acc.0,%1
+    ljmp %2
+    %1:
+    jnb _oxygen_heater_fault,%3
+    ljmp %2
+    %3:
+    mov dptr,#_oxygen_heater_adc
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x0e,%4
+    %4:
+    jc %5
+    ljmp %6
+    %5:
+    lcall _check_oxygen_heater_resistance
+    ljmp %7
+    %6:
+    mov a,r7
+    add a,#0xf2
+    mov _ACC,a
+    ljmp %8
+    %2:
+    mov dptr,#_voltage_quantized
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    mov a,r7
+    add a,#_oxygen_heater_pause_curve
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_oxygen_heater_pause_curve >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    %8:
+    mov _B,_ACC
+    mov dptr,#_oxygen_heater_pause_limit
+    mov a,_ACC
+    movx @dptr,a
+    jb _oxygen_heater_active,%9
+    ljmp %10
+    %9:
+} by {
+    jb acc.0,%2
+    jb _oxygen_heater_fault,%2
+    mov dptr,#_oxygen_heater_adc
+    movx a,@dptr
+    clr c
+    subb a,#0x0e
+    jnc %6
+    clr a
+    ljmp _check_oxygen_heater_resistance
+    %6:
+    sjmp %8
+    %2:
+    mov dptr,#_voltage_quantized
+    movx a,@dptr
+    swap a
+    anl a,#0x0f
+    mov dptr,#_oxygen_heater_pause_curve
+    movc a,@a+dptr
+    %8:
+    mov _B,a
+    mov dptr,#_oxygen_heater_pause_limit
+    movx @dptr,a
+    jnb _oxygen_heater_active,%10
+}
+
+// Put the elapsed time in A and the pulse limit in B for comparison.
+replace {
+    mov dptr,#_oxygen_heater_on_ticks
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,_ACC
+    mov dptr,#_oxygen_heater_pulse_ticks
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_B
+    subb a,_ACC
+    jnc %1
+    ljmp %2
+    %1:
+    mov _B,#0x0c
+    lcall _read_adc_8bit
+    mov dptr,#_oxygen_heater_adc
+    mov a,_ACC
+    movx @dptr,a
+    setb _oxygen_heater_output_high
+    clr _oxygen_heater_active
+    mov dptr,#_oxygen_heater_off_ticks
+    mov a,#0x00
+    movx @dptr,a
+    ljmp %2
+} by {
+    mov dptr,#_oxygen_heater_on_ticks
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    mov _B,a
+    mov dptr,#_oxygen_heater_pulse_ticks
+    clr a
+    movc a,@a+dptr
+    xch a,_B
+    cjne a,_B,.+3
+    jc %2
+    mov _B,#0x0c
+    lcall _read_adc_8bit
+    mov dptr,#_oxygen_heater_adc
+    movx @dptr,a
+    setb _oxygen_heater_output_high
+    clr _oxygen_heater_active
+    clr a
+    mov dptr,#_oxygen_heater_off_ticks
+    movx @dptr,a
+    sjmp %2
+}
+
+// Saturate the pause counter, then fall through to idle control.
+replace {
+    mov dptr,#_oxygen_heater_off_ticks
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_heater_off_ticks
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    mov dptr,#_oxygen_heater_off_ticks
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %3
+    ljmp %4
+    %3:
+    jnb _oxygen_heater_inhibited,%5
+    ljmp %6
+    %5:
+    clr _oxygen_heater_output_high
+    %6:
+    setb _oxygen_heater_active
+    mov dptr,#_oxygen_heater_on_ticks
+    mov a,#0x00
+    movx @dptr,a
+    %4:
+    lcall _update_idle_speed_target
+    %7:
+    ret
+} by {
+    mov dptr,#_oxygen_heater_off_ticks
+    movx a,@dptr
+    inc a
+    jz %2
+    movx @dptr,a
+    %2:
+    mov dptr,#_oxygen_heater_off_ticks
+    movx a,@dptr
+    cjne a,_B,.+3
+    jc %4
+    jb _oxygen_heater_inhibited,%6
+    clr _oxygen_heater_output_high
+    %6:
+    setb _oxygen_heater_active
+    clr a
+    mov dptr,#_oxygen_heater_on_ticks
+    movx @dptr,a
+    %4:
+}

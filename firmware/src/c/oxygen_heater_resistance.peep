@@ -1,0 +1,132 @@
+replace {
+    jnb _oxygen_heater_inhibited,%1
+    ljmp %2
+    %1:
+    clr _oxygen_heater_output_high
+    %2:
+} by {
+    jb _oxygen_heater_inhibited,%2
+    clr _oxygen_heater_output_high
+    %2:
+}
+
+replace {
+    orl acc,#0x02
+    movx @dptr,a
+    mov _B,#0x0c
+    lcall _read_adc_8bit
+    mov dptr,#_oxygen_heater_adc
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    orl a,#0x02
+    movx @dptr,a
+    mov _B,#0x0c
+    lcall _read_adc_8bit
+    mov dptr,#_oxygen_heater_adc
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_oxygen_heater_adc
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    jnb _oxygen_heater_inhibited,%3
+    ljmp %4
+    %3:
+} by {
+    mov dptr,#_oxygen_heater_adc
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc %2
+    jb _oxygen_heater_inhibited,%4
+}
+
+// Compare the new count in A while retaining its address in DPTR.
+replace {
+    mov dptr,#_oxygen_heater_diagnostic_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_B
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    setb _oxygen_heater_inhibited
+    mov dptr,#_oxygen_heater_diagnostic_count
+    mov a,#0x00
+    movx @dptr,a
+    ljmp %3
+} by {
+    mov dptr,#_oxygen_heater_diagnostic_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,%3
+    setb _oxygen_heater_inhibited
+    clr a
+    mov dptr,#_oxygen_heater_diagnostic_count
+    movx @dptr,a
+    sjmp %3
+}
+
+replace {
+    mov dptr,#_oxygen_heater_adc
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    jnb _oxygen_heater_inhibited,%3
+    ljmp %4
+    %3:
+} by {
+    mov dptr,#_oxygen_heater_adc
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jc %2
+    jb _oxygen_heater_inhibited,%4
+}
+
+replace {
+    anl acc,#0xfd
+    movx @dptr,a
+    ljmp %1
+    %2:
+    mov dptr,#_oxygen_heater_diagnostic_count
+    mov a,#0x00
+    movx @dptr,a
+    clr _oxygen_heater_inhibited
+    %1:
+    lcall _update_idle_speed_target
+    %3:
+    ret
+} by {
+    anl a,#0xfd
+    movx @dptr,a
+    sjmp %1
+    %2:
+    clr a
+    mov dptr,#_oxygen_heater_diagnostic_count
+    movx @dptr,a
+    clr _oxygen_heater_inhibited
+    %1:
+    ljmp _update_idle_speed_target
+}
