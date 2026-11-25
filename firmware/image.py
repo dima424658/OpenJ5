@@ -21,6 +21,8 @@ SYMBOLS = {
     "vector_block_end": 0x00B0,
     "_update_rpm_axis": 0x2BCD,
     "_rpm_update_continued": 0x2BE6,
+    "_update_knock_noise_zone": 0x2C3F,
+    "_knock_zone_update_continued": 0x2C6C,
     "_update_coolant_axis": 0x3396,
     "_coolant_update_continued": 0x33C2,
     "interp_bilinear_u8": 0xA59D,
@@ -63,6 +65,7 @@ SYMBOLS = {
 }
 C_SECTIONS = {
     "code_2bcd": 25,
+    "code_2c3f": 45,
     "code_3396": 44,
     "code_a33a": 24,
     "code_a381": 29,

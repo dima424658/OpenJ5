@@ -1,0 +1,102 @@
+// Read the one-byte throttle index through MOVC, leaving the base in DPTR.
+replace {
+    mov a,_throttle_position
+    add a,#_throttle_quantization_q4
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_throttle_quantization_q4 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#_throttle_quantization_q4
+    mov a,_throttle_position
+    movc a,@a+dptr
+}
+
+// Keep the rounded byte in A and the row offset in B. The mask clears
+// the low nibble before SWAP, so no second mask is needed afterward.
+replace {
+    mov r7,a
+    mov a,#%1
+    add a,r7
+    mov r7,a
+    mov a,#0xf0
+    anl a,r7
+    mov _B,a
+    mov a,_B
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    mov dptr,#_throttle_nearest_bin
+    mov a,r7
+} by {
+    add a,#%1
+    anl a,#0xf0
+    mov b,a
+    swap a
+    mov dptr,#_throttle_nearest_bin
+}
+
+// The byte offset is the rounded throttle row plus the rounded RPM column.
+// Use R2 to keep the original offset across the load of DPTR.
+replace {
+    mov a,_rpm_nearest_bin
+    add a,_B
+    mov r7,a
+    mov a,r7
+    add a,#_knock_noise_zone_flags
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_knock_noise_zone_flags >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov _B,_ACC
+} by {
+    mov a,b
+    add a,_rpm_nearest_bin
+    mov r2,a
+    mov dptr,#_knock_noise_zone_flags
+    mov a,r2
+    movc a,@a+dptr
+    mov b,a
+}
+
+// Carry is already the CY SFR bit. The instruction set supports AND with
+// the complemented bit directly, without a separate complement and move.
+replace {
+    mov c,_inhibit_noise_adaptation_62
+    cpl c
+    mov _CY,c
+    mov c,_CY
+    anl c,_NOISE_ADAPTATION_ZONE
+} by {
+    mov c,_NOISE_ADAPTATION_ZONE
+    anl c,/_inhibit_noise_adaptation_62
+}
+
+// The lookup result stays in A until both XDATA bytes have been written.
+replace {
+    mov dptr,#_knock_noise_zone
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    mov dptr,#_knock_noise_zone_number
+    anl a,#%1
+} by {
+    mov dptr,#_knock_noise_zone
+    movx @dptr,a
+    anl a,#%1
+    mov dptr,#_knock_noise_zone_number
+}
+
+// The original sensor routine resumes at the first byte after this block.
+replace {
+    lcall _knock_zone_update_continued
+    %1:
+    ret
+} by {
+    %1:
+}
