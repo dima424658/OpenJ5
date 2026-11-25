@@ -1,0 +1,438 @@
+// Read and complement the selected weight and multiply the high half of the old accumulator.
+replace {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    jb acc.0,%1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_period_alt_weight
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#(_misfire_period_alt_weight + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_period_weight
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#(_misfire_period_weight + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    %3:
+    lcall _negate_u16_register_pair
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x41
+    add a, r7
+    mov r7,a
+    mov ar5,r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r5
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r2,a
+    inc r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r3,a
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r4,_mdu_0
+    mov _stock_r5,_mdu_1
+    mov _stock_r6,_mdu_2
+    mov _stock_r7,_mdu_3
+} by {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    jnb acc.0,00950$
+    mov dptr,#_misfire_period_alt_weight
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#(_misfire_period_alt_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    sjmp 00951$
+    00950$:
+    mov dptr,#_misfire_period_weight
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#(_misfire_period_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    00951$:
+    lcall _negate_u16_register_pair
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov dptr,#0xfa41
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov r4,_mdu_0
+    mov r5,_mdu_1
+    mov r6,_mdu_2
+    mov r7,_mdu_3
+}
+
+// Add the high half of the low-word product to the old accumulator contribution.
+replace {
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x35
+    add a, r7
+    mov r7,a
+    mov ar5,r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r5
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r2,a
+    inc r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r3,a
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov r4,_stock_r23
+    mov r5,(_stock_r23 + 1)
+    mov r6,#0x00
+    mov r7,#0x00
+    mov a,r4
+    add a, _stock_r4567
+    mov _stock_r4567,a
+    mov a,r5
+    addc a, (_stock_r4567 + 1)
+    mov (_stock_r4567 + 1),a
+    mov a,r6
+    addc a, (_stock_r4567 + 2)
+    mov (_stock_r4567 + 2),a
+    mov a,r7
+    addc a, (_stock_r4567 + 3)
+    mov (_stock_r4567 + 3),a
+    lcall _mix_misfire_period_ratio
+    %1:
+    ret
+} by {
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov dptr,#0xfa35
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov a,r4
+    add a,r2
+    mov r4,a
+    mov a,r5
+    addc a,r3
+    mov r5,a
+    mov a,r6
+    addc a,#0x00
+    mov r6,a
+    mov a,r7
+    addc a,#0x00
+    mov r7,a
+}
+
+// Multiply the new ratio by the selected weight.
+replace {
+    mov dptr,#_selected_period_ratio
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    jb acc.0,%1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_period_alt_weight
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_misfire_period_alt_weight + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_period_weight
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_misfire_period_weight + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    %3:
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+} by {
+    mov dptr,#_selected_period_ratio
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    jnb acc.0,00952$
+    mov dptr,#_misfire_period_alt_weight
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_misfire_period_alt_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    sjmp 00953$
+    00952$:
+    mov dptr,#_misfire_period_weight
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_misfire_period_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    00953$:
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+}
+
+// Store the two words of the combined accumulator and dispatch by RPM-bin mask.
+replace {
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov r6,#0x00
+    mov r7,#0x00
+    mov r0,_stock_r45
+    mov r1,(_stock_r45 + 1)
+    mov r2,#0x00
+    mov r3,#0x00
+    mov a,r0
+    add a, r4
+    mov r4,a
+    mov a,r1
+    addc a, r5
+    mov r5,a
+    mov a,r2
+    addc a, r6
+    mov r6,a
+    mov a,r3
+    addc a, r7
+    mov r7,a
+    mov _stock_r01,r4
+    mov (_stock_r01 + 1),r5
+    mov ar4,r6
+    mov ar5,r7
+    mov r6,#0x00
+    mov r7,#0x00
+    mov a,r4
+    orl a,r5
+    orl a,r6
+    orl a,r7
+    cjne a,#0x01,%1
+    %1:
+    mov _mix_misfire_period_ratio_sloc0_1_0,c
+    mov c,_mix_misfire_period_ratio_sloc0_1_0
+    cpl c
+    mov _B_CARRY,c
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x35
+    add a, r7
+    mov r7,a
+    mov ar5,r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r5
+    mov dph,r6
+    mov a,_stock_r0
+    movx @dptr,a
+    inc r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    mov a,_stock_r1
+    movx @dptr,a
+    mov c,_B_CARRY
+    clr a
+    rlc a
+    mov r7,a
+    mov r5,_stock_r67
+    mov r6,(_stock_r67 + 1)
+    mov r4,#0x00
+    mov a,r7
+    add a, r5
+    mov r5,a
+    mov a,r4
+    addc a, r6
+    mov r6,a
+    mov r4,_stock_r23
+    mov r7,(_stock_r23 + 1)
+    mov a,r5
+    add a, r4
+    mov r5,a
+    mov a,r6
+    addc a, r7
+    mov r6,a
+    mov _stock_r23,r5
+    mov (_stock_r23 + 1),r6
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x41
+    add a, r7
+    mov r7,a
+    mov ar5,r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r5
+    mov dph,r6
+    mov a,_stock_r2
+    movx @dptr,a
+    inc r7
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    mov a,_stock_r3
+    movx @dptr,a
+    mov dptr,#_misfire_rpm_bin_mask
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jb acc.0,%2
+    ljmp %3
+    %2:
+    lcall _update_misfire_period_bin1
+    ljmp %4
+    %3:
+    lcall _tick_misfire_period_counters
+    %4:
+    ret
+} by {
+    mov a,r0
+    add a,r4
+    mov r0,a
+    mov a,r1
+    addc a,r5
+    mov r1,a
+    mov _B_CARRY,c
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov dptr,#0xfa35
+    add a,dpl
+    mov dpl,a
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov c,_B_CARRY
+    mov a,r2
+    addc a,r6
+    mov r2,a
+    mov a,r3
+    addc a,r7
+    mov r3,a
+    mov dptr,#_misfire_rpm_bin_offset
+    movx a,@dptr
+    mov dptr,#0xfa41
+    add a,dpl
+    mov dpl,a
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#_misfire_rpm_bin_mask
+    movx a,@dptr
+    jb acc.0,_update_misfire_period_bin1
+    ljmp _tick_misfire_period_counters
+}
