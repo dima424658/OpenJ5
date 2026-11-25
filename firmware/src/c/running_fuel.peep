@@ -1,0 +1,672 @@
+// Gate fuel output and compute the weighted mixture dose with a poststart floor.
+replace {
+    jnb _deceleration_fuel_cut,%1
+    ljmp %2
+    %1:
+    mov dptr,#_injection_cutoff_rpm_code
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_rpm_axis
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    mov r7,_requested_mixture_code
+    mov r6,#0x00
+    mov a,#0x80
+    add a, r7
+    mov r7,a
+    mov a,#0x00
+    addc a, r6
+    mov r6,a
+    mov _B,r7
+    mov _ACC,r6
+    mov _mdu_0,#0x00
+    mov _mdu_1,_stock_r0
+    mov _mdu_2,_stock_r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,_B
+    mov _mdu_5,_ACC
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_fuel_weight
+    movx a,@dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _shift_left_saturating_1
+    mov dptr,#_base_cyclic_fuel
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_poststart_fuel_floor
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%4
+    ljmp %5
+    %4:
+    mov dptr,#_base_cyclic_fuel
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    %5:
+    lcall _track_cyclic_fuel
+    ljmp %6
+    %2:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    mov dptr,#_delivered_cyclic_fuel
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _publish_cyclic_fuel
+    %6:
+    ret
+} by {
+    jb _deceleration_fuel_cut,00950$
+    mov dptr,#_injection_cutoff_rpm_code
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_rpm_axis
+    clr c
+    subb a,_B
+    jc 00951$
+    00950$:
+    mov r0,#0x00
+    mov r1,#0x00
+    mov dptr,#_delivered_cyclic_fuel
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    ljmp _publish_cyclic_fuel
+    00951$:
+    mov a,_requested_mixture_code
+    add a,#0x80
+    mov _B,a
+    clr a
+    addc a,#0x00
+    mov _mdu_0,#0x00
+    mov _mdu_1,r0
+    mov _mdu_2,r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,_B
+    mov _mdu_5,a
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_fuel_weight
+    movx a,@dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _shift_left_saturating_1
+    mov dptr,#_base_cyclic_fuel
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_poststart_fuel_floor
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jc 00952$
+    sjmp _track_cyclic_fuel
+    00952$:
+    mov dptr,#_base_cyclic_fuel
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+}
+
+// Accumulate prior fuel and retain the exact timer register access order on rollover.
+replace {
+    mov dptr,#_cyclic_fuel_accumulator
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_delivered_cyclic_fuel
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _add_u16_register_pairs
+    mov dptr,#_cyclic_fuel_accumulator
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    jb _split_injection_dose,%1
+    ljmp %2
+    %1:
+    mov r6,#0x82
+    mov r7,#0x06
+    ljmp %3
+    %2:
+    mov r6,#0x04
+    mov r7,#0x0d
+    %3:
+    mov _stock_r23,r6
+    mov (_stock_r23 + 1),r7
+    lcall _subtract_u16_register_pairs
+    jnb _CY,%4
+    ljmp %5
+    %4:
+    mov dptr,#_cyclic_fuel_accumulator
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov _ACC,_stock_r1
+    anl _sfr_f6,#0xdf
+    clr _EA
+    setb _timer_latch_ed
+    mov _sfr_c2,_ACC
+    setb _EA
+    mov r6,_sfr_c2
+    mov r7,#0x00
+    mov a,#0x94
+    add a, r6
+    mov r6,a
+    mov a,#0x00
+    addc a, r7
+    mov r7,a
+    mov _stock_r2,r6
+    mov ar6,r7
+    mov a,r6
+    add a, _sfr_c3
+    mov _sfr_e7,a
+    mov _sfr_e6,_stock_r2
+    orl _sfr_f6,#0x20
+    clr _timer_latch_ed
+    %5:
+    lcall _calculate_fuel_film
+    %6:
+    ret
+} by {
+    mov dptr,#_cyclic_fuel_accumulator
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_delivered_cyclic_fuel
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _add_u16_register_pairs
+    mov dptr,#_cyclic_fuel_accumulator
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    jnb _split_injection_dose,00953$
+    mov r3,#0x06
+    mov r2,#0x82
+    sjmp 00954$
+    00953$:
+    mov r3,#0x0d
+    mov r2,#0x04
+    00954$:
+    lcall _subtract_u16_register_pairs
+    jc _calculate_fuel_film
+    mov dptr,#_cyclic_fuel_accumulator
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    anl _sfr_f6,#0xdf
+    clr _EA
+    setb _timer_latch_ed
+    mov _sfr_c2,a
+    setb _EA
+    mov a,_sfr_c2
+    add a,#0x94
+    mov r2,a
+    mov a,_sfr_c3
+    addc a,#0x00
+    mov _sfr_e7,a
+    mov _sfr_e6,r2
+    orl _sfr_f6,#0x20
+    clr _timer_latch_ed
+}
+
+// Look up film gain, limit it by the event count, and take the output-state path when selected.
+replace {
+    mov a,_charge_nearest_half_bin
+    add a, #_fuel_film_charge_gain
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fuel_film_charge_gain >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,_coolant_nearest_index
+    add a, #_fuel_film_coolant_gain
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fuel_film_coolant_gain >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov ar7,r5
+    mov dptr,#_fuel_film_events
+    movx a,@dptr
+    mov r6,a
+    cjne r6,#0xff,%1
+    %1:
+    jc %2
+    ljmp %3
+    %2:
+    mov dptr,#_fuel_film_events
+    movx a,@dptr
+    add a, #0x01
+    movx @dptr,a
+    %3:
+    mov dptr,#_fuel_film_events
+    movx a,@dptr
+    mov _stock_r1,a
+    mov _stock_r0,#0x00
+    mov _ACC,r7
+    lcall _clamp_stock_u8
+    mov dptr,#_fuel_film_gain
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r4,_ACC
+    mov dptr,#_base_cyclic_fuel
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov _B,_stock_r4
+    lcall _multiply_stock_u16_u8
+    lcall _shift_left_saturating_3
+    jb _output_state_flag_45,%4
+    ljmp %5
+    %4:
+    mov a,_crank_slot
+    rl a
+    mov r7,a
+    mov a,_crank_slot
+    mov a,#0x39
+    add a, r7
+    mov r7,a
+    mov ar5,r7
+    mov r6,#0x00
+    orl ar6,#0xf8
+    mov dpl,r5
+    mov dph,r6
+    mov a,_stock_r0
+    movx @dptr,a
+    inc r7
+    mov r6,#0x00
+    orl ar6,#0xf8
+    mov dpl,r7
+    mov dph,r6
+    mov a,_stock_r1
+    movx @dptr,a
+    mov dptr,#_base_cyclic_fuel
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _add_throttle_fuel_delta
+    ljmp %6
+    %5:
+    lcall _update_cylinder_fuel_film
+    %6:
+    ret
+} by {
+    mov dptr,#_fuel_film_charge_gain
+    mov a,_charge_nearest_half_bin
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_fuel_film_coolant_gain
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mul ab
+    mov dptr,#_fuel_film_events
+    movx a,@dptr
+    inc a
+    jnz 00955$
+    dec a
+    00955$:
+    movx @dptr,a
+    mov r1,a
+    mov r0,#0x00
+    mov a,_B
+    lcall _clamp_stock_u8
+    mov dptr,#_fuel_film_gain
+    movx @dptr,a
+    mov r4,a
+    mov dptr,#_base_cyclic_fuel
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov _B,r4
+    lcall _multiply_stock_u16_u8
+    lcall _shift_left_saturating_3
+    jnb _output_state_flag_45,_update_cylinder_fuel_film
+    mov a,_crank_slot
+    rl a
+    mov dptr,#0xf839
+    add a,dpl
+    mov dpl,a
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_base_cyclic_fuel
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    ljmp _add_throttle_fuel_delta
+}
+
+// Swap the cylinder film word and apply transition gain to the nonnegative fuel delta.
+replace {
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov dptr,#_base_cyclic_fuel
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _add_u16_register_pairs
+    mov a,_crank_slot
+    rl a
+    mov r7,a
+    mov a,_crank_slot
+    mov a,#0x39
+    add a, r7
+    mov r7,a
+    mov ar5,r7
+    mov r6,#0x00
+    orl ar6,#0xf8
+    mov dpl,r5
+    mov dph,r6
+    movx a,@dptr
+    mov r4,a
+    mov dpl,r5
+    mov dph,r6
+    mov a,_stock_r2
+    movx @dptr,a
+    mov _stock_r2,r4
+    inc r7
+    mov r6,#0x00
+    orl ar6,#0xf8
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov r5,a
+    mov dpl,r7
+    mov dph,r6
+    mov a,_stock_r3
+    movx @dptr,a
+    mov _stock_r3,r5
+    lcall _subtract_u16_register_pairs
+    mov _ACC,_stock_r1
+    jb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    lcall _update_film_after_underflow
+    ljmp %3
+    %2:
+    mov dptr,#_fuel_transition_event_count
+    movx a,@dptr
+    jnz %4
+    ljmp %5
+    %4:
+    mov dptr,#_fuel_transition_event_count
+    movx a,@dptr
+    dec a
+    movx @dptr,a
+    mov a,_charge_nearest_half_bin
+    add a, #_fuel_film_resume_gain
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fuel_film_resume_gain >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    lcall _multiply_stock_u16_u8
+    lcall _add_u16_register_pairs
+    %5:
+    lcall _add_throttle_fuel_delta
+    %3:
+    ret
+} by {
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov dptr,#_base_cyclic_fuel
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _add_u16_register_pairs
+    mov a,_crank_slot
+    rl a
+    mov dptr,#0xf839
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    xch a,r2
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    xch a,r3
+    movx @dptr,a
+    lcall _subtract_u16_register_pairs
+    mov a,r1
+    jb acc.7,_update_film_after_underflow
+    mov dptr,#_fuel_transition_event_count
+    movx a,@dptr
+    jz 00956$
+    dec a
+    movx @dptr,a
+    mov dptr,#_fuel_film_resume_gain
+    mov a,_charge_nearest_half_bin
+    movc a,@a+dptr
+    mov _B,a
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    lcall _multiply_stock_u16_u8
+    lcall _add_u16_register_pairs
+    00956$:
+    sjmp _add_throttle_fuel_delta
+}
+
+// Rescale the previous film word through the MDU after a negative fuel delta.
+replace {
+    mov _B,_stock_r4
+    mov r7,_ACC
+    mov a,#0x20
+    add a, r7
+    mov _ACC,a
+    mov _mdu_0,#0x00
+    mov _mdu_1,_B
+    mov _mdu_4,_ACC
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov _stock_r01,_bank_one_r23
+    mov (_stock_r01 + 1),(_bank_one_r23 + 1)
+    lcall _multiply_stock_u16_u8
+    mov a,_crank_slot
+    rl a
+    mov r7,a
+    mov a,_crank_slot
+    mov a,#0x39
+    add a, r7
+    mov r7,a
+    mov ar5,r7
+    mov r6,#0x00
+    orl ar6,#0xf8
+    mov dpl,r5
+    mov dph,r6
+    mov a,_stock_r0
+    movx @dptr,a
+    inc r7
+    mov r6,#0x00
+    orl ar6,#0xf8
+    mov dpl,r7
+    mov dph,r6
+    mov a,_stock_r1
+    movx @dptr,a
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    lcall _add_throttle_fuel_delta
+    %1:
+    ret
+} by {
+    mov _B,r4
+    add a,#0x20
+    mov _mdu_0,#0x00
+    mov _mdu_1,_B
+    mov _mdu_4,a
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov r0,_bank_one_r23
+    mov r1,(_bank_one_r23 + 1)
+    lcall _multiply_stock_u16_u8
+    mov a,_crank_slot
+    rl a
+    mov dptr,#0xf839
+    add a,dpl
+    mov dpl,a
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov r0,#0x00
+    mov r1,#0x00
+}
+
+// Add the throttle transient and select the shared fuel continuation.
+replace {
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _add_u16_register_pairs
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jz %1
+    ljmp %2
+    %1:
+    lcall _apply_minimum_fuel_dose
+    ljmp %3
+    %2:
+    jb _fuel_configuration_flag_05,%4
+    ljmp %5
+    %4:
+    mov c,_injection_selection_flag_14
+    mov _split_injection_dose,c
+    ljmp %6
+    %5:
+    setb _split_injection_dose
+    %6:
+    lcall _apply_fuel_corrections
+    %3:
+    ret
+} by {
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _add_u16_register_pairs
+    mov a,r0
+    orl a,r1
+    jz _apply_minimum_fuel_dose
+    jb _fuel_configuration_flag_05,00957$
+    setb _split_injection_dose
+    sjmp _apply_fuel_corrections
+    00957$:
+    mov c,_injection_selection_flag_14
+    mov _split_injection_dose,c
+}
