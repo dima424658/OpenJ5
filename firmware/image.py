@@ -19,6 +19,8 @@ SYMBOLS = {
     "irq_vector_0023": 0x0023,
     "irq_vector_006b": 0x006B,
     "vector_block_end": 0x00B0,
+    "_update_coolant_axis": 0x3396,
+    "_coolant_update_continued": 0x33C2,
     "interp_bilinear_u8": 0xA59D,
     "interp_bilinear_end": 0xA5FF,
     "interp_curve_u8": 0xA611,
@@ -56,6 +58,7 @@ SYMBOLS = {
     **{f"_irq_unused_{address:04x}": address for address in UNUSED_VECTORS},
 }
 C_SECTIONS = {
+    "code_3396": 44,
     "code_a33a": 24,
     "code_a381": 29,
     "code_a3f9": 25,
