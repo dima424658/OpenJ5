@@ -1,0 +1,366 @@
+// The proportional input is in B. Use MUL AB and recover the signed
+// product by subtracting the gain from its high byte for a negative input.
+replace {
+    mov _stock_r0,a
+    jb _B_SIGN,%1
+    ljmp %2
+    %1:
+    clr c
+    clr a
+    subb a,_stock_r0
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov _stock_r1,r7
+    mov r7,_stock_r0
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r2,r7
+    mov ar7,r5
+    mov a,_stock_r1
+    add a,r7
+    mov _stock_r3,a
+} by {
+    mov r0,a
+    clr a
+    jnb _B_SIGN,%3
+    clr c
+    subb a,r0
+    %3:
+    mov r1,a
+    mov a,r0
+    mul ab
+    mov r2,a
+    mov a,_B
+    add a,r1
+    mov r3,a
+}
+
+// Prepare the limits and integral term in the stock helper registers.
+replace {
+    mov _ACC,a
+    mov _stock_r1,_ACC
+    clr c
+    clr a
+    subb a,_ACC
+    mov _stock_r0,a
+    mov _ACC,_idle_rpm_error
+    lcall _limit_stock_i8_by_sign
+    mov _stock_r0,_ACC
+} by {
+    mov r1,a
+    cpl a
+    inc a
+    mov r0,a
+    mov a,_idle_rpm_error
+    lcall _limit_stock_i8_by_sign
+    mov r0,a
+}
+
+replace {
+    lcall _scale_idle_iac_feedback
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    mov _stock_r2,_B
+} by {
+    mov r2,_B
+}
+
+replace {
+    mov a,_iac_stiffness_index
+    add a,#_iac_feedback_stiffness
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_iac_feedback_stiffness >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#_iac_feedback_stiffness
+    mov a,_iac_stiffness_index
+    movc a,@a+dptr
+}
+
+// MOVX preserves carry, so propagate directly from each fractional sum.
+replace {
+    mov dptr,#_iac_fraction_hi
+    movx a,@dptr
+    mov r7,a
+    mov r6,_B
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a,r7
+    mov r7,a
+    mov a,r4
+    addc a,r5
+    mov r5,a
+    mov a,r7
+    movx @dptr,a
+    mov ar7,r5
+    mov r5,#0x00
+    mov a,r7
+    add a,_stock_r01
+    mov _stock_r01,a
+    mov a,r5
+    addc a,(_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+} by {
+    mov dptr,#_iac_fraction_hi
+    movx a,@dptr
+    add a,_B
+    movx @dptr,a
+    mov a,r0
+    addc a,#0x00
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+}
+
+replace {
+    mov r7,_stock_r2
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov dptr,#_iac_fraction_lo
+    movx a,@dptr
+    mov r6,a
+    mov ar4,r7
+    mov r3,#0x00
+    mov r2,#0x00
+    mov a,r4
+    add a,r6
+    mov r6,a
+    mov a,r3
+    addc a,r2
+    mov r2,a
+    mov a,r6
+    movx @dptr,a
+    mov dptr,#_iac_fraction_hi
+    movx a,@dptr
+    mov r3,a
+    mov r4,#0x00
+    mov ar7,r5
+    mov r5,#0x00
+    mov a,r7
+    add a,r3
+    mov r3,a
+    mov a,r5
+    addc a,r4
+    mov r4,a
+    mov ar6,r2
+    mov r2,#0x00
+    mov a,r6
+    add a,r3
+    mov r3,a
+    mov a,r2
+    addc a,r4
+    mov r4,a
+    mov a,r3
+    movx @dptr,a
+    mov ar3,r4
+    mov r4,#0x00
+    mov a,r3
+    add a,_stock_r01
+    mov _stock_r01,a
+    mov a,r4
+    addc a,(_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    lcall _apply_idle_iac_position_delta
+    %1:
+    ret
+} by {
+    mov a,r2
+    mul ab
+    mov r2,a
+    mov dptr,#_iac_fraction_lo
+    movx a,@dptr
+    add a,r2
+    movx @dptr,a
+    mov dptr,#_iac_fraction_hi
+    movx a,@dptr
+    addc a,_B
+    movx @dptr,a
+    mov a,r0
+    addc a,#0x00
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    %1:
+}
+
+// At low airflow only a negative position increment is suppressed.
+replace {
+    clr c
+    mov a,_measured_airflow
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov a,_stock_r1
+    jb acc.7,%3
+    ljmp %2
+    %3:
+    ljmp %4
+    %2:
+    mov dptr,#_iac_feedback_position_q4
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _add_u16_register_pairs
+    mov a,_stock_r1
+    jb acc.7,%5
+    ljmp %6
+    %5:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    %6:
+} by {
+    mov a,_measured_airflow
+    clr c
+    subb a,_B
+    jnc %2
+    mov a,r1
+    jb _ACC_SIGN,%4
+    %2:
+    mov dptr,#_iac_feedback_position_q4
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _add_u16_register_pairs
+    mov a,r1
+    jnb _ACC_SIGN,%6
+    mov r0,#0x00
+    mov r1,#0x00
+    %6:
+}
+
+replace {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_iac_cold_max_position
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %2:
+} by {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,%1
+    %1:
+    jc %2
+    mov dptr,#_iac_cold_max_position
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %2:
+}
+
+// Each byte limit becomes a Q4 word in R3:R2.
+replace {
+    mov r6,_B
+    mov r7,#0x00
+    mov _stock_r23,r6
+    mov a,r7
+    swap a
+    anl a,#0xf0
+    xch a,_stock_r23
+    swap a
+    xch a,_stock_r23
+    xrl a,_stock_r23
+    xch a,_stock_r23
+    anl a,#0xf0
+    xch a,_stock_r23
+    xrl a,_stock_r23
+    mov (_stock_r23 + 1),a
+} by {
+    mov a,_B
+    swap a
+    anl a,#0x0f
+    mov r3,a
+    mov a,_B
+    swap a
+    anl a,#0xf0
+    mov r2,a
+}
+
+replace {
+    jb _air_conditioning_active,%1
+    ljmp %2
+    %1:
+    mov dptr,#_iac_ac_min_position
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %3
+    %2:
+    mov dptr,#_iac_min_position
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %3:
+} by {
+    jnb _air_conditioning_active,%2
+    mov dptr,#_iac_ac_min_position
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp %3
+    %2:
+    mov dptr,#_iac_min_position
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %3:
+}
+
+replace {
+    mov dptr,#_iac_feedback_position_q4
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _shift_left_saturating_4
+    mov _iac_target,_stock_r1
+} by {
+    mov dptr,#_iac_feedback_position_q4
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    lcall _shift_left_saturating_4
+    mov a,r1
+    mov _iac_target,a
+}
