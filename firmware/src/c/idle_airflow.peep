@@ -149,7 +149,7 @@ replace {
     mov _ACC,#0xff
     %2:
     mov _idle_airflow_request,_ACC
-    lcall _idle_airflow_continue
+    lcall _select_idle_or_fuel_cut
     %3:
     ret
 } by {

@@ -14,7 +14,7 @@ extern __code const uint8_t idle_airflow_by_temp[39];
 extern __code const uint8_t idle_ac_airflow_by_temp[39];
 extern __code const uint8_t idle_airflow_rpm_gain_q8[32];
 extern void interp_curve_q4(void);
-extern void idle_airflow_continue(void);
+extern void select_idle_or_fuel_cut(void);
 
 void update_idle_airflow(void)
 {
@@ -45,5 +45,5 @@ void update_idle_airflow(void)
     }
     idle_airflow_request = ACC;
 
-    idle_airflow_continue();
+    select_idle_or_fuel_cut();
 }
