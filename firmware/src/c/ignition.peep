@@ -35,6 +35,104 @@ replace {
     mov r1,a
 }
 
+// The curve routine takes its two byte arguments in the active bank.
+replace {
+    mov _stock_r2,a
+} by {
+    mov r2,a
+}
+
+replace {
+    mov _stock_r3,a
+} by {
+    mov r3,a
+}
+
+replace {
+    mov r6,#%1
+    mov r7,#(%1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#%1
+}
+
+// Subtract the fuel baseline, using the borrow to saturate at zero.
+replace {
+    mov r7,_ACC
+    cjne r7,#0x80,%1
+    %1:
+    jnc %2
+    ljmp %3
+    %2:
+    mov a,r7
+    add a,#0x80
+    mov r7,a
+    ljmp %4
+    %3:
+    mov r7,#0x00
+    %4:
+} by {
+    clr c
+    subb a,#0x80
+    jnc %4
+    clr a
+    %4:
+    mov b,a
+}
+
+// Add the rounded throttle row offset to the RPM column, then index CODE.
+replace {
+    mov r6,a
+    mov a,#0x08
+    add a,r6
+    mov r6,a
+    anl ar6,#0xf0
+    mov a,_rpm_nearest_bin
+    add a,r6
+    add a,#_fuel_weight_by_throttle_raw
+    mov dpl,a
+    mov a,#(_fuel_weight_by_throttle_raw >> 8)
+    addc a,#0x00
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    add a,#0x08
+    anl a,#0xf0
+    add a,_rpm_nearest_bin
+    mov r2,a
+    mov dptr,#_fuel_weight_by_throttle_raw
+    mov a,r2
+    movc a,@a+dptr
+}
+
+// Round the weighted increment and restore the baseline in the high byte.
+replace {
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov a,#0x80
+    add a,r7
+    mov r7,a
+    mov a,#0x00
+    addc a,r5
+    mov r5,a
+    mov ar7,r5
+    mov dptr,#_fuel_weighted_correction
+    mov a,#0x80
+    add a,r7
+} by {
+    mul ab
+    add a,#0x80
+    mov a,b
+    addc a,#0x80
+    mov dptr,#_fuel_weighted_correction
+}
+
 // Only the borrow is needed from the unsigned time comparison.
 // CJNE to the next instruction preserves A and supplies that borrow in CY.
 replace {
@@ -174,6 +272,14 @@ replace {
 }
 
 replace {
+    lcall _update_load_warmup_ignition
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
     lcall _load_ignition_tail_continue
     %1:
     ret
@@ -182,7 +288,7 @@ replace {
 }
 
 replace {
-    lcall _knock_params_continue
+    lcall _update_fuel_weighting
     %1:
     ret
 } by {

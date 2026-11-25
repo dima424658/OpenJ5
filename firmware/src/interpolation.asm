@@ -1,6 +1,7 @@
         .globl interp_bilinear_u8
         .globl interp_bilinear_end
         .globl interp_curve_u8
+        .globl _interp_curve_u8
         .globl interp_curve_end
 
         .org 0xa59d
@@ -99,6 +100,7 @@ interp_bilinear_end:
 ; A = interpolated byte. R0, B and arithmetic flags are clobbered.
 ; The increasing and decreasing branches intentionally round differently.
 interp_curve_u8:
+_interp_curve_u8:
         mov     a,r2
         movc    a,@a+dptr
         mov     r0,a

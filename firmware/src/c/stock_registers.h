@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* Operand aliases for stock_registers.peep. Rn in the linked image accesses
+/* Operand aliases for the stock calling convention. Rn in the linked image accesses
  * the current PSW register bank. These C declarations describe operand widths
  * and provide symbols for lowering, with no allocated storage or prologue.
  */

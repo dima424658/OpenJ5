@@ -8,7 +8,7 @@ static volatile __xdata __at (0xf954) uint8_t advance_recovery_period;
 extern __code const uint8_t knock_threshold_by_rpm[32];
 extern __code const uint8_t knock_min_cycle_interval[32];
 extern __code const uint8_t knock_advance_recovery_period[32];
-extern void knock_params_continue(void);
+extern void update_fuel_weighting(void);
 
 void update_knock_rpm_parameters(void)
 {
@@ -16,5 +16,5 @@ void update_knock_rpm_parameters(void)
     knock_min_interval = knock_min_cycle_interval[rpm_nearest_half_bin];
     advance_recovery_period = knock_advance_recovery_period[rpm_nearest_half_bin];
 
-    knock_params_continue();
+    update_fuel_weighting();
 }
