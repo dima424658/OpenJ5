@@ -160,7 +160,7 @@ replace {
     anl a,#0x01
     mov r5,a
     mov _B,r7
-    mov dptr,#_iac_airflow_offset
+    mov dptr,#%1
     movx a,@dptr
     mov r7,a
     mov a,r7
@@ -175,7 +175,7 @@ replace {
     mov a,_B
     rlc a
     mov _B,a
-    mov dptr,#_iac_airflow_offset
+    mov dptr,#%1
     movx a,@dptr
     add a,_B
     mov _B,a
@@ -190,4 +190,179 @@ replace {
     mov a,_B
     lcall _clamp_stock_u8
     mov _iac_target,a
+}
+
+// All three post-start temperature curves share one CODE indexing scheme.
+replace {
+    mov a,_coolant_nearest_index
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%1
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+}
+
+replace {
+    mov r7,a
+    mov _stock_r0,r7
+} by {
+    mov r0,a
+}
+
+replace {
+    mov r7,a
+    mov _stock_r1,r7
+} by {
+    mov r1,a
+}
+
+// Keep the decayed offset in A, compare it against physical IRAM:00,
+// and use B.7 for the sign test of the active bank's lower bound.
+replace {
+    mov dptr,#_poststart_iac_elapsed
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_poststart_iac_elapsed
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_poststart_iac_offset
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    dec a
+    mov _ACC,a
+    mov a,_bank_zero_r0
+    cjne a,_ACC,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    clr _poststart_iac_enabled
+    %5:
+    mov _B,_stock_r0
+    jb _B_SIGN,%6
+    ljmp %7
+    %6:
+    lcall _limit_stock_i8_by_sign
+    ljmp %8
+    %7:
+    lcall _clamp_stock_u8
+    %8:
+    mov dptr,#_poststart_iac_offset
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %9
+    %2:
+    mov dptr,#_poststart_iac_elapsed
+    mov a,_ACC
+    movx @dptr,a
+    %9:
+    lcall _convert_poststart_iac_airflow
+    %10:
+    ret
+} by {
+    mov dptr,#_poststart_iac_elapsed
+    movx a,@dptr
+    inc a
+    cjne a,_B,%1
+    %1:
+    jc %2
+    clr a
+    mov dptr,#_poststart_iac_elapsed
+    movx @dptr,a
+    mov dptr,#_poststart_iac_offset
+    movx a,@dptr
+    dec a
+    cjne a,_bank_zero_r0,%5
+    clr _poststart_iac_enabled
+    %5:
+    mov _B,r0
+    jb _B_SIGN,%6
+    lcall _clamp_stock_u8
+    sjmp %8
+    %6:
+    lcall _limit_stock_i8_by_sign
+    %8:
+    mov dptr,#_poststart_iac_offset
+    movx @dptr,a
+    sjmp _convert_poststart_iac_airflow
+    %2:
+    mov dptr,#_poststart_iac_elapsed
+    movx @dptr,a
+    sjmp _convert_poststart_iac_airflow
+}
+
+replace {
+    mov dptr,#_poststart_iac_offset
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_poststart_iac_elapsed
+    mov a,#0x00
+    movx @dptr,a
+    lcall _convert_poststart_iac_airflow
+    %1:
+    ret
+} by {
+    mov dptr,#_poststart_iac_offset
+    movx @dptr,a
+    clr a
+    mov dptr,#_poststart_iac_elapsed
+    movx @dptr,a
+}
+
+// At or below the cold-start temperature the cold limit applies.
+replace {
+    mov dptr,#_cold_start_coolant_threshold
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_cold_start_iac_max_position
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    ljmp %3
+    %2:
+    mov dptr,#_iac_max_position
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    %3:
+} by {
+    mov dptr,#_cold_start_coolant_threshold
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,%1
+    %1:
+    jc %2
+    mov dptr,#_cold_start_iac_max_position
+    clr a
+    movc a,@a+dptr
+    sjmp %3
+    %2:
+    mov dptr,#_iac_max_position
+    clr a
+    movc a,@a+dptr
+    %3:
+    mov r1,a
 }
