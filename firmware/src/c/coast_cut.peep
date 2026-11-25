@@ -203,3 +203,149 @@ replace {
     mov _base_ignition,a
     %1:
 }
+
+// These two bit tests use the same in-section fuel-cut successor.
+replace {
+    jb _speed_sensor_fitted,%1
+    ljmp %3
+    %1:
+    jnb _speed_sensor_fault,%2
+    ljmp %3
+    %2:
+    mov r7,_fuel_cut_phase
+    cjne r7,#0x02,%4
+    ljmp %5
+    %4:
+    cjne r7,#0x03,%6
+    sjmp %7
+    %6:
+    ljmp %8
+    %7:
+    %5:
+} by {
+    jnb _speed_sensor_fitted,_apply_deceleration_fuel_cut
+    jb _speed_sensor_fault,_apply_deceleration_fuel_cut
+    mov a,_fuel_cut_phase
+    cjne a,#0x02,%4
+    sjmp %5
+    %4:
+    cjne a,#0x03,%8
+    %5:
+}
+
+replace {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    subb a,_B
+} by {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    clr c
+    subb a,_B
+}
+
+// Enter the low-speed phases only below both calibrated bounds.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_resume_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    mov r7,_fuel_cut_phase
+    mov a,#0x02
+    add a,r7
+    mov _fuel_cut_phase,a
+    lcall _apply_idle_airflow
+    ljmp %4
+} by {
+    jnc _apply_deceleration_fuel_cut
+    mov dptr,#_fuel_resume_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jnc _apply_deceleration_fuel_cut
+    mov a,_fuel_cut_phase
+    add a,#0x02
+    mov _fuel_cut_phase,a
+    sjmp _apply_idle_airflow
+}
+
+// Leave the low-speed phases when either upper bound is reached.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_cut_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    lcall _apply_idle_airflow
+    ljmp %4
+    %2:
+    mov r7,_fuel_cut_phase
+    mov a,r7
+    add a,#0xfe
+    mov _fuel_cut_phase,a
+    %5:
+    lcall _apply_deceleration_fuel_cut
+    %4:
+    ret
+} by {
+    jnc %2
+    mov dptr,#_fuel_cut_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jnc %2
+    sjmp _apply_idle_airflow
+    %2:
+    mov a,_fuel_cut_phase
+    clr c
+    subb a,#0x02
+    mov _fuel_cut_phase,a
+}
+
+replace {
+    mov dptr,#_fuel_transition_event_count
+    mov a,#0x04
+    movx @dptr,a
+    lcall _finish_ignition_corrections
+    %1:
+    ret
+} by {
+    mov a,#0x04
+    mov dptr,#_fuel_transition_event_count
+    movx @dptr,a
+    ljmp _finish_ignition_corrections
+}
+
+replace {
+    lcall _continue_after_idle_airflow
+    %1:
+    ret
+} by {
+    %1:
+}
