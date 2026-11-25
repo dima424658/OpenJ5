@@ -1,0 +1,235 @@
+// Preserve the shutdown trampoline and use ACC for both service counters.
+replace {
+    jnb _shutdown_serial_mode,%1
+    ljmp %2
+    %1:
+    jb _service_inhibit_69,%3
+    ljmp %4
+    %3:
+    mov dptr,#_service_probe_timer
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x96
+    cjne a,_ACC,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    jb _shutdown_extra_state_6a,%8
+    ljmp %9
+    %8:
+    mov dptr,#_service_timeout_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %10
+    ljmp %11
+    %10:
+    mov dptr,#_service_timeout_count
+    mov a,_ACC
+    movx @dptr,a
+    %11:
+    clr _service_link_ready_6b
+    %9:
+    lcall _end_service_probe
+    ljmp %4
+    %7:
+} by {
+    jnb _shutdown_serial_mode,00971$
+    ljmp 00970$
+    00971$:
+    jnb _service_inhibit_69,00976$
+    mov dptr,#_service_probe_timer
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    xrl a,#0x96
+    jnz 00972$
+    jnb _shutdown_extra_state_6a,00973$
+    mov dptr,#_service_timeout_count
+    movx a,@dptr
+    inc a
+    jz 00974$
+    movx @dptr,a
+    00974$:
+    clr _service_link_ready_6b
+    00973$:
+    lcall _end_service_probe
+    sjmp 00976$
+    00972$:
+}
+
+// Use short-circuit branches for the probe request and set the service event latch.
+replace {
+    mov dptr,#_service_probe_requested
+    movx a,@dptr
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    jz %3
+    ljmp %4
+    %3:
+    %2:
+    lcall _send_service_probe_status
+    mov dptr,#_service_probe_requested
+    mov a,#0x00
+    movx @dptr,a
+    mov _service_event_timer,#0x0c
+    setb _service_event_pending
+    %4:
+} by {
+    mov dptr,#_service_probe_requested
+    movx a,@dptr
+    jnz 00975$
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    jnz 00976$
+    00975$:
+    lcall _send_service_probe_status
+    clr a
+    mov dptr,#_service_probe_requested
+    movx @dptr,a
+    mov _service_event_timer,#0x0c
+    setb _service_event_pending
+    00976$:
+}
+
+// Keep the authorization byte in R4 across the stop-delay decrement.
+replace {
+    mov dptr,#_immobilizer_state
+    movx a,@dptr
+    mov _ACC,a
+    jb _ACC_BIT1,%1
+    ljmp %2
+    %1:
+    jnb _service_link_ready_6b,%3
+    ljmp %4
+    %3:
+    %2:
+    lcall _stop_engine_outputs
+    mov dptr,#_immobilizer_state
+    movx a,@dptr
+    mov r7,a
+    mov ar6,r7
+    anl ar6,#0x03
+    cjne r6,#0x03,%5
+    ljmp %4
+    %5:
+    mov a,r7
+    jb acc.6,%6
+    ljmp %7
+    %6:
+    jb _tick_1s,%8
+    ljmp %4
+    %8:
+    mov dptr,#_service_stop_delay
+    movx a,@dptr
+    mov r6,a
+    mov a,r6
+    dec a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    jz %9
+    ljmp %4
+    %9:
+    mov dptr,#_immobilizer_state
+    mov a,#0xbf
+    anl a,r7
+    movx @dptr,a
+    orl _output_override_flags,#0x01
+    setb _lamp_off_request
+    %7:
+    lcall _step_immobilizer_state
+    %4:
+} by {
+    mov dptr,#_immobilizer_state
+    movx a,@dptr
+    jnb _ACC_BIT1,00977$
+    jb _service_link_ready_6b,00979$
+    00977$:
+    lcall _stop_engine_outputs
+    mov dptr,#_immobilizer_state
+    movx a,@dptr
+    mov r4,a
+    anl a,#0x03
+    xrl a,#0x03
+    jz 00979$
+    mov a,r4
+    jnb acc.6,00978$
+    jnb _tick_1s,00979$
+    mov dptr,#_service_stop_delay
+    movx a,@dptr
+    dec a
+    movx @dptr,a
+    jnz 00979$
+    mov a,r4
+    anl a,#0xbf
+    mov dptr,#_immobilizer_state
+    movx @dptr,a
+    orl _output_override_flags,#0x01
+    setb _lamp_off_request
+    00978$:
+    lcall _step_immobilizer_state
+    00979$:
+}
+
+// Route the service event and fall through to the stock save check.
+replace {
+    jb _service_event_pending,%1
+    ljmp %2
+    %1:
+    jnb _service_dispatch_7c,%3
+    ljmp %4
+    %3:
+    lcall _validate_service_frame
+    lcall _route_service_frame
+    ljmp %2
+    %4:
+    jb _service_inhibit_69,%5
+    ljmp %6
+    %5:
+    lcall _handle_service_probe_event
+    ljmp %2
+    %6:
+    lcall _handle_diagnostic_service_event
+    jb _service_link_ready_6b,%7
+    ljmp %2
+    %7:
+    mov dptr,#_service_timeout_count
+    mov a,#0x00
+    movx @dptr,a
+    %2:
+    lcall _check_service_save_request
+    %8:
+    ret
+} by {
+    jnb _service_event_pending,00982$
+    jb _service_dispatch_7c,00980$
+    lcall _validate_service_frame
+    lcall _route_service_frame
+    00970$:
+    sjmp 00982$
+    00980$:
+    jnb _service_inhibit_69,00981$
+    lcall _handle_service_probe_event
+    sjmp 00982$
+    00981$:
+    lcall _handle_diagnostic_service_event
+    jnb _service_link_ready_6b,00982$
+    clr a
+    mov dptr,#_service_timeout_count
+    movx @dptr,a
+    00982$:
+}
