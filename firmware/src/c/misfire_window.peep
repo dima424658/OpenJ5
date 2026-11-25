@@ -1,0 +1,560 @@
+// Clear the fuel-cut event counter and fall through to flag combination.
+replace {
+    mov _ACC,#0x00
+    mov dptr,#_misfire_fuel_cut_events
+    mov a,_ACC
+    movx @dptr,a
+    lcall _combine_misfire_event_flags
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#_misfire_fuel_cut_events
+    movx @dptr,a
+}
+
+// Branch directly to flag combination for the period-only skip.
+replace {
+    lcall _combine_misfire_event_flags
+    %1:
+    ret
+} by {
+    sjmp _combine_misfire_event_flags
+}
+
+// Combine the enabled flags and add the weight to the current cylinder through the stock jump table.
+replace {
+    mov dptr,#_misfire_event_flags
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    mov r6,a
+    mov a,r6
+    orl a,r7
+    mov _B,a
+    mov dptr,#_misfire_enabled_flags
+    movx a,@dptr
+    anl a,_B
+    mov _ACC,a
+    mov dptr,#_active_misfire_flags
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov r7,_cylinder_slot
+    clr c
+    mov a,#0x03
+    subb a,r7
+    jnc %3
+    ljmp %2
+    %3:
+    mov a,r7
+    add a,r7
+    add a,r7
+    mov dptr,#%4
+    jmp @a+dptr
+    %4:
+    ljmp %5
+    ljmp %6
+    ljmp %7
+    ljmp %8
+    %5:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jb acc.0,%9
+    ljmp %2
+    %9:
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#(_live_misfire_counts + 0x0006)
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov r5,_B
+    mov r4,#0x00
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,r4
+    addc a, r7
+    mov r7,a
+    mov dptr,#(_live_misfire_counts + 0x0006)
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    ljmp %2
+    %6:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jb acc.1,%10
+    ljmp %2
+    %10:
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#(_live_misfire_counts + 0x0004)
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov r5,_B
+    mov r4,#0x00
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,r4
+    addc a, r7
+    mov r7,a
+    mov dptr,#(_live_misfire_counts + 0x0004)
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    ljmp %2
+    %7:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jb acc.2,%11
+    ljmp %2
+    %11:
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#(_live_misfire_counts + 0x0002)
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov r5,_B
+    mov r4,#0x00
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,r4
+    addc a, r7
+    mov r7,a
+    mov dptr,#(_live_misfire_counts + 0x0002)
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    ljmp %2
+    %8:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jb acc.3,%12
+    ljmp %2
+    %12:
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_live_misfire_counts
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov r5,_B
+    mov r4,#0x00
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,r4
+    addc a, r7
+    mov r7,a
+    mov dptr,#_live_misfire_counts
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    %2:
+    lcall _advance_misfire_window
+    %13:
+    ret
+} by {
+    mov dptr,#_misfire_event_flags
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    orl a,_B
+    xch a,_B
+    mov dptr,#_misfire_enabled_flags
+    movx a,@dptr
+    anl a,_B
+    mov dptr,#_active_misfire_flags
+    movx @dptr,a
+    jz _advance_misfire_window
+    mov a,_cylinder_slot
+    rl a
+    mov dptr,#00950$
+    jmp @a+dptr
+    00950$:
+    sjmp 00951$
+    sjmp 00952$
+    sjmp 00953$
+    sjmp 00954$
+    00951$:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jnb _ACC_BIT0,_advance_misfire_window
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#(_live_misfire_counts + 6)
+    movx a,@dptr
+    clr c
+    add a,_B
+    movx @dptr,a
+    inc dptr
+    movx a,@dptr
+    addc a,#0x00
+    movx @dptr,a
+    sjmp _advance_misfire_window
+    00952$:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jnb acc.1,_advance_misfire_window
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#(_live_misfire_counts + 4)
+    movx a,@dptr
+    clr c
+    add a,_B
+    movx @dptr,a
+    inc dptr
+    movx a,@dptr
+    addc a,#0x00
+    movx @dptr,a
+    sjmp _advance_misfire_window
+    00953$:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jnb acc.2,_advance_misfire_window
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#(_live_misfire_counts + 2)
+    movx a,@dptr
+    clr c
+    add a,_B
+    movx @dptr,a
+    inc dptr
+    movx a,@dptr
+    addc a,#0x00
+    movx @dptr,a
+    sjmp _advance_misfire_window
+    00954$:
+    mov dptr,#_active_misfire_flags
+    movx a,@dptr
+    jnb acc.3,_advance_misfire_window
+    mov dptr,#_misfire_event_weight
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_live_misfire_counts
+    movx a,@dptr
+    clr c
+    add a,_B
+    movx @dptr,a
+    inc dptr
+    movx a,@dptr
+    addc a,#0x00
+    movx @dptr,a
+}
+
+// Advance the window on even cylinder slots and publish only after byte overflow.
+replace {
+    mov _ACC,_cylinder_slot
+    jb _ACC_BIT0,%1
+    ljmp %2
+    %1:
+    lcall _continue_crank_event
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_window_tick
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %4
+    ljmp %5
+    %4:
+    lcall _store_misfire_window_tick
+    ljmp %3
+    %5:
+    lcall _publish_misfire_window
+    %3:
+    ret
+} by {
+    mov a,_cylinder_slot
+    jb _ACC_BIT0,00955$
+    mov dptr,#_misfire_window_tick
+    movx a,@dptr
+    inc a
+    jnz 00956$
+    sjmp _publish_misfire_window
+    00956$:
+    ljmp _store_misfire_window_tick
+    00955$:
+    ljmp _continue_crank_event
+}
+
+// Save the four counters and compute the total with saturation on the final carry.
+replace {
+    mov dptr,#(_live_misfire_counts + 0x0006)
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_saved_misfire_counts
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#(_live_misfire_counts + 0x0004)
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#(_saved_misfire_counts + 0x0002)
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    mov a,r6
+    add a, _stock_r01
+    mov _stock_r01,a
+    mov a,r7
+    addc a, (_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    mov dptr,#(_live_misfire_counts + 0x0002)
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#(_saved_misfire_counts + 0x0004)
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    mov a,r6
+    add a, _stock_r01
+    mov _stock_r01,a
+    mov a,r7
+    addc a, (_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    mov dptr,#_live_misfire_counts
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#(_saved_misfire_counts + 0x0006)
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov r3,#0x00
+    mov ar2,r5
+    mov r5,#0x00
+    mov a,r6
+    add a, r4
+    mov r6,a
+    mov a,r7
+    addc a, r2
+    mov r7,a
+    mov a,r3
+    addc a, r5
+    mov r5,a
+    clr c
+    mov a,#0xff
+    subb a,r6
+    mov a,#0xff
+    subb a,r7
+    mov a,#0x00
+    subb a,r5
+    jc %1
+    ljmp %2
+    %1:
+    mov r3,#0xff
+    mov r4,#0xff
+    ljmp %3
+    %2:
+    mov ar3,r6
+    mov ar4,r7
+    %3:
+    mov _stock_r01,r3
+    mov (_stock_r01 + 1),r4
+    mov dptr,#_misfire_window_total
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#(_live_misfire_counts + 6)
+    movx a,@dptr
+    mov _B,a
+    inc dptr
+    movx a,@dptr
+    xch a,_B
+    mov dptr,#_saved_misfire_counts
+    movx @dptr,a
+    inc dptr
+    xch a,_B
+    movx @dptr,a
+    mov r0,_B
+    mov r1,a
+    mov dptr,#(_live_misfire_counts + 4)
+    movx a,@dptr
+    mov _B,a
+    inc dptr
+    movx a,@dptr
+    xch a,_B
+    mov dptr,#(_saved_misfire_counts + 2)
+    movx @dptr,a
+    inc dptr
+    xch a,_B
+    movx @dptr,a
+    xch a,_B
+    clr c
+    add a,r0
+    mov r0,a
+    xch a,_B
+    addc a,r1
+    mov r1,a
+    mov dptr,#(_live_misfire_counts + 2)
+    movx a,@dptr
+    mov _B,a
+    inc dptr
+    movx a,@dptr
+    xch a,_B
+    mov dptr,#(_saved_misfire_counts + 4)
+    movx @dptr,a
+    inc dptr
+    xch a,_B
+    movx @dptr,a
+    xch a,_B
+    add a,r0
+    mov r0,a
+    xch a,_B
+    addc a,r1
+    mov r1,a
+    mov dptr,#_live_misfire_counts
+    movx a,@dptr
+    mov _B,a
+    inc dptr
+    movx a,@dptr
+    xch a,_B
+    mov dptr,#(_saved_misfire_counts + 6)
+    movx @dptr,a
+    inc dptr
+    xch a,_B
+    movx @dptr,a
+    xch a,_B
+    add a,r0
+    mov r0,a
+    xch a,_B
+    addc a,r1
+    mov r1,a
+    jnc 00957$
+    mov r0,#0xff
+    mov r1,#0xff
+    00957$:
+    mov a,r0
+    mov dptr,#_misfire_window_total
+    movx @dptr,a
+    mov a,r1
+    inc dptr
+    movx @dptr,a
+}
+
+// Clear the counters, mark publication, and reload the window tick.
+replace {
+    mov dptr,#(_live_misfire_counts + 0x0006)
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#(_live_misfire_counts + 0x0004)
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#(_live_misfire_counts + 0x0002)
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_live_misfire_counts
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_misfire_window_flags
+    movx a,@dptr
+    orl acc,#0x01
+    movx @dptr,a
+    mov _ACC,#0x37
+    lcall _store_misfire_window_tick
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#(_live_misfire_counts + 6)
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#(_live_misfire_counts + 4)
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#(_live_misfire_counts + 2)
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_live_misfire_counts
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_misfire_window_flags
+    movx a,@dptr
+    orl a,#0x01
+    movx @dptr,a
+    mov a,#0x37
+}
+
+// Store the tick and fall through to the remainder of the crank event.
+replace {
+    mov dptr,#_misfire_window_tick
+    mov a,_ACC
+    movx @dptr,a
+    lcall _continue_crank_event
+    %1:
+    ret
+} by {
+    mov dptr,#_misfire_window_tick
+    movx @dptr,a
+}
