@@ -1,9 +1,9 @@
-// The entire fixed XDATA range is in page F8. Keep the cursor in DPTR,
+// The entire fixed XDATA range stays within one page. Keep the cursor in DPTR,
 // use its low byte for stepping and leave zero in A throughout the loop.
 replace {
-    mov r6,#_iac_history
-    mov r7,#(_iac_history >> 8)
-    mov r5,#0x0a
+    mov r6,#%3
+    mov r7,#(%3 >> 8)
+    mov r5,#%4
     %1:
     mov dpl,r6
     mov dph,r7
@@ -19,8 +19,8 @@ replace {
     %2:
 } by {
     clr a
-    mov dptr,#_iac_history
-    mov r1,#0x0a
+    mov dptr,#%3
+    mov r1,#%4
     %1:
     movx @dptr,a
     inc dpl

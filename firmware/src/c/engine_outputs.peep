@@ -1,0 +1,18 @@
+replace {
+    anl acc,#0x9f
+} by {
+    anl a,#0x9f
+}
+
+replace {
+    mov _ACC,#0x00
+    mov dptr,#_state_f806
+    mov a,_ACC
+    movx @dptr,a
+    mov _sfr_f3,_ACC
+} by {
+    mov a,#0x00
+    mov dptr,#_state_f806
+    movx @dptr,a
+    mov _sfr_f3,a
+}
