@@ -1,0 +1,49 @@
+// MOVC adds the byte index in A to DPTR without changing the table base.
+replace {
+    mov a,_rpm_code
+    add a,#_rpm_quantization_q4
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_rpm_quantization_q4 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#_rpm_quantization_q4
+    mov a,_rpm_code
+    movc a,@a+dptr
+}
+
+// Keep the indexed byte in A through the first rounding adjustment.
+replace {
+    mov r7,a
+    mov _rpm_index_q4,r7
+    mov a,r7
+    add a,#%1
+    mov r7,a
+    mov a,r7
+} by {
+    mov _rpm_index_q4,a
+    add a,#%1
+}
+
+// The second adjustment reloads the stored byte into A.
+replace {
+    mov r7,_rpm_index_q4
+    mov a,#%1
+    add a,r7
+    mov r7,a
+    mov a,r7
+} by {
+    mov a,_rpm_index_q4
+    add a,#%1
+}
+
+// The continuation is adjacent, as checked by the linker map verifier.
+replace {
+    lcall _rpm_update_continued
+    %1:
+    ret
+} by {
+    %1:
+}
