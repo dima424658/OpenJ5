@@ -1,0 +1,235 @@
+// Keep the copied bit in ACC and reproduce the second retained-byte load.
+replace {
+    mov dptr,#_retained_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_retained_flag_4f
+    mov _ACC_BIT0,c
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_retained_byte
+    mov a,_retained_byte_source
+    movx @dptr,a
+} by {
+    mov dptr,#_retained_flags
+    movx a,@dptr
+    mov c,_retained_flag_4f
+    mov _ACC_BIT0,c
+    mov dptr,#_retained_flags
+    movx @dptr,a
+    mov a,_retained_byte_source
+    mov dptr,#_retained_byte
+    movx @dptr,a
+}
+
+replace {
+    lcall _filter_retained_entries
+    lcall _sum_retained_ram
+    %1:
+    ret
+} by {
+    lcall _filter_retained_entries
+}
+
+// DPTR advances through two complete pages. A zero low byte is implicit
+// when the high byte first reaches the end of the page range.
+replace {
+    mov _stock_r01,#0x01
+    mov (_stock_r01 + 1),#0x00
+    mov r6,#_retained_table_pages
+    mov r7,#(_retained_table_pages >> 8)
+    %1:
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov r5,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    mov r4,#0x00
+    mov r2,_stock_r01
+    mov r3,(_stock_r01 + 1)
+    mov a,r5
+    add a,r2
+    mov r2,a
+    mov a,r4
+    addc a,r3
+    mov r3,a
+    mov _stock_r01,r2
+    mov (_stock_r01 + 1),r3
+    cjne r6,#(_retained_table_pages + 0x0200),%2
+    cjne r7,#((_retained_table_pages + 0x0200) >> 8),%2
+    sjmp %3
+    %2:
+    ljmp %1
+    %3:
+} by {
+    mov r0,#0x01
+    mov r1,#0x00
+    mov dptr,#_retained_table_pages
+    %1:
+    clr c
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    inc dptr
+    mov a,dph
+    cjne a,#((_retained_table_pages + 0x0200) >> 8),%1
+}
+
+// Add the retained entries using the original byte counter and register pair.
+replace {
+    mov r6,#_retained_entries
+    mov r7,#(_retained_entries >> 8)
+    mov r5,#0x40
+    %1:
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov r4,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    mov r3,#0x00
+    mov r1,_stock_r01
+    mov r2,(_stock_r01 + 1)
+    mov a,r4
+    add a,r1
+    mov r1,a
+    mov a,r3
+    addc a,r2
+    mov r2,a
+    mov _stock_r01,r1
+    mov (_stock_r01 + 1),r2
+    dec r5
+    mov a,r5
+    jz %2
+    ljmp %1
+    %2:
+} by {
+    mov r2,#0x40
+    mov dptr,#_retained_entries
+    %1:
+    clr c
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    inc dptr
+    djnz r2,%1
+}
+
+replace {
+    mov dptr,#_retained_ram_checksum
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _recheck_shutdown_supply
+    %1:
+    ret
+} by {
+    mov dptr,#_retained_ram_checksum
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+replace {
+    lcall _read_adc_8bit
+    clr c
+    mov a,_ACC
+    subb a,_bank_zero_supply_threshold
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _restart_firmware
+    ljmp %3
+    %2:
+    lcall _prepare_power_down_outputs
+    %3:
+    ret
+} by {
+    lcall _read_adc_8bit
+    cjne a,_bank_zero_supply_threshold,%1
+    %1:
+    jc _prepare_power_down_outputs
+    ljmp _restart_firmware
+}
+
+replace {
+    mov dptr,#_startup_iac_state_marker
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#_startup_iac_state_marker
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_relay_outputs
+    movx a,@dptr
+    anl acc,#0xfb
+    movx @dptr,a
+    lcall _update_relay_outputs
+    lcall _continue_power_down
+    %1:
+    ret
+} by {
+    mov dptr,#_relay_outputs
+    movx a,@dptr
+    anl a,#0xfb
+    mov dptr,#_relay_outputs
+    movx @dptr,a
+    lcall _update_relay_outputs
+}
+
+// The filter keeps DPTR across both sides of the validity check.
+replace {
+    mov r6,#_retained_entries
+    mov r7,#(_retained_entries >> 8)
+    mov r5,#0x40
+    %1:
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov r4,a
+    mov a,r4
+    jnb acc.7,%2
+    ljmp %3
+    %2:
+    mov dpl,r6
+    mov dph,r7
+    mov a,#0x00
+    movx @dptr,a
+    %3:
+    inc r6
+    cjne r6,#0x00,%4
+    inc r7
+    %4:
+    dec r5
+    mov a,r5
+    jz %5
+    ljmp %1
+    %5:
+} by {
+    mov r2,#0x40
+    mov dptr,#_retained_entries
+    %1:
+    movx a,@dptr
+    jb acc.7,%3
+    clr a
+    movx @dptr,a
+    %3:
+    inc dptr
+    djnz r2,%1
+}
