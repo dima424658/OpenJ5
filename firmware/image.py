@@ -22,8 +22,21 @@ SYMBOLS = {
     "_set_flag_2f_4_cd7c": 0xCD7C,
     "_set_flag_2f_7_d2f1": 0xD2F1,
     "_clear_flag_21_0_f275": 0xF275,
+    "_fan_off_temperature": 0x60C7,
+    "_fan_on_temperature": 0x60C8,
+    "_economy_ignition_half_degrees": 0x6AC8,
+    "_desired_idle_rpm": 0x6F56,
+    "_base_cylinder_charge_raw": 0x75EF,
 }
-C_SECTIONS = {"code_cd7c": 3, "code_d2f1": 3, "code_f275": 3}
+C_SECTIONS = {
+    "code_cd7c": 3,
+    "code_d2f1": 3,
+    "code_f275": 3,
+    "const_60c7": 2,
+    "const_6ac8": 256,
+    "const_6f56": 39,
+    "const_75ef": 256,
+}
 
 
 def convert_hex(lines):

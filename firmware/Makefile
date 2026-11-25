@@ -7,8 +7,10 @@ IMAGE := build/J5v05l19
 REFERENCE ?= ../bins/J5v05l19.bin
 SOURCES := src/j5v05l19.asm src/vectors.asm src/interpolation.asm src/opaque.asm
 C_FUNCTIONS := cd7c d2f1 f275
-C_OBJECTS := $(addprefix build/,$(addsuffix .rel,$(C_FUNCTIONS)))
-C_PLACEMENT := $(foreach address,$(C_FUNCTIONS),-b code_$(address)=0x$(address))
+C_DATA := 60c7 6ac8 6f56 75ef
+C_OBJECTS := $(addprefix build/,$(addsuffix .rel,$(C_FUNCTIONS) $(C_DATA)))
+C_PLACEMENT := $(foreach address,$(C_FUNCTIONS),-b code_$(address)=0x$(address)) \
+	$(foreach address,$(C_DATA),-b const_$(address)=0x$(address))
 
 .PHONY: all verify clean
 .DELETE_ON_ERROR:
@@ -21,7 +23,7 @@ $(IMAGE).rel: $(SOURCES) Makefile
 
 build/%.rel: src/c/%.c Makefile
 	mkdir -p build
-	$(SDCC) -mmcs51 --model-small --codeseg code_$* -c "$<" -o "$@"
+	$(SDCC) -mmcs51 --model-small --codeseg code_$* --constseg const_$* -c "$<" -o "$@"
 
 $(IMAGE).ihx: $(IMAGE).rel $(C_OBJECTS)
 	$(LD8051) -n -i -m -w $(C_PLACEMENT) "$(IMAGE)" $(IMAGE).rel $(C_OBJECTS)
