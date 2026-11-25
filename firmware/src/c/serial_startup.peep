@@ -1,0 +1,202 @@
+// Configure serial timing, reset the buffers and select the initial service state.
+replace {
+    mov _SCON,#0x40
+    mov _PCON,#0x80
+    mov _sfr_d8,#0xc0
+    mov r0,#_serial_default_reload
+    mov @r0,#0xd0
+    jb _startup_serial_mode,%1
+    ljmp %2
+    %1:
+    mov _serial_reload_low,#0xd5
+    mov _serial_reload_high,#0x01
+    ljmp %3
+    %2:
+    mov _serial_reload_low,#0xd0
+    mov _serial_reload_high,#0x03
+    %3:
+    lcall _reset_serial_receive_buffer
+    lcall _reset_serial_transmit_buffer
+    mov r0,#_serial_state_93
+    mov @r0,#0x00
+    setb _serial_state_78
+    clr _service_inhibit_69
+    mov dptr,#_service_save_marker
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%4
+    ljmp %5
+    %4:
+    mov dptr,#_service_timeout_count
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x03,%6
+    %6:
+    jc %7
+    ljmp %5
+    %7:
+    setb _service_link_ready_6b
+    %5:
+    jb _extra_state_enabled,%8
+    ljmp %9
+    %8:
+    setb _service_mode_29
+    mov dptr,#0xb08c
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    inc dptr
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,_B
+    xrl ar7,a
+    cjne r7,#0xff,%10
+    ljmp %9
+    %10:
+    clr _service_link_ready_6b
+    clr _startup_serial_mode
+    %9:
+    mov dptr,#_service_probe_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_service_probe_requested
+    movx @dptr,a
+    mov _service_event_timer,a
+    jnb _startup_serial_mode,%11
+    ljmp %12
+    %11:
+    clr _service_mode_29
+    setb _serial_receive_enabled
+    setb _serial_interrupt_enabled
+    %12:
+    ret
+} by {
+    mov _SCON,#0x40
+    mov _PCON,#0x80
+    mov _sfr_d8,#0xc0
+    mov r0,#0xa5
+    mov @r0,#0xd0
+    jnb _startup_serial_mode,00970$
+    mov _serial_reload_low,#0xd5
+    mov _serial_reload_high,#0x01
+    sjmp 00971$
+    00970$:
+    mov _serial_reload_low,#0xd0
+    mov _serial_reload_high,#0x03
+    00971$:
+    lcall _reset_serial_receive_buffer
+    lcall _reset_serial_transmit_buffer
+    mov r0,#0x93
+    mov @r0,#0x00
+    setb _serial_state_78
+    clr _service_inhibit_69
+    mov dptr,#_service_save_marker
+    movx a,@dptr
+    xrl a,#0x55
+    jz 00972$
+    mov dptr,#_service_timeout_count
+    movx a,@dptr
+    cjne a,#0x03,00973$
+    00973$:
+    jnc 00972$
+    setb _service_link_ready_6b
+    00972$:
+    jnb _extra_state_enabled,00974$
+    setb _service_mode_29
+    mov dptr,#0xb08c
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,#0x01
+    movc a,@a+dptr
+    xrl a,_B
+    inc a
+    jz 00974$
+    clr _service_link_ready_6b
+    clr _startup_serial_mode
+    00974$:
+    clr a
+    mov dptr,#_service_probe_count
+    movx @dptr,a
+    mov dptr,#_service_probe_requested
+    movx @dptr,a
+    mov _service_event_timer,a
+    jb _startup_serial_mode,00975$
+    clr _service_mode_29
+    setb _serial_receive_enabled
+    setb _serial_interrupt_enabled
+    00975$:
+    ret
+}
+
+// Restore the RX buffer pointer using the stock DPSEL stack save.
+replace {
+    mov _serial_rx_count,#0x00
+    mov r7,_DPSEL
+    mov _DPSEL,#0x06
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x80
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf6
+    mov _DPSEL,r7
+    %1:
+    ret
+} by {
+    clr a
+    mov _serial_rx_count,a
+    push _DPSEL
+    mov _DPSEL,#0x06
+    mov dptr,#0xf680
+    pop _DPSEL
+    ret
+}
+
+// Reset the TX buffer pointer, count and state.
+replace {
+    mov _serial_tx_count,#0x00
+    mov r0,#_serial_tx_state
+    mov @r0,#0x00
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x00
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf6
+    mov _DPSEL,r7
+    %1:
+    ret
+} by {
+    clr a
+    mov _serial_tx_count,a
+    mov r0,#0x92
+    mov @r0,a
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#0xf600
+    pop _DPSEL
+    ret
+}
+
+// Rewind the TX pointer and set the transmit interrupt flag.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x00
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf6
+    mov _DPSEL,r7
+    clr _service_event_pending
+    clr _serial_state_78
+    clr _service_dispatch_7c
+    mov _service_event_timer,#0x00
+    setb _serial_transmit_pending
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#0xf600
+    pop _DPSEL
+    clr _service_event_pending
+    clr _serial_state_78
+    clr _service_dispatch_7c
+    mov _service_event_timer,#0x00
+    setb _serial_transmit_pending
+    ret
+}
