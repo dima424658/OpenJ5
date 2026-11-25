@@ -1,0 +1,308 @@
+// Follow the stock short branches into the initial-correction path.
+replace {
+    jnb _throttle_adc_low,%1
+    ljmp %10
+    %1:
+    jnb _throttle_adc_high,%2
+    ljmp %10
+    %2:
+    jnb _maf_adc_low,%3
+    ljmp %10
+    %3:
+    jnb _maf_adc_high,%4
+    ljmp %10
+    %4:
+    jnb _oxygen_adc_low,%5
+    ljmp %10
+    %5:
+    jnb _oxygen_adc_high,%6
+    ljmp %10
+    %6:
+    jnb _oxygen_heater_fault,%7
+    ljmp %10
+    %7:
+    jnb _oxygen_adaptation_fault_2c,%8
+    ljmp %10
+    %8:
+    jnb _oxygen_adaptation_fault_2d,%9
+    ljmp %10
+    %9:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jnb acc.7,%11
+    ljmp %10
+    %11:
+    jnb _oxygen_sensor_configured,%12
+    ljmp %13
+    %12:
+    %10:
+    lcall _select_initial_injection
+    ljmp %14
+    %13:
+} by {
+    jb _throttle_adc_low,_select_initial_injection
+    jb _throttle_adc_high,_select_initial_injection
+    jb _maf_adc_low,_select_initial_injection
+    jb _maf_adc_high,_select_initial_injection
+    jb _oxygen_adc_low,_select_initial_injection
+    jb _oxygen_adc_high,_select_initial_injection
+    jb _oxygen_heater_fault,_select_initial_injection
+    jb _oxygen_adaptation_fault_2c,_select_initial_injection
+    jb _oxygen_adaptation_fault_2d,_select_initial_injection
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jb acc.7,_select_initial_injection
+    jnb _oxygen_sensor_configured,_select_initial_injection
+}
+
+// Init DPTR directly. Coordinate arguments use the active register bank.
+replace restart {
+    mov r6,#%1
+    mov r7,#(%1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#%1
+}
+
+replace restart {
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+} by {
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+}
+
+replace {
+    jb _purge_table_selected,%1
+    ljmp %2
+    %1:
+    mov dptr,#_retained_purge_correction
+    ljmp %3
+    %2:
+    mov dptr,#_retained_injection_correction
+    %3:
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_xdata
+    jb _fuel_mode_flag_5c,%4
+    ljmp %5
+    %4:
+    mov a,_oxygen_control_adjustment
+    add a,_ACC
+    mov _ACC,a
+    %5:
+    lcall _bound_injection_correction
+    %6:
+    ret
+} by {
+    jb _purge_table_selected,%1
+    mov dptr,#_retained_injection_correction
+    sjmp %3
+    %1:
+    mov dptr,#_retained_purge_correction
+    %3:
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_xdata
+    jnb _fuel_mode_flag_5c,_bound_injection_correction
+    add a,_oxygen_control_adjustment
+    sjmp _bound_injection_correction
+}
+
+replace {
+    jnb _co_potentiometer_configured,%1
+    ljmp %2
+    %1:
+    lcall _interp_initial_injection
+    ljmp %3
+    %2:
+} by {
+    jnb _co_potentiometer_configured,_interp_initial_injection
+}
+
+replace restart {
+    mov a,_operating_point_index
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%1
+    mov a,_operating_point_index
+    movc a,@a+dptr
+}
+
+// Multiply the unsigned magnitude, then negate the high byte on the negative path.
+replace {
+    mov dptr,#_co_correction
+    movx a,@dptr
+    mov _ACC,a
+    jb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    clr c
+    clr a
+    subb a,_ACC
+    mov _ACC,a
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov ar7,r5
+    clr c
+    clr a
+    subb a,r7
+    mov _B,a
+    ljmp %3
+    %2:
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _B,r5
+    %3:
+} by {
+    mov dptr,#_co_correction
+    movx a,@dptr
+    jnb _ACC_SIGN,%2
+    cpl a
+    inc a
+    mul ab
+    mov a,_B
+    cpl a
+    inc a
+    mov _B,a
+    sjmp %3
+    %2:
+    mul ab
+    %3:
+}
+
+// Carry distinguishes overflow from underflow once the correction sign is known.
+replace {
+    movc a,@a+dptr
+    mov _ACC,a
+    mov r7,_B
+    mov a,r7
+    jnb acc.7,%1
+    ljmp %2
+    %1:
+    mov a,_B
+    add a,_ACC
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %3
+    ljmp %4
+    %3:
+    mov _ACC,#0xf0
+    lcall _store_injection_correction
+    ljmp %5
+    %2:
+    mov a,_B
+    add a,_ACC
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %6
+    ljmp %4
+    %6:
+    mov _ACC,#0x0f
+    lcall _store_injection_correction
+    ljmp %5
+    %4:
+    lcall _bound_injection_correction
+    %5:
+    ret
+} by {
+    movc a,@a+dptr
+    jb b.7,%2
+    add a,_B
+    jnc _bound_injection_correction
+    mov a,#0xf0
+    sjmp _store_injection_correction
+    %2:
+    add a,_B
+    jc _bound_injection_correction
+    mov a,#0x0f
+    sjmp _store_injection_correction
+}
+
+replace {
+    lcall _interp_bilinear_u8
+    lcall _bound_injection_correction
+    %1:
+    ret
+} by {
+    lcall _interp_bilinear_u8
+}
+
+replace restart {
+    mov _stock_r0,#0x0f
+    mov _stock_r1,#0xf0
+    lcall _clamp_stock_u8
+} by {
+    mov r0,#0x0f
+    mov r1,#0xf0
+    lcall _clamp_stock_u8
+}
+
+replace {
+    lcall _clamp_stock_u8
+    lcall _store_injection_correction
+    %1:
+    ret
+} by {
+    lcall _clamp_stock_u8
+}
+
+// Publish the correction unless held, then use the idle-only map on the idle path.
+replace {
+    mov _B,_ACC
+    mov a,_control_7a
+    jnb acc.4,%1
+    ljmp %2
+    %1:
+    mov _injection_time_correction,_B
+    %2:
+    jb _idle_regulating,%3
+    ljmp %4
+    %3:
+} by {
+    mov _B,a
+    mov a,_control_7a
+    anl a,#0x10
+    jnz %2
+    mov _injection_time_correction,_B
+    %2:
+    jnb _idle_regulating,%4
+}
+
+replace {
+    mov _idle_injection_correction,_ACC
+    ljmp %1
+    %2:
+    mov _idle_injection_correction,#0x80
+    %1:
+    lcall _finish_ignition_corrections
+    %3:
+    ret
+} by {
+    mov _idle_injection_correction,a
+    sjmp %1
+    %2:
+    mov _idle_injection_correction,#0x80
+    %1:
+}
