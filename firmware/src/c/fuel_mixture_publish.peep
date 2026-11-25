@@ -1,0 +1,254 @@
+// Keep the fault gate in carry and compare the two temperature codes.
+replace {
+    jb _knock_sensor_configured,%1
+    ljmp %2
+    %1:
+    jb _fuel_mode_flag_5d,%3
+    ljmp %2
+    %3:
+    jnb _maf_adc_low,%4
+    ljmp %2
+    %4:
+    jnb _maf_adc_high,%5
+    ljmp %2
+    %5:
+    jnb _throttle_adc_low,%6
+    ljmp %2
+    %6:
+    jnb _throttle_adc_high,%7
+    ljmp %2
+    %7:
+    mov dptr,#_knock_min_coolant
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jc %8
+    ljmp %2
+    %8:
+} by {
+    jnb _knock_sensor_configured,%2
+    jnb _fuel_mode_flag_5d,%2
+    mov c,_maf_adc_low
+    orl c,_maf_adc_high
+    orl c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    jc %2
+    mov dptr,#_knock_min_coolant
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,.+3
+    jnc %2
+}
+
+replace {
+    jb acc.5,%1
+    ljmp %2
+    %1:
+    lcall _update_knock_history_alternate
+    ljmp %3
+    %2:
+    lcall _update_knock_history
+    %3:
+    lcall _combine_knock_corrections
+    %4:
+    lcall _publish_fuel_mixture
+    %5:
+    ret
+} by {
+    jnb acc.5,%2
+    lcall _update_knock_history_alternate
+    sjmp %3
+    %2:
+    lcall _update_knock_history
+    %3:
+    lcall _combine_knock_corrections
+    %4:
+}
+
+replace restart {
+    mov a,_coolant_nearest_index
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+} by {
+    mov dptr,#%1
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _B,a
+}
+
+replace {
+    clr c
+    mov a,_B
+    subb a,_requested_mixture
+    jc %1
+    ljmp %2
+    %1:
+    mov _requested_mixture,_B
+    %2:
+    mov dptr,#_poststart_mixture_seconds
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnz %3
+    ljmp %4
+    %3:
+    jb _tick_1s,%5
+    ljmp %6
+    %5:
+    mov r7,_ACC
+    mov a,r7
+    dec a
+    mov dptr,#_poststart_mixture_seconds
+    movx @dptr,a
+    %6:
+} by {
+    clr c
+    subb a,_requested_mixture
+    jnc %2
+    mov _requested_mixture,_B
+    %2:
+    mov dptr,#_poststart_mixture_seconds
+    movx a,@dptr
+    jnz %3
+    sjmp %4
+    %3:
+    jnb _tick_1s,%6
+    dec a
+    movx @dptr,a
+    %6:
+}
+
+// Subtract the enrichment with saturation at zero.
+replace {
+    movc a,@a+dptr
+    mov r7,a
+    mov r6,_requested_mixture
+    clr c
+    mov a,r6
+    subb a,r7
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,r6
+    clr c
+    subb a,r7
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov _requested_mixture,r7
+} by {
+    movc a,@a+dptr
+    xch a,_requested_mixture
+    clr c
+    subb a,_requested_mixture
+    jnc %3
+    clr a
+    %3:
+    mov _requested_mixture,a
+}
+
+// The floor lives in R1:R0 while subtracting the raw decay.
+replace {
+    mov dptr,#_poststart_fuel_floor
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_poststart_fuel_decay_by_coolant
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _B,a
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    mov r4,_B
+    mov r5,#0x00
+    clr c
+    mov a,r6
+    subb a,r4
+    mov a,r7
+    subb a,r5
+    jnc %1
+    ljmp %2
+    %1:
+    mov r5,_B
+    mov r4,#0x00
+    mov a,r6
+    clr c
+    subb a,r5
+    mov r6,a
+    mov a,r7
+    subb a,r4
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    mov r7,#0x00
+    %3:
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r7
+    mov dptr,#_poststart_fuel_floor
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#_poststart_fuel_floor
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_poststart_fuel_decay_by_coolant
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r0
+    clr c
+    subb a,_B
+    mov r0,a
+    mov a,r1
+    subb a,#0x00
+    mov r1,a
+    jnc %3
+    clr a
+    mov r0,a
+    mov r1,a
+    %3:
+    mov dptr,#_poststart_fuel_floor
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+replace {
+    mov a,_control_7a
+    jnb acc.0,%1
+    ljmp %2
+    %1:
+    mov _applied_mixture,_requested_mixture
+    %2:
+    lcall _select_fuel_adaptation
+    %3:
+    ret
+} by {
+    mov a,_control_7a
+    anl a,#0x01
+    jnz %2
+    mov _applied_mixture,_requested_mixture
+    %2:
+}
