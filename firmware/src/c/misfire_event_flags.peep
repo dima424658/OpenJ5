@@ -1,0 +1,82 @@
+// Fetch words into the original calling convention's active register bank.
+replace {
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+} by {
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+}
+
+replace {
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+// The carry survives the XDATA read. Switch the output bit without rereading.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    anl _ACC,#%4
+    ljmp %5
+    %3:
+    orl _ACC,#%6
+    %5:
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    jc %2
+    orl a,#%6
+    sjmp %5
+    %2:
+    anl a,#%4
+    %5:
+    movx @dptr,a
+}
+
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    mov _CY,c
+} by {
+    cjne a,_B,.+3
+}
+
+replace {
+    lcall _publish_misfire_counter_flags
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _misfire_event_not_pending
+    %1:
+    ret
+} by {
+    %1:
+}
