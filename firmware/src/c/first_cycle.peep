@@ -1,3 +1,12 @@
+// Keep the entry used by both startup and the next engine cycle.
+replace {
+    lcall _wait_for_control_tick
+    %1:
+    ret
+} by {
+    %1:
+}
+
 replace {
     %1:
     jb _timer_event_48,%2

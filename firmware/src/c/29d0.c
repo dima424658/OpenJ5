@@ -33,6 +33,7 @@ extern __code const uint8_t knock_window_end_by_rpm[32];
 extern void pulse_startup_serial_clock(void);
 extern void apply_knock_window_phases(void);
 
+void wait_for_control_tick(void);
 void update_startup_ign_flags(void);
 void load_cycle_configuration(void);
 
@@ -41,6 +42,11 @@ void continue_startup_after_iac(void)
     pulse_startup_serial_clock();
     event_irq_high_priority = 1;
     interrupts_enabled = 1;
+    wait_for_control_tick();
+}
+
+void wait_for_control_tick(void)
+{
     while (!timer_event_48) {
     }
     timer_event_48 = 0;

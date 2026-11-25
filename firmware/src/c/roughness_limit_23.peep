@@ -1,0 +1,488 @@
+// Select and store the interpolated base for limit 2.
+replace {
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+    jnb _speed_sensor_fault,%3
+    ljmp %2
+    %3:
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jz %4
+    ljmp %2
+    %4:
+    mov r6,#_roughness_idle_limit_2
+    mov r7,#(_roughness_idle_limit_2 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_charge_q4
+    lcall _interp_curve_q4
+    ljmp %5
+    %2:
+    mov dptr,#_roughness_map_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov r6,#_roughness_limit_2
+    mov r7,#(_roughness_limit_2 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov a,_ACC
+    jb acc.0,%6
+    ljmp %7
+    %6:
+    mov r6,#_roughness_alt_limit_2
+    mov r7,#(_roughness_alt_limit_2 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    %7:
+    mov _stock_r2,_rpm_index_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    %5:
+    mov dptr,#_roughness_base_2
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    jnb _idle_mode,00970$
+    jb _speed_sensor_fault,00970$
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jnz 00970$
+    mov dptr,#_roughness_idle_limit_2
+    mov r2,_charge_q4
+    lcall _interp_curve_q4
+    sjmp 00972$
+    00970$:
+    mov dptr,#_roughness_map_flags
+    movx a,@dptr
+    mov dptr,#_roughness_limit_2
+    jnb acc.0,00971$
+    mov dptr,#_roughness_alt_limit_2
+    00971$:
+    mov r2,_rpm_index_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    00972$:
+    mov dptr,#_roughness_base_2
+    movx @dptr,a
+}
+
+// Form the temperature-adjusted target and apply the stock limit-2 drop.
+replace {
+    mov _B,_ACC
+    mov a,_coolant_axis_index
+    add a, #_roughness_temp_offset_2
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_roughness_temp_offset_2 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,_B
+    add a, r7
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0xff
+    %2:
+    mov _B,_ACC
+    mov r6,_ACC
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+    mov dptr,#_roughness_threshold_2_q8
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%3
+    ljmp %4
+    %3:
+    mov _bank_zero_r01,_stock_r23
+    mov (_bank_zero_r01 + 1),(_stock_r23 + 1)
+    mov dptr,#_roughness_limit_2_drop
+    clr a
+    movc a,@a+dptr
+    mov _stock_r23,a
+    mov (_stock_r23 + 1),#0x00
+    lcall _subtract_u16_register_pairs
+    jb _CY,%5
+    ljmp %6
+    %5:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    ljmp %6
+    %4:
+    mov r6,_B
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+    %6:
+    mov dptr,#_roughness_threshold_2_q8
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov _B,a
+    mov dptr,#_roughness_temp_offset_2
+    mov a,_coolant_axis_index
+    movc a,@a+dptr
+    clr c
+    add a,_B
+    jnc 00973$
+    mov a,#0xff
+    00973$:
+    mov _B,a
+    mov r1,a
+    mov r0,#0x00
+    mov dptr,#_roughness_threshold_2_q8
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+
+    lcall _subtract_u16_register_pairs
+    jnc 00974$
+    mov (_bank_zero_r01 + 1),r3
+    mov _bank_zero_r01,r2
+    mov dptr,#_roughness_limit_2_drop
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov r3,#0x00
+    lcall _subtract_u16_register_pairs
+    jnc 00975$
+    mov r1,#0x00
+    mov r0,#0x00
+
+    sjmp 00975$
+    00974$:
+    mov r1,_B
+    mov r0,#0x00
+    00975$:
+    mov dptr,#_roughness_threshold_2_q8
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Select and store the interpolated base for limit 3.
+replace {
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+    jnb _speed_sensor_fault,%3
+    ljmp %2
+    %3:
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jz %4
+    ljmp %2
+    %4:
+    mov r6,#_roughness_idle_limit_3
+    mov r7,#(_roughness_idle_limit_3 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_charge_q4
+    lcall _interp_curve_q4
+    ljmp %5
+    %2:
+    mov dptr,#_roughness_map_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov r6,#_roughness_limit_3
+    mov r7,#(_roughness_limit_3 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov a,_ACC
+    jb acc.0,%6
+    ljmp %7
+    %6:
+    mov r6,#_roughness_alt_limit_3
+    mov r7,#(_roughness_alt_limit_3 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    %7:
+    mov _stock_r2,_rpm_index_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    %5:
+    mov dptr,#_roughness_base_3
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    jnb _idle_mode,00970$
+    jb _speed_sensor_fault,00970$
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jnz 00970$
+    mov dptr,#_roughness_idle_limit_3
+    mov r2,_charge_q4
+    lcall _interp_curve_q4
+    sjmp 00972$
+    00970$:
+    mov dptr,#_roughness_map_flags
+    movx a,@dptr
+    mov dptr,#_roughness_limit_3
+    jnb acc.0,00971$
+    mov dptr,#_roughness_alt_limit_3
+    00971$:
+    mov r2,_rpm_index_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    00972$:
+    mov dptr,#_roughness_base_3
+    movx @dptr,a
+}
+
+// Form the temperature-adjusted target and apply the stock limit-3 drop.
+replace {
+    mov _B,_ACC
+    mov a,_coolant_axis_index
+    add a, #_roughness_temp_offset_3
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_roughness_temp_offset_3 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,_B
+    add a, r7
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0xff
+    %2:
+    mov _B,_ACC
+    mov r6,_ACC
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+    mov dptr,#_roughness_threshold_3_q8
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%3
+    ljmp %4
+    %3:
+    mov _bank_zero_r01,_stock_r23
+    mov (_bank_zero_r01 + 1),(_stock_r23 + 1)
+    mov dptr,#_roughness_limit_3_drop
+    clr a
+    movc a,@a+dptr
+    mov _stock_r23,a
+    mov (_stock_r23 + 1),#0x00
+    lcall _subtract_u16_register_pairs
+    ljmp %5
+    %4:
+    mov r6,_B
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+    %5:
+} by {
+    mov _B,a
+    mov dptr,#_roughness_temp_offset_3
+    mov a,_coolant_axis_index
+    movc a,@a+dptr
+    clr c
+    add a,_B
+    jnc 00973$
+    mov a,#0xff
+    00973$:
+    mov _B,a
+    mov r1,a
+    mov r0,#0x00
+    mov dptr,#_roughness_threshold_3_q8
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+
+    lcall _subtract_u16_register_pairs
+    jnc 00974$
+    mov (_bank_zero_r01 + 1),r3
+    mov _bank_zero_r01,r2
+    mov dptr,#_roughness_limit_3_drop
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov r3,#0x00
+    lcall _subtract_u16_register_pairs
+
+    sjmp 00977$
+    00974$:
+    mov r1,_B
+    mov r0,#0x00
+    00977$:
+}
+
+// Multiply the threshold by the reduction factor and apply the minimum.
+replace {
+    mov dptr,#_roughness_reduction_q8
+    movx a,@dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_roughness_reduced_2_q8
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_misfire_threshold
+    movx a,@dptr
+    mov _B,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,_B
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+    %2:
+    lcall _apply_roughness_base_limit_2
+    %3:
+    ret
+} by {
+    mov dptr,#_roughness_reduction_q8
+    movx a,@dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_roughness_reduced_2_q8
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+
+    mov dptr,#_misfire_threshold
+    movx a,@dptr
+    mov _B,a
+    mov a,r1
+    cjne a,_B,.+3
+    jnc _apply_roughness_base_limit_2
+    mov r0,#0x00
+    mov r1,_B
+}
+
+// Publish the applied limit 2 from the incoming register pair.
+replace {
+    mov dptr,#_roughness_applied_2_q8
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#_roughness_applied_2_q8
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Subtract the final offset with saturation at zero and latch the tick bit.
+replace {
+    mov dptr,#_roughness_unadjusted_3_q8
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_roughness_3_subtraction
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%1
+    ljmp %2
+    %1:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    %2:
+    mov dptr,#_roughness_threshold_3_q8
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_retained_status
+    movx a,@dptr
+    anl a,#0xfe
+    mov _ACC,a
+    jb _timer_event_48,%3
+    ljmp %4
+    %3:
+    orl _ACC,#0x01
+    %4:
+    mov dptr,#_retained_status
+    mov a,_ACC
+    movx @dptr,a
+    lcall _wait_for_control_tick
+    %5:
+    ret
+} by {
+    mov dptr,#_roughness_unadjusted_3_q8
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_roughness_3_subtraction
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+
+    lcall _subtract_u16_register_pairs
+    jnc 00975$
+    clr a
+    mov r0,a
+    mov r1,a
+    00975$:
+    mov dptr,#_roughness_threshold_3_q8
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+
+    mov dptr,#_retained_status
+    movx a,@dptr
+    anl a,#0xfe
+    jnb _timer_event_48,00976$
+    orl a,#0x01
+    00976$:
+    movx @dptr,a
+    ljmp _wait_for_control_tick
+}
