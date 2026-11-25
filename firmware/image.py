@@ -19,7 +19,11 @@ SYMBOLS = {
     "interp_bilinear_end": 0xA5FF,
     "interp_curve_u8": 0xA611,
     "interp_curve_end": 0xA62F,
+    "_set_flag_2f_4_cd7c": 0xCD7C,
+    "_set_flag_2f_7_d2f1": 0xD2F1,
+    "_clear_flag_21_0_f275": 0xF275,
 }
+C_SECTIONS = {"code_cd7c": 3, "code_d2f1": 3, "code_f275": 3}
 
 
 def convert_hex(lines):
@@ -87,6 +91,9 @@ def verify(image, reference, linker_map):
     for symbol, address in SYMBOLS.items():
         if linked.get(symbol) != address:
             raise ValueError(f"linker map: expected {symbol} at 0x{address:04X}")
+    for section, size in C_SECTIONS.items():
+        if linked.get(f"l_{section}") != size:
+            raise ValueError(f"linker map: expected {size} bytes in {section}")
 
     flash = sum(image) & 0xFFFF
     complement = int.from_bytes(image[0xFFFA:0xFFFC], "little")
@@ -126,6 +133,7 @@ def main():
             )
             print(f"J5V05L19: {ROM_SIZE} bytes match. SHA-256 {STOCK_SHA256}")
             print("Vectors and interpolation addresses match. Checksums: 7602, D3B2, 0780.")
+            print(f"C section sizes match: {sum(C_SECTIONS.values())} bytes.")
     except (OSError, ValueError) as error:
         parser.exit(1, f"{error}\n")
 
