@@ -5,8 +5,8 @@
         .globl irq_vector_0023
         .globl irq_vector_006b
         .globl _crank_interrupt_entry
+        .globl _restart_firmware
 
-reset_entry_204d = 0x204d
 irq_handler_04b4 = 0x04b4
 serial0_handler_5a25 = 0x5a25
 irq_handler_0119 = 0x0119
@@ -15,7 +15,7 @@ irq_handler_0119 = 0x0119
 ; C509-L vector slots observed in J5V05L19. Preserve the bytes between
 ; entries as data.
 reset_vector:
-        ljmp    reset_entry_204d
+        ljmp    _restart_firmware
 irq_vector_0003:
         ljmp    _crank_interrupt_entry
         .db 0x00,0x00,0x00,0x00,0x00
