@@ -9,7 +9,7 @@ SOURCES := src/j5v05l19.asm src/vectors.asm src/interpolation.asm src/opaque.asm
 C_REGISTER_HELPERS := a33a a381 a3f9
 C_IGNITION := 280e 3fad 3fef 400d 4042 406d 430d
 C_INTERPOLATION := a5ff a611
-C_FUNCTIONS := 2bcd 2c3f 3396 $(C_IGNITION) $(C_REGISTER_HELPERS) $(C_INTERPOLATION) a429 cd7c d2f1 f090 f275
+C_FUNCTIONS := 2bcd 2c3f 3396 $(C_IGNITION) $(C_REGISTER_HELPERS) a429 a575 $(C_INTERPOLATION) cd7c d2f1 f090 f275
 C_VECTORS := 000b 0013 002b 0043 004b 0053 005b 0063 0083 0093 009b 00a3 00ab
 C_DATA := 60c7 613c 62ac 64d3 6ac8 6f56 710b 75ef 7877 7ac7 7e07 8193 83ba 852f 99b9
 C_FLAGS := -mmcs51 --model-small
@@ -36,6 +36,9 @@ build/%.rel: src/c/%.c Makefile
 
 build/a429.rel: C_OPTIONS += --peep-file src/c/accumulator.peep
 build/a429.rel: src/c/accumulator.peep
+
+build/a575.rel: C_OPTIONS += --no-peep --peep-file src/c/curve_q4.peep
+build/a575.rel: src/c/curve_q4.peep src/c/stock_registers.h
 
 $(addprefix build/,$(addsuffix .rel,$(C_INTERPOLATION))): C_OPTIONS += \
 	--no-peep --peep-file src/c/curve_interp.peep
