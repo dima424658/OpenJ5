@@ -1,0 +1,125 @@
+// The exchange keeps the input factor in R1 while A takes the high byte.
+replace {
+    mov r7,_B
+    mov r6,_stock_r1
+    mov ar5,r7
+    mov b,r6
+    mov a,r5
+    mul ab
+    mov r6,a
+    mov r4,b
+} by {
+    mov a,b
+    xch a,r1
+    mul ab
+    xch a,r0
+    xch a,b
+}
+
+// The exchanges prepare the low-byte multiply and retain the low result in B.
+replace {
+    mov r5,_stock_r0
+    mov b,r5
+    mov a,r7
+    mul ab
+    mov r5,a
+    mov r3,b
+    mov _B,r5
+    mov ar5,r3
+} by {
+    xch a,r1
+    mul ab
+    xch a,b
+}
+
+// The signed variant tests the original high byte in A before multiplying.
+replace {
+    mov r7,_B
+    mov r6,_stock_r1
+    mov a,r6
+    jnb acc.7,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,b
+    xch a,r1
+    jb acc.7,%2
+    %1:
+}
+
+replace {
+    mov ar5,r6
+    mov ar4,r7
+    mov b,r5
+    mov a,r4
+    mul ab
+    mov r5,a
+    mov r3,b
+    ljmp %1
+} by {
+    mul ab
+    xch a,r0
+    xch a,b
+    sjmp %1
+}
+
+// With a negative high byte, subtract the factor from the upper half.
+replace {
+    mov ar2,r7
+    mov r4,#0x00
+    mov ar1,r2
+    mov b,r6
+    mov a,r1
+    mul ab
+    mov r1,a
+    mov r6,b
+    mov ar4,r2
+    mov r2,#0x00
+    mov a,r1
+    clr c
+    subb a,r2
+    mov r5,a
+    mov a,r6
+    subb a,r4
+    mov r3,a
+} by {
+    mul ab
+    xch a,r0
+    xch a,b
+    clr c
+    subb a,r1
+}
+
+replace {
+    mov r6,_stock_r0
+    mov b,r6
+    mov a,r7
+    mul ab
+    mov r6,a
+    mov r4,b
+    mov _B,r6
+    mov ar6,r4
+} by {
+    xch a,r1
+    mul ab
+    xch a,b
+}
+
+// The two variants use different temporary registers for the same sum.
+// Its middle byte is formed in A and its carry is added to R1.
+replace {
+    mov %1,#0x00
+    mov a,%2
+    add a,%3
+    mov _stock_r01,a
+    mov a,%1
+    addc a,%4
+    mov (_stock_r01 + 1),a
+    mov _ACC,_stock_r1
+} by {
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+}
