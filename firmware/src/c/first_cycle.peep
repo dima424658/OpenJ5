@@ -1,0 +1,115 @@
+replace {
+    %1:
+    jb _timer_event_48,%2
+    ljmp %1
+    %2:
+} by {
+    %1:
+    jnb _timer_event_48,%1
+}
+
+replace {
+    lcall _update_startup_ign_flags
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    mov _ACC,a
+    jnb _ACC_BIT1,%1
+    ljmp %2
+    %1:
+} by {
+    jb _ACC_BIT1,%2
+}
+
+// Comparison sets carry without changing A. Both branches then reread XDATA.
+replace {
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,_B
+    mov _CY,c
+    mov dptr,#_startup_ignition_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_CY
+    mov _ACC_BIT1,c
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov a,_coolant_temperature_raw
+    cjne a,_B,.+3
+    mov dptr,#_startup_ignition_flags
+    movx a,@dptr
+    mov _ACC_BIT1,c
+    movx @dptr,a
+}
+
+replace {
+    movx @dptr,a
+    ljmp %1
+} by {
+    movx @dptr,a
+    sjmp %1
+}
+
+replace {
+    lcall _load_cycle_configuration
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    mov a,_knock_window_override
+    jnb acc.5,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,_knock_window_override
+    anl a,#0x20
+    jnz %2
+}
+
+replace {
+    mov a,_knock_window_override
+    jnb acc.6,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,_knock_window_override
+    anl a,#0x40
+    jnz %2
+}
+
+replace {
+    mov a,_rpm_nearest_half_bin
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#%2
+    mov a,r7
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov dptr,#%2
+    movx @dptr,a
+}
+
+replace {
+    lcall _apply_knock_window_phases
+    %1:
+    ret
+} by {
+    %1:
+}
