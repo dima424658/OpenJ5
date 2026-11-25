@@ -1,0 +1,61 @@
+// Preserve the original serial data setup time before each rising edge.
+replace {
+    mov _ACC,_knock_serial_port
+    mov c,%1
+    mov _ACC_SIGN,c
+    mov _knock_serial_port,_ACC
+} by {
+    mov c,%1
+    mov a,_knock_serial_port
+    mov _ACC_SIGN,c
+    mov _knock_serial_port,a
+}
+
+replace {
+    mov _ACC,a
+    setb _ACC_BIT2
+    mov _B,_ACC
+} by {
+    setb _ACC_BIT2
+    mov _B,a
+}
+
+replace {
+    %1:
+    jnb _adc_busy,%2
+    ljmp %1
+    %2:
+    mov _ACC,_adc_result_high
+    clr c
+    mov a,_ACC
+    subb a,#0x1e
+    jnc %3
+    ljmp %4
+    %3:
+    mov _ACC,#0x1e
+    %4:
+    mov _knock_adc_baseline,_ACC
+} by {
+    %1:
+    jb _adc_busy,%1
+    mov a,_adc_result_high
+    cjne a,#0x1e,%2
+    %2:
+    jc %4
+    mov a,#0x1e
+    %4:
+    mov _knock_adc_baseline,a
+}
+
+replace {
+    mov dptr,#_idle_transition_counter
+    mov a,#0x01
+    movx @dptr,a
+    lcall _continue_startup_config
+    %1:
+    ret
+} by {
+    mov a,#0x01
+    mov dptr,#_idle_transition_counter
+    movx @dptr,a
+}
