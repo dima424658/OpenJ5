@@ -127,3 +127,57 @@ replace {
     mov a,r0
     subb a,b
 }
+
+// Form the first product with the wrapped complementary weight in A.
+replace {
+    mov r7,_stock_r3
+    clr c
+    clr a
+    subb a,r7
+    mov r6,a
+    mov r5,_stock_r0
+    mov b,r6
+    mov a,r5
+    mul ab
+    mov r6,a
+    mov r4,b
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r4
+} by {
+    mov a,r3
+    cpl a
+    inc a
+    mov b,r0
+    mul ab
+    mov r0,a
+    mov r1,b
+}
+
+// Form the second product from the unmodified weight and right sample.
+replace {
+    mov r6,_stock_r2
+    mov b,r7
+    mov a,r6
+    mul ab
+} by {
+    mov a,r3
+    mov b,r2
+    mul ab
+}
+
+// Keep the high byte of the sum, including the carry out of its low byte.
+replace {
+    mov r7,a
+    mov r5,b
+    mov a,r7
+    add a,_stock_r01
+    mov r7,a
+    mov a,r5
+    addc a,(_stock_r01 + 1)
+    mov r5,a
+    mov _ACC,r5
+} by {
+    add a,r0
+    mov a,b
+    addc a,r1
+}
