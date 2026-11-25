@@ -8,7 +8,7 @@ REFERENCE ?= ../bins/J5v05l19.bin
 SOURCES := src/j5v05l19.asm src/vectors.asm src/interpolation.asm src/opaque.asm
 C_FUNCTIONS := a429 cd7c d2f1 f090 f275
 C_VECTORS := 000b 0013 002b 0043 004b 0053 005b 0063 0083 0093 009b 00a3 00ab
-C_DATA := 60c7 6ac8 6f56 75ef
+C_DATA := 60c7 613c 6ac8 6f56 710b 75ef 99b9
 C_FLAGS := -mmcs51 --model-small
 C_OBJECTS := $(addprefix build/,$(addsuffix .rel,$(C_FUNCTIONS) $(C_VECTORS) $(C_DATA)))
 C_PLACEMENT := $(foreach address,$(C_FUNCTIONS) $(C_VECTORS),-b code_$(address)=0x$(address)) \
