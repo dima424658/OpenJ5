@@ -23,6 +23,7 @@ SYMBOLS = {
     "interp_bilinear_end": 0xA5FF,
     "interp_curve_u8": 0xA611,
     "interp_curve_end": 0xA62F,
+    "_abs_accumulator_i8": 0xA429,
     "_set_flag_2f_4_cd7c": 0xCD7C,
     "_set_flag_2f_7_d2f1": 0xD2F1,
     "_select_data_pointer_zero": 0xF090,
@@ -35,6 +36,7 @@ SYMBOLS = {
     **{f"_irq_unused_{address:04x}": address for address in UNUSED_VECTORS},
 }
 C_SECTIONS = {
+    "code_a429": 6,
     "code_cd7c": 3,
     "code_d2f1": 3,
     "code_f090": 4,
