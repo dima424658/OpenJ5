@@ -1,0 +1,178 @@
+// Keep the status-bit and XDATA gates in their original short-circuit order.
+replace {
+    jb _maf_filter_condition_53,%1
+    ljmp %2
+    %1:
+    jnb _inhibit_maf_filter_36,%3
+    ljmp %2
+    %3:
+    jnb _retained_ram_checksum_failed,%4
+    ljmp %2
+    %4:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT1,%5
+    ljmp %2
+    %5:
+    jb _maf_filter_condition_6b,%6
+    ljmp %2
+    %6:
+    mov dptr,#_diagnostic_f4e0
+    movx a,@dptr
+    jz %7
+    ljmp %2
+    %7:
+    mov dptr,#_diagnostic_f4e8
+    movx a,@dptr
+    jz %8
+    ljmp %2
+    %8:
+    mov dptr,#_maf_baseline
+    movx a,@dptr
+    jnz %9
+    ljmp %2
+    %9:
+} by {
+    jnb _maf_filter_condition_53,%2
+    jb _inhibit_maf_filter_36,%2
+    jb _retained_ram_checksum_failed,%2
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jb _ACC_BIT1,%2
+    jnb _maf_filter_condition_6b,%2
+    mov dptr,#_diagnostic_f4e0
+    movx a,@dptr
+    jnz %2
+    mov dptr,#_diagnostic_f4e8
+    movx a,@dptr
+    jnz %2
+    mov dptr,#_maf_baseline
+    movx a,@dptr
+    jz %2
+}
+
+// Use the active R1/R2 bank and exchange the old output with the new sample.
+replace {
+    mov dptr,#_maf_filter_high
+    movx a,@dptr
+    mov _stock_r2,a
+    mov dptr,#_maf_filter_low
+    movx a,@dptr
+    mov _stock_r1,a
+    mov _B,#0x00
+    lcall _read_adc_8bit
+    mov _stock_r3,_ACC
+    mov dptr,#_maf_baseline
+    movx a,@dptr
+    mov _ACC,a
+    mov r7,_stock_r3
+    mov _stock_r3,_ACC
+    mov _ACC,r7
+    lcall _filter_maf_baseline
+    mov _stock_r3,_ACC
+    mov dptr,#_maf_baseline
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_maf_filter_high
+    mov a,_stock_r2
+    movx @dptr,a
+    mov dptr,#_maf_filter_low
+    mov a,_stock_r1
+    movx @dptr,a
+} by {
+    mov dptr,#_maf_filter_high
+    movx a,@dptr
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    mov r1,a
+    mov _B,#0x00
+    lcall _read_adc_8bit
+    mov r3,a
+    mov dptr,#_maf_baseline
+    movx a,@dptr
+    xch a,r3
+    lcall _filter_maf_baseline
+    mov r3,a
+    mov dptr,#_maf_baseline
+    movx @dptr,a
+    mov a,r2
+    mov dptr,#_maf_filter_high
+    movx @dptr,a
+    inc dptr
+    mov a,r1
+    movx @dptr,a
+}
+
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_stock_r3
+    jc %1
+    ljmp %2
+    %1:
+} by {
+    clr c
+    subb a,r3
+    jnc %2
+}
+
+// Keep the wrapped byte for the comparison and leave the reset as fallthrough.
+replace {
+    mov dptr,#_maf_above_threshold_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r3,_ACC
+    mov dptr,#_maf_baseline_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_stock_r3
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _sample_adc10
+    ljmp %3
+    %2:
+    setb _maf_baseline_fault
+    %4:
+    lcall _reset_maf_baseline_count
+    %3:
+    ret
+} by {
+    mov dptr,#_maf_above_threshold_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    mov r3,a
+    mov dptr,#_maf_baseline_fault_delay
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,r3
+    jnc _sample_adc10
+    setb _maf_baseline_fault
+    %4:
+}
+
+replace {
+    mov dptr,#_maf_above_threshold_count
+    mov a,#0x00
+    movx @dptr,a
+    lcall _sample_adc10
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#_maf_above_threshold_count
+    movx @dptr,a
+}
