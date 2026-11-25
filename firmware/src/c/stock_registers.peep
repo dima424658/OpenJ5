@@ -1,0 +1,208 @@
+// Lower operands declared in stock_registers.h to PSW-selected registers.
+// With the built-in rules disabled, relax the compiler's conditional jumps.
+// Their destinations are local to the small helper functions using this file.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+} by {
+    jnc %2
+    %1:
+}
+
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+} by {
+    jc %2
+    %1:
+}
+
+replace {
+    jb %1,%2
+    ljmp %3
+    %2:
+} by {
+    jnb %1,%3
+    %2:
+}
+
+replace {
+    jnb %1,%2
+    ljmp %3
+    %2:
+} by {
+    jb %1,%3
+    %2:
+}
+
+// Both arms return after the second arm's single instruction.
+replace {
+    ljmp %1
+    %2:
+    mov %3,%4
+    %1:
+    ret
+} by {
+    ret
+    %2:
+    mov %3,%4
+    %1:
+    ret
+}
+
+// The sum uses the original R1:R0 value as the accumulator operand.
+replace {
+    mov a,_stock_r23
+    add a,_stock_r01
+} by {
+    mov a,r0
+    add a,r2
+}
+
+replace {
+    mov a,(_stock_r23 + 1)
+    addc a,(_stock_r01 + 1)
+} by {
+    mov a,r1
+    addc a,r3
+}
+
+// Clearing carry and loading the accumulator are independent.
+replace {
+    mov a,_stock_r01
+    clr c
+} by {
+    clr c
+    mov a,r0
+}
+
+// The ISA has MOV A,Rn and MOV Rn,A, with no MOV Rn,Rm.
+replace {
+    mov _stock_r01,_stock_r23
+} by {
+    mov a,r2
+    mov r0,a
+}
+
+replace {
+    mov (_stock_r01 + 1),(_stock_r23 + 1)
+} by {
+    mov a,r3
+    mov r1,a
+}
+
+replace {
+    mov a,(_stock_r01 + 1)
+} by {
+    mov a,r1
+}
+
+replace {
+    mov a,_stock_r23
+} by {
+    mov a,r2
+}
+
+replace {
+    mov a,(_stock_r23 + 1)
+} by {
+    mov a,r3
+}
+
+replace {
+    mov _stock_r01,a
+} by {
+    mov r0,a
+}
+
+replace {
+    mov (_stock_r01 + 1),a
+} by {
+    mov r1,a
+}
+
+replace {
+    subb a,_stock_r01
+} by {
+    subb a,r0
+}
+
+replace {
+    subb a,(_stock_r01 + 1)
+} by {
+    subb a,r1
+}
+
+replace {
+    subb a,_stock_r23
+} by {
+    subb a,r2
+}
+
+replace {
+    subb a,(_stock_r23 + 1)
+} by {
+    subb a,r3
+}
+
+replace {
+    subb a,_stock_r012
+} by {
+    subb a,r0
+}
+
+replace {
+    subb a,(_stock_r012 + 1)
+} by {
+    subb a,r1
+}
+
+replace {
+    subb a,(_stock_r012 + 2)
+} by {
+    subb a,r2
+}
+
+replace {
+    mov _stock_r012,a
+} by {
+    mov r0,a
+}
+
+replace {
+    mov (_stock_r012 + 1),a
+} by {
+    mov r1,a
+}
+
+replace {
+    mov (_stock_r012 + 2),a
+} by {
+    mov r2,a
+}
+
+replace {
+    mov _ACC,_stock_r0
+} by {
+    mov a,r0
+}
+
+replace {
+    mov _ACC,_stock_r2
+} by {
+    mov a,r2
+}
+
+replace {
+    mov _stock_r1,#%1
+} by {
+    mov r1,#%1
+}
+
+replace {
+    mov _stock_r3,#%1
+} by {
+    mov r3,#%1
+}
