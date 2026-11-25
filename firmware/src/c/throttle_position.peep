@@ -1,0 +1,196 @@
+// Branch directly on the two diagnostic bits.
+replace {
+    mov c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    mov _CY,c
+    jb _CY,%1
+    ljmp %2
+    %1:
+    lcall _use_throttle_fault_fallback
+    ljmp %3
+    %2:
+} by {
+    mov c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    jc _use_throttle_fault_fallback
+}
+
+// Use the ADC difference as the multiplicand and retain the scaled value in B.
+replace {
+    mov _B,_ACC
+    mov dptr,#_throttle_zero_reference
+    movx a,@dptr
+    mov _ACC,a
+    mov r7,_B
+    mov _B,_ACC
+    mov _ACC,r7
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0x00
+    ljmp %3
+    %2:
+    mov a,_ACC
+    clr c
+    subb a,_B
+    mov _B,a
+    mov r7,_B
+    mov dptr,#_throttle_transfer_gain
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r0,r5
+    mov dptr,#_throttle_max_position
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_stock_r0
+    jc %4
+    ljmp %3
+    %4:
+    mov _stock_r0,_ACC
+    %3:
+    lcall _filter_throttle_position
+    %5:
+    ret
+} by {
+    mov _B,a
+    mov dptr,#_throttle_zero_reference
+    movx a,@dptr
+    xch a,_B
+    clr c
+    subb a,_B
+    jc %1
+    mov _B,a
+    mov dptr,#_throttle_transfer_gain
+    clr a
+    movc a,@a+dptr
+    mul ab
+    mov r0,_B
+    mov dptr,#_throttle_max_position
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,_B
+    jnc %3
+    add a,_B
+    mov r0,a
+    sjmp %3
+    %1:
+    mov r0,#0x00
+    %3:
+}
+
+// Reject changes at or beyond the limit and save the unfiltered sample.
+replace {
+    mov dptr,#_throttle_change_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_last_throttle_sample
+    movx a,@dptr
+    clr c
+    subb a,_stock_r0
+    mov _ACC,a
+    lcall _abs_accumulator_i8
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _throttle_position,_stock_r0
+    %2:
+    mov dptr,#_last_throttle_sample
+    mov a,_stock_r0
+    movx @dptr,a
+    lcall _evaluate_air_charge_inputs
+    %3:
+    ret
+} by {
+    mov dptr,#_throttle_change_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_last_throttle_sample
+    movx a,@dptr
+    clr c
+    subb a,r0
+    lcall _abs_accumulator_i8
+    clr c
+    subb a,_B
+    jnc %2
+    mov _throttle_position,r0
+    %2:
+    mov a,r0
+    mov dptr,#_last_throttle_sample
+    movx @dptr,a
+    sjmp throttle_position_end
+}
+
+// Select the economy boundary only outside startup, then reset both zero references.
+replace {
+    jb _startup_flag_54,%1
+    ljmp %2
+    %1:
+    mov _throttle_position,#0x00
+    ljmp %3
+    %2:
+    mov a,_rpm_nearest_half_bin
+    add a,#_economy_throttle_boundary
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_economy_throttle_boundary >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_last_throttle_sample
+    mov a,_ACC
+    movx @dptr,a
+    mov _throttle_position,_ACC
+    %3:
+    mov dptr,#_startup_throttle_zero
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_throttle_zero_reference
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_throttle_position_baseline
+    mov a,_ACC
+    movx @dptr,a
+    lcall _evaluate_air_charge_inputs
+    %4:
+    ret
+} by {
+    jb _startup_flag_54,%1
+    mov dptr,#_economy_throttle_boundary
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov dptr,#_last_throttle_sample
+    movx @dptr,a
+    mov _throttle_position,a
+    sjmp %3
+    %1:
+    mov _throttle_position,#0x00
+    %3:
+    mov dptr,#_startup_throttle_zero
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_throttle_zero_reference
+    movx @dptr,a
+    mov dptr,#_throttle_position_baseline
+    movx @dptr,a
+    throttle_position_end:
+}
