@@ -1,0 +1,406 @@
+// Choose adaptation or detection, preserving the temperature and hold-count gates.
+replace {
+    jnb _noise_adaptation_active,%1
+    ljmp %2
+    %1:
+    lcall _detect_knock_event
+    ljmp %3
+    %2:
+    mov dptr,#_knock_noise_adaptation_temp
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jc %4
+    ljmp %5
+    %4:
+    mov dptr,#_knock_noise_hold_count
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x05,%6
+    %6:
+    jnc %7
+    ljmp %8
+    %7:
+    %5:
+    lcall _finish_knock_sample
+    ljmp %3
+    %8:
+    lcall _adapt_knock_noise_reference
+    %3:
+    ret
+} by {
+    jnb _noise_adaptation_active,00940$
+    mov dptr,#_knock_noise_adaptation_temp
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,00941$
+    00941$:
+    jnc 00942$
+    mov dptr,#_knock_noise_hold_count
+    movx a,@dptr
+    cjne a,#0x05,00943$
+    00943$:
+    jc _adapt_knock_noise_reference
+    00942$:
+    ljmp _finish_knock_sample
+    00940$:
+    ljmp _detect_knock_event
+}
+
+// Apply the stock sample floor, call the filter, and publish both copies of the noise reference.
+replace {
+    mov a,_stock_r4
+    clr c
+    rrc a
+    mov _stock_r0,a
+    mov dptr,#_knock_average_noise
+    movx a,@dptr
+    mov _stock_r3,a
+    clr c
+    mov a,_stock_r3
+    subb a,_bank_one_noise_floor
+    jc %1
+    ljmp %2
+    %1:
+    mov a,_stock_r3
+    rl a
+    mov _stock_r4,a
+    mov a,_stock_r3
+    %2:
+    mov dptr,#_knock_noise_accumulator
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov _stock_r1,r6
+    mov _stock_r2,r7
+    mov dptr,#_knock_noise_filter_coefficient
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov _ACC,_stock_r4
+    lcall _filter_knock_noise
+    mov dptr,#_knock_average_noise
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_retained_knock_noise
+    mov a,_ACC
+    movx @dptr,a
+    mov r6,_stock_r2
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_stock_r1
+    mov r5,#0x00
+    mov dptr,#_knock_noise_accumulator
+    mov a,r4
+    orl a,r6
+    movx @dptr,a
+    mov a,r5
+    orl a,r7
+    inc dptr
+    movx @dptr,a
+    lcall _adjust_knock_attenuation
+    lcall _diagnose_knock_noise_range
+} by {
+    mov a,r4
+    clr c
+    rrc a
+    mov r0,a
+    mov dptr,#_knock_average_noise
+    movx a,@dptr
+    mov r3,a
+    cjne a,_bank_one_noise_floor,00944$
+    00944$:
+    jnc 00945$
+    rl a
+    mov r4,a
+    00945$:
+    mov dptr,#_knock_noise_accumulator
+    movx a,@dptr
+    mov r1,a
+    inc dpl
+    movx a,@dptr
+    mov r2,a
+    mov dptr,#_knock_noise_filter_coefficient
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r4
+    lcall _filter_knock_noise
+    mov dptr,#_knock_average_noise
+    movx @dptr,a
+    mov dptr,#_retained_knock_noise
+    movx @dptr,a
+    mov dptr,#_knock_noise_accumulator
+    mov a,r1
+    movx @dptr,a
+    inc dpl
+    mov a,r2
+    movx @dptr,a
+    lcall _adjust_knock_attenuation
+    lcall _diagnose_knock_noise_range
+}
+
+// Normalize the noise for map lookup and scale the threshold in Q4 with saturation.
+replace {
+    mov a,_knock_attenuation
+    swap a
+    rl a
+    anl a,#0x1f
+    mov r7,a
+    anl ar7,#0x03
+    cjne r7,#0x01,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov r6,#0x02
+    ljmp %4
+    %3:
+    mov a,r7
+    jz %5
+    ljmp %6
+    %5:
+    mov r7,#0x01
+    ljmp %7
+    %6:
+    mov r7,#0x04
+    %7:
+    mov ar6,r7
+    %4:
+    mov _B,r6
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov ar4,r7
+    mov ar6,r5
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r6
+    jc %8
+    ljmp %9
+    %8:
+    mov r4,#0xff
+    mov r6,#0x00
+    ljmp %10
+    %9:
+    mov ar4,r7
+    mov ar6,r5
+    %10:
+    mov _stock_r0,r4
+    mov dptr,#_normalized_knock_noise
+    mov a,_stock_r0
+    movx @dptr,a
+    mov a,_stock_r0
+    swap a
+    rl a
+    anl a,#0x1f
+    mov _ACC,a
+    mov dptr,#_knock_noise_bin
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    add a, #_knock_relative_threshold_q4
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_knock_relative_threshold_q4 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov a,r5
+    swap a
+    xch a,r7
+    swap a
+    anl a,#0x0f
+    xrl a,r7
+    xch a,r7
+    anl a,#0x0f
+    xch a,r7
+    xrl a,r7
+    xch a,r7
+    mov r6,a
+    mov ar4,r7
+    mov ar5,r6
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r5
+    jc %11
+    ljmp %12
+    %11:
+    mov r4,#0xff
+    mov r5,#0x00
+    ljmp %13
+    %12:
+    mov ar4,r7
+    mov ar5,r6
+    %13:
+    mov _knock_noise_threshold,r4
+    lcall _finish_knock_sample
+    %14:
+    ret
+} by {
+    mov a,_knock_attenuation
+    rr a
+    rr a
+    rr a
+    anl a,#0x03
+    cjne a,#0x01,00946$
+    mov a,#0x02
+    sjmp 00947$
+    00946$:
+    jnc 00948$
+    mov a,#0x01
+    sjmp 00947$
+    00948$:
+    mov a,#0x04
+    00947$:
+    mov _B,a
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mul ab
+    mov r0,a
+    mov a,_B
+    jz 00949$
+    mov r0,#0xff
+    00949$:
+    mov a,r0
+    mov dptr,#_normalized_knock_noise
+    movx @dptr,a
+    swap a
+    rl a
+    anl a,#0x1f
+    mov dptr,#_knock_noise_bin
+    movx @dptr,a
+    mov dptr,#_knock_relative_threshold_q4
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mul ab
+    mov r2,a
+    mov a,_B
+    anl a,#0xf0
+    jnz 00950$
+    mov a,r2
+    anl a,#0xf0
+    orl a,_B
+    swap a
+    sjmp 00951$
+    00950$:
+    mov a,#0xff
+    00951$:
+    mov _knock_noise_threshold,a
+    ljmp _finish_knock_sample
+}
+
+// Preserve the absolute threshold and borrow-sensitive relative test before posting the event.
+replace {
+    mov dptr,#_knock_noise_hold_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_knock_absolute_threshold
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,_stock_r1
+    subb a,r7
+    jc %1
+    ljmp %2
+    %1:
+    clr c
+    mov a,_stock_r3
+    subb a,_stock_r1
+    jc %3
+    ljmp %4
+    %3:
+    mov r7,_stock_r1
+    mov r6,_knock_noise_threshold
+    anl ar6,#0x01
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov a,_knock_noise_threshold
+    clr c
+    rrc a
+    mov r6,a
+    clr c
+    mov a,r6
+    subb a,r7
+    mov a,r4
+    subb a,r5
+    jc %5
+    ljmp %4
+    %5:
+    %2:
+    mov _stock_r1,_knock_mask_index
+    mov a,_stock_r1
+    add a, #_knock_event_masks
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_knock_event_masks >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    orl _pending_knock_mask,a
+    %4:
+    lcall _finish_knock_sample
+    %6:
+    ret
+} by {
+    clr a
+    mov dptr,#_knock_noise_hold_count
+    movx @dptr,a
+    mov dptr,#_knock_absolute_threshold
+    movx a,@dptr
+    setb c
+    subb a,r1
+    jc 00952$
+    mov a,r3
+    subb a,r1
+    jc 00953$
+    sjmp _finish_knock_sample
+    00953$:
+    mov a,_knock_noise_threshold
+    clr c
+    rrc a
+    subb a,r1
+    jnc _finish_knock_sample
+    00952$:
+    mov r1,_knock_mask_index
+    mov dptr,#_knock_event_masks
+    mov a,r1
+    movc a,@a+dptr
+    orl _pending_knock_mask,a
+}
