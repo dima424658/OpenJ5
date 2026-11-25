@@ -1,0 +1,106 @@
+// The marker write has two entry conditions and a shared save path.
+replace {
+    mov dptr,#_diagnostic_status
+    movx a,@dptr
+    anl a,#0x0f
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_status_marker_fa79
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    ljmp %6
+    %2:
+    mov dptr,#_retained_status_f9b0
+    movx a,@dptr
+    jb acc.1,%7
+    ljmp %6
+    %7:
+    %5:
+    mov _ACC,#0x55
+    lcall _write_eeprom_status_marker
+    %6:
+    lcall _persist_shutdown_data
+    %8:
+    ret
+} by {
+    mov dptr,#_diagnostic_status
+    movx a,@dptr
+    anl a,#0x0f
+    jz %2
+    mov dptr,#_status_marker_fa79
+    movx a,@dptr
+    xrl a,#0x55
+    jz _persist_shutdown_data
+    sjmp %5
+    %2:
+    mov dptr,#_retained_status_f9b0
+    movx a,@dptr
+    jnb acc.1,_persist_shutdown_data
+    %5:
+    mov a,#0x55
+    lcall _write_eeprom_status_marker
+}
+
+replace {
+    mov r6,#_shutdown_eeprom_block
+    mov r7,#(_shutdown_eeprom_block >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _write_eeprom_shutdown_block
+} by {
+    mov dptr,#_shutdown_eeprom_block
+    lcall _write_eeprom_shutdown_block
+}
+
+replace {
+    jb _shutdown_extra_state_6a,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _shutdown_extra_state_6a,%2
+}
+
+replace {
+    mov dptr,#_shutdown_eeprom_marker
+    mov a,#%1
+    movx @dptr,a
+} by {
+    mov a,#%1
+    mov dptr,#_shutdown_eeprom_marker
+    movx @dptr,a
+}
+
+replace {
+    mov _stock_r7,#0xff
+} by {
+    mov r7,#0xff
+}
+
+replace {
+    orl _port_1,#0x80
+    lcall _wait_for_power_removal
+    %1:
+    ret
+} by {
+    orl _port_1,#0x80
+}
+
+replace {
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    ljmp %1
+    %2:
+    ret
+} by {
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    sjmp %1
+}
