@@ -1,0 +1,296 @@
+// Load the little-endian word into the active bank with a page-local increment.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+replace {
+    mov _stock_r2,_bank_zero_r1
+} by {
+    mov r2,_bank_zero_r1
+}
+
+replace {
+    mov _stock_r3,a
+} by {
+    mov r3,a
+}
+
+// Clamp the mean airflow and use the high seven-bit shifted product.
+replace {
+    mov _ACC,_stock_r1
+    mov _stock_r0,#0x00
+    mov _stock_r1,_bank_zero_r3
+    lcall _clamp_stock_u8
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov a,r5
+    mov c,acc.7
+    xch a,r7
+    rlc a
+    xch a,r7
+    rlc a
+    xch a,r7
+    anl a,#0x01
+    mov r5,a
+    mov _B,r7
+} by {
+    mov a,r1
+    mov r0,#0x00
+    mov r1,_bank_zero_r3
+    lcall _clamp_stock_u8
+    mul ab
+    rlc a
+    mov a,_B
+    rlc a
+    mov _B,a
+}
+
+replace {
+    mov r7,a
+    mov a,r7
+    add a,_B
+    mov _B,a
+    mov _stock_r0,#0x00
+} by {
+    add a,_B
+    mov _B,a
+    mov r0,#0x00
+}
+
+replace {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_iac_cold_max_position
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    %2:
+} by {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,%1
+    %1:
+    jc %2
+    mov dptr,#_iac_cold_max_position
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    %2:
+}
+
+replace {
+    mov _stock_r1,a
+} by {
+    mov r1,a
+}
+
+replace {
+    mov _ACC,_B
+    lcall _clamp_stock_u8
+    clr _interrupts_enabled
+    mov _iac_target,_ACC
+    mov _iac_position,_ACC
+    setb _interrupts_enabled
+    mov _B,_ACC
+} by {
+    mov a,_B
+    lcall _clamp_stock_u8
+    clr _interrupts_enabled
+    mov _iac_target,a
+    mov _iac_position,a
+    setb _interrupts_enabled
+    mov _B,a
+}
+
+// Preserve the previous low nibble when applying the new whole-step position.
+replace {
+    mov a,_B
+    swap a
+    anl a,#0x0f
+    mov r1,a
+    mov a,_B
+    swap a
+    anl a,#0xf0
+    mov _B,a
+    mov r7,_stock_r0
+    anl ar7,#0x0f
+    mov r6,_B
+    mov a,r6
+    add a,r7
+    mov _stock_r0,a
+} by {
+    mov a,_B
+    anl a,#0xf0
+    swap a
+    mov r1,a
+    mov a,_B
+    anl a,#0x0f
+    swap a
+    mov _B,a
+    mov a,r0
+    anl a,#0x0f
+    add a,_B
+    mov r0,a
+}
+
+replace {
+    mov dptr,#_iac_feedback_position_q4
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _update_iac_adaptation_ready
+    %1:
+    ret
+} by {
+    mov dptr,#_iac_feedback_position_q4
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// All three failed eligibility tests share the same counter reset.
+replace {
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jz %3
+    ljmp %2
+    %3:
+    mov _ACC,_idle_rpm_error
+    lcall _abs_accumulator_i8
+    clr c
+    mov a,_ACC
+    subb a,#0x14
+    jnc %4
+    ljmp %2
+    %4:
+} by {
+    mov a,_coolant_temperature_raw
+    cjne a,_B,%1
+    %1:
+    jc %2
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jnz %2
+    mov a,_idle_rpm_error
+    lcall _abs_accumulator_i8
+    cjne a,#0x14,%4
+    %4:
+    jc %2
+}
+
+// Compare the incremented byte even when the timer wraps, leaving XDATA
+// at 255 on that cycle. The existing ready flag is retained below 12.
+replace {
+    mov dptr,#_idle_adaptation_count_f986
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_adaptation_count_f986
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    clr c
+    mov a,_ACC
+    subb a,#0x0c
+    jnc %3
+    ljmp %4
+    %3:
+    setb _idle_adaptation_ready_2f
+    %4:
+    lcall _update_idle_transition_hold
+    ljmp %5
+} by {
+    mov dptr,#_idle_adaptation_count_f986
+    movx a,@dptr
+    inc a
+    jz %2
+    movx @dptr,a
+    %2:
+    cjne a,#0x0c,%3
+    %3:
+    jc _update_idle_transition_hold
+    setb _idle_adaptation_ready_2f
+    sjmp _update_idle_transition_hold
+}
+
+replace {
+    mov dptr,#%1
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#%1
+    movx @dptr,a
+}
+
+replace {
+    lcall _update_idle_transition_hold
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    clr c
+    mov a,_engine_rpm_10
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+} by {
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jnc %2
+}
+
+replace {
+    lcall _finish_iac_adaptation_window
+    %1:
+    ret
+} by {
+    %1:
+}
