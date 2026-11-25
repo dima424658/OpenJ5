@@ -1,0 +1,252 @@
+// Preserve the 16-bit MDU transaction and retry the same operand pair.
+replace {
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_4,_B
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r2,_mdu_0
+    mov _ACC,_mdu_1
+    mov _ACC,_mdu_2
+    mov _ACC,_mdu_3
+    jnb _mdu_interrupted,%1
+    ljmp %2
+    %1:
+} by {
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_4,_B
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r2,_mdu_0
+    mov a,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    jb _mdu_interrupted,%2
+}
+
+// Store the active zone result, then test the publish interval.
+replace {
+    mov r7,_stock_r4
+    dec r7
+    mov a,r7
+    add a,#_barometric_history
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_barometric_history >> 8)
+    mov dph,a
+    mov a,_stock_r2
+    movx @dptr,a
+    mov dptr,#_air_charge_elapsed
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x0a,%1
+    %1:
+    jc %2
+    ljmp %3
+    %2:
+    lcall _use_uncorrected_air_charge
+    ljmp %4
+    %3:
+    lcall _publish_barometric_history
+    %4:
+    ret
+} by {
+    mov dptr,#_barometric_history
+    mov a,r4
+    dec a
+    add a,dpl
+    mov dpl,a
+    mov a,dph
+    addc a,#0x00
+    mov dph,a
+    mov a,r2
+    movx @dptr,a
+    mov dptr,#_air_charge_elapsed
+    movx a,@dptr
+    cjne a,#0x0a,.+3
+    jc _use_uncorrected_air_charge
+}
+
+// Accumulate through DPTR and retain the bounded result in A.
+replace {
+    mov dptr,#_air_charge_elapsed
+    mov a,#0x00
+    movx @dptr,a
+    mov _stock_r01,#0x10
+    mov (_stock_r01 + 1),a
+    mov _B,#0x20
+    mov r6,#_barometric_history
+    mov r7,#(_barometric_history >> 8)
+    %1:
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov r5,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    mov r4,#0x00
+    mov r2,_stock_r01
+    mov r3,(_stock_r01 + 1)
+    mov a,r5
+    add a,r2
+    mov r2,a
+    mov a,r4
+    addc a,r3
+    mov r3,a
+    mov _stock_r01,r2
+    mov (_stock_r01 + 1),r3
+    mov a,_B
+    dec a
+    mov r5,a
+    mov _B,r5
+    mov a,r5
+    jz %2
+    ljmp %1
+    %2:
+    lcall _shift_left_saturating_3
+    mov dptr,#_barometric_correction_min_q7
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#_barometric_correction_max_q7
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov r7,_stock_r1
+    mov _stock_r1,_ACC
+    mov _ACC,r7
+    lcall _clamp_stock_u8
+    mov dptr,#_retained_barometric_correction
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,#0x20
+    mov r6,#_barometric_history
+    mov r7,#(_barometric_history >> 8)
+    %3:
+    mov dpl,r6
+    mov dph,r7
+    mov a,_ACC
+    movx @dptr,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    mov a,_B
+    dec a
+    mov r5,a
+    mov _B,r5
+    mov a,r5
+    jz %4
+    ljmp %3
+    %4:
+    lcall _use_uncorrected_air_charge
+    %5:
+    ret
+} by {
+    clr a
+    movx @dptr,a
+    mov r0,#0x10
+    mov r1,#0x00
+    mov _B,#0x20
+    mov dptr,#_barometric_history
+    %1:
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    inc dptr
+    djnz _B,%1
+    lcall _shift_left_saturating_3
+    mov dptr,#_barometric_correction_min_q7
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#_barometric_correction_max_q7
+    clr a
+    movc a,@a+dptr
+    xch a,r1
+    lcall _clamp_stock_u8
+    mov dptr,#_retained_barometric_correction
+    movx @dptr,a
+    mov _B,#0x20
+    mov dptr,#_barometric_history
+    %3:
+    movx @dptr,a
+    inc dptr
+    djnz _B,%3
+}
+
+replace {
+    mov dptr,#_barometric_sample_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_barometric_filter_length
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    rrc a
+    mov r7,a
+    mov dptr,#_barometric_sum_low
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#_barometric_sum_high
+    mov a,#0x00
+    movx @dptr,a
+    lcall _use_air_charge_without_limit
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#_barometric_sample_count
+    movx @dptr,a
+    mov dptr,#_barometric_filter_length
+    clr a
+    movc a,@a+dptr
+    clr c
+    rrc a
+    mov dptr,#_barometric_sum_low
+    movx @dptr,a
+    clr a
+    mov dptr,#_barometric_sum_high
+    movx @dptr,a
+}
+
+replace {
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    lcall _publish_air_charge_limit
+    %1:
+    ret
+} by {
+    mov r0,#0xff
+    mov r1,#0xff
+}
+
+replace {
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    setb _interrupts_enabled
+    lcall _finish_sensor_diagnostics
+    %1:
+    ret
+} by {
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    setb _interrupts_enabled
+}
