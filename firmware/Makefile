@@ -10,9 +10,9 @@ C_REGISTER_HELPERS := a33a a381 a3f9
 C_IGNITION := 280e 3f74 3f95 3fad 3fbb 3fef 400d 4042 406d 4081 430d
 C_INTERPOLATION := a5ff a611
 C_SIGNED_BOUNDS := a412 a42f
-C_FUNCTIONS := 2041 2291 2328 2990 2bcd 2c3f 324f 3396 3aea 3bb1 3c2b $(C_IGNITION) 428d 433a 4383 4427 4453 44db 454e 4598 4b1a 518f 596e 9bb9 9dc8 9e62 9ed3 9f32 a020 a0b3 a153 a1de a22e a23a a2db a314 $(C_REGISTER_HELPERS) a352 a39e a3d9 $(C_SIGNED_BOUNDS) a429 a43e a4dc a575 a59d $(C_INTERPOLATION) a62f abca ac05 ac2d cd7c d2f1 f090 f275
+C_FUNCTIONS := 2041 2291 2328 240e 2990 2bcd 2c3f 324f 3396 3aea 3bb1 3c2b $(C_IGNITION) 428d 433a 4383 4427 4453 44db 454e 4598 4b1a 518f 596e 9bb9 9dc8 9e62 9ed3 9f32 a020 a0b3 a153 a1de a22e a23a a2db a314 $(C_REGISTER_HELPERS) a352 a39e a3d9 $(C_SIGNED_BOUNDS) a429 a43e a4dc a575 a59d $(C_INTERPOLATION) a62f abca ac05 ac2d cd7c d2f1 f090 f275
 C_VECTORS := 000b 0013 002b 0043 004b 0053 005b 0063 0083 0093 009b 00a3 00ab
-C_DATA := 5f50 5f57 5f62 5f6d 5f6e 5f77 5f8d 5fa3 5faf 5fe5 5fe7 607b 6081 6086 608a 608b 608d 608f 6091 6093 6098 609d 60aa 60ad 60c7 60c9 60e5 60e6 60e9 60ea 60eb 60ed 60ef 60f5 60f8 613c 62ac 64d3 6613 6ac8 6f56 6fc4 6fe4 700b 710b 75ef 7877 7ac7 7e07 8193 83ba 852f 866f 8796 87e4 8ac0 8c00 98f2 99b9
+C_DATA := 5f50 5f57 5f62 5f6d 5f6e 5f77 5f8d 5f9c 5fa3 5faf 5fe5 5fe7 607b 6081 6086 608a 608b 608d 608f 6091 6093 6098 609d 60aa 60ad 60c7 60c9 60e5 60e6 60e9 60ea 60eb 60ed 60ef 60f5 60f8 613c 62ac 64d3 6613 6ac8 6f56 6fc4 6fe4 700b 710b 75ef 7877 7ac7 7e07 8193 83ba 852f 866f 8796 87e4 8a59 8ac0 8c00 8f2a 98f2 99b9
 C_FLAGS := -mmcs51 --model-small
 C_OBJECTS := $(addprefix build/,$(addsuffix .rel,$(C_FUNCTIONS) $(C_VECTORS) $(C_DATA)))
 C_PLACEMENT := $(foreach address,$(C_FUNCTIONS) $(C_VECTORS),-b code_$(address)=0x$(address)) \
@@ -83,6 +83,9 @@ $(addprefix build/,$(addsuffix .rel,$(C_INTERPOLATION))): src/c/curve_interp.pee
 
 build/3c2b.rel: C_OPTIONS += --no-peep --peep-file src/c/power_down.peep
 build/3c2b.rel: src/c/power_down.peep src/c/stock_registers.h
+
+build/240e.rel: C_OPTIONS += --no-peep --peep-file src/c/startup_attenuation.peep
+build/240e.rel: src/c/startup_attenuation.peep src/c/stock_registers.h
 
 build/2328.rel: C_OPTIONS += --no-peep --peep-file src/c/startup_knock.peep
 build/2328.rel: src/c/startup_knock.peep src/c/stock_registers.h
