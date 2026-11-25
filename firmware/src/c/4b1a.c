@@ -8,7 +8,7 @@ static __sbit __at (0xd7) CY;
 static __sbit __at (0xe1) ACC_RELAY;
 static __sbit __at (0x1b) coolant_fault_1b;
 static __sbit __at (0x23) coolant_fault_23;
-static __sbit __at (0x6e) fan_aux_request_6e;
+static __sbit __at (0x6e) air_conditioning_active;
 static __sbit __at (0x71) fan_override_on;
 static __sbit __at (0x41) fan_off;
 static __sbit __at (0x59) idle_mode;
@@ -42,7 +42,7 @@ void update_cooling_fan(void)
 
     CY = coolant_fault_1b;
     CY |= coolant_fault_23;
-    CY |= fan_aux_request_6e;
+    CY |= air_conditioning_active;
     if (!CY) {
         if (fan_off) {
             B = fan_on_temperature;

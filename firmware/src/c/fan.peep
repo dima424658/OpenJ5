@@ -31,7 +31,7 @@ replace {
     mov c,_coolant_fault_23
     orl c,_CY
     mov _CY,c
-    mov c,_fan_aux_request_6e
+    mov c,_air_conditioning_active
     orl c,_CY
     mov _CY,c
     jnb _CY,%1
@@ -65,7 +65,7 @@ replace {
 } by {
     mov c,_coolant_fault_1b
     orl c,_coolant_fault_23
-    orl c,_fan_aux_request_6e
+    orl c,_air_conditioning_active
     jc _apply_fan_delay
     jb _fan_off,%3
     mov dptr,#_fan_off_temperature
