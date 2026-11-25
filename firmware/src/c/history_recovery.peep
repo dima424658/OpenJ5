@@ -1,0 +1,662 @@
+// Read fault history without the sum and retain the first successful copy.
+replace {
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x00
+    mov _stock_r5,#0x00
+    mov _stock_r7,#0x00
+    mov _stock_r6,#0x03
+    %1:
+    mov r7,_stock_r7
+    mov a,r7
+    swap a
+    rr a
+    anl a,#0xf8
+    mov r7,a
+    mov a,#0x80
+    add a, r7
+    mov r7,a
+    mov _stock_r4,r7
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%2
+    ljmp %3
+    %2:
+    setb _eeprom_io_failed
+    ljmp %4
+    %3:
+    mov a,_stock_r5
+    jz %5
+    ljmp %6
+    %5:
+    mov _stock_r1,#0x08
+    mov r6,#_fault_history
+    mov r7,#(_fault_history >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r0,#0x94
+    %7:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov a,r7
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %8
+    ljmp %7
+    %8:
+    mov _stock_r5,#0x01
+    ljmp %4
+    %6:
+    mov _stock_r1,#0x08
+    mov r6,#_fault_history
+    mov r7,#(_fault_history >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _compare_history_with_scratch
+    mov a,_mismatch_bits
+    add a,acc
+    mov r7,a
+    mov c,_CARRY
+    clr a
+    rlc a
+    mov r6,a
+    mov a,r6
+    orl ar7,a
+    mov _mismatch_bits,r7
+    %4:
+    inc _stock_r7
+    mov a,_stock_r6
+    dec a
+    mov r7,a
+    mov _stock_r6,r7
+    mov a,r7
+    jz %9
+    ljmp %1
+    %9:
+    mov a,_stock_r5
+    jz %10
+    ljmp %11
+    %10:
+    ljmp %12
+    %11:
+    mov a,#0x03
+    cjne a,_mismatch_bits,%13
+    sjmp %14
+    %13:
+    ljmp %15
+    %14:
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x01
+    mov _stock_r5,#0x00
+    mov _stock_r7,#0x01
+    mov _stock_r6,#0x02
+    ljmp %16
+    %15:
+    mov r7,_mismatch_bits
+    anl ar7,#0x03
+    cjne r7,#0x01,%17
+    sjmp %18
+    %17:
+    ljmp %16
+    %18:
+    mov a,_recovery_pass
+    jnz %19
+    ljmp %16
+    %19:
+    setb _eeprom_io_failed
+    ljmp %12
+    %16:
+    mov r6,#_fault_history
+    mov r7,#(_fault_history >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _write_startup_fault_history
+    %12:
+    ret
+} by {
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x00
+    mov r5,#0x00
+    mov r7,#0x00
+    mov r6,#0x03
+    00974$:
+    mov a,r7
+    mov 0xf0,#0x08
+    mul ab
+    add a,#0x80
+    mov r4,a
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00970$
+    setb _eeprom_io_failed
+    sjmp 00971$
+    00970$:
+    mov a,r5
+    jnz 00972$
+    mov r1,#0x08
+    mov dptr,#_fault_history
+    mov r0,#0x94
+    00973$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00973$
+    mov r5,#0x01
+    sjmp 00971$
+    00972$:
+    mov r1,#0x08
+    mov dptr,#_fault_history
+    lcall _compare_history_with_scratch
+    mov a,_mismatch_bits
+    rlc a
+    mov _mismatch_bits,a
+    00971$:
+    inc r7
+    djnz r6,00974$
+    mov a,r5
+    jz 00975$
+    mov a,_mismatch_bits
+    jz 00976$
+    xrl a,#0x03
+    jz 00977$
+    mov a,_mismatch_bits
+    jb acc.1,00976$
+    jnb acc.0,00976$
+    mov a,_recovery_pass
+    jz 00976$
+    setb _eeprom_io_failed
+    sjmp 00975$
+    00977$:
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x01
+    mov r5,#0x00
+    mov r7,#0x01
+    mov r6,#0x02
+    00976$:
+    mov dptr,#_fault_history
+    lcall _write_startup_fault_history
+    00975$:
+    ret
+}
+
+// Read misfire history without the sum and preserve the stock fallback branches.
+replace {
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x00
+    mov _stock_r5,#0x00
+    mov _stock_r7,#0x00
+    mov _stock_r6,#0x03
+    %1:
+    mov r7,_stock_r7
+    mov a,r7
+    swap a
+    rr a
+    anl a,#0xf8
+    mov r7,a
+    mov _stock_r4,r7
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_page1_bytes
+    jb _CARRY,%2
+    ljmp %3
+    %2:
+    setb _eeprom_io_failed
+    ljmp %4
+    %3:
+    mov a,_stock_r5
+    jz %5
+    ljmp %6
+    %5:
+    mov _stock_r1,#0x08
+    mov r6,#_misfire_history
+    mov r7,#(_misfire_history >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r0,#0x94
+    %7:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov a,r7
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %8
+    ljmp %7
+    %8:
+    mov _stock_r5,#0x01
+    ljmp %4
+    %6:
+    mov _stock_r1,#0x08
+    mov r6,#_misfire_history
+    mov r7,#(_misfire_history >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _compare_history_with_scratch
+    mov a,_mismatch_bits
+    add a,acc
+    mov r7,a
+    mov c,_CARRY
+    clr a
+    rlc a
+    mov r6,a
+    mov a,r6
+    orl ar7,a
+    mov _mismatch_bits,r7
+    %4:
+    inc _stock_r7
+    mov a,_stock_r6
+    dec a
+    mov r7,a
+    mov _stock_r6,r7
+    mov a,r7
+    jz %9
+    ljmp %1
+    %9:
+    mov a,_stock_r5
+    jz %10
+    ljmp %11
+    %10:
+    ljmp %12
+    %11:
+    mov a,#0x03
+    cjne a,_mismatch_bits,%13
+    sjmp %14
+    %13:
+    ljmp %15
+    %14:
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x01
+    mov _stock_r5,#0x00
+    mov _stock_r7,#0x01
+    mov _stock_r6,#0x02
+    ljmp %16
+    %15:
+    mov r7,_mismatch_bits
+    anl ar7,#0x03
+    cjne r7,#0x01,%17
+    sjmp %18
+    %17:
+    ljmp %16
+    %18:
+    mov a,_recovery_pass
+    jnz %19
+    ljmp %16
+    %19:
+    setb _eeprom_io_failed
+    mov dptr,#_misfire_history
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#(_misfire_history + 0x0002)
+    movx @dptr,a
+    mov dptr,#(_misfire_history + 0x0004)
+    movx @dptr,a
+    mov dptr,#(_misfire_history + 0x0006)
+    movx @dptr,a
+    mov dptr,#(_misfire_history + 0x0001)
+    mov a,#0x80
+    movx @dptr,a
+    mov dptr,#(_misfire_history + 0x0003)
+    movx @dptr,a
+    mov dptr,#(_misfire_history + 0x0005)
+    movx @dptr,a
+    mov dptr,#(_misfire_history + 0x0007)
+    movx @dptr,a
+    %16:
+    mov r6,#_misfire_history
+    mov r7,#(_misfire_history >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _write_eeprom_shutdown_block
+    %12:
+    ret
+} by {
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x00
+    mov r5,#0x00
+    mov r7,#0x00
+    mov r6,#0x03
+    00982$:
+    mov a,r7
+    mov 0xf0,#0x08
+    mul ab
+    add a,#0x00
+    mov r4,a
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _read_eeprom_page1_bytes
+    jnc 00978$
+    setb _eeprom_io_failed
+    sjmp 00979$
+    00978$:
+    mov a,r5
+    jnz 00980$
+    mov r1,#0x08
+    mov dptr,#_misfire_history
+    mov r0,#0x94
+    00981$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00981$
+    mov r5,#0x01
+    sjmp 00979$
+    00980$:
+    mov r1,#0x08
+    mov dptr,#_misfire_history
+    lcall _compare_history_with_scratch
+    mov a,_mismatch_bits
+    rlc a
+    mov _mismatch_bits,a
+    00979$:
+    inc r7
+    djnz r6,00982$
+    mov a,r5
+    jz 00983$
+    mov a,_mismatch_bits
+    jz 00984$
+    xrl a,#0x03
+    jz 00985$
+    mov a,_mismatch_bits
+    jb acc.1,00984$
+    jnb acc.0,00984$
+    mov a,_recovery_pass
+    jz 00984$
+    setb _eeprom_io_failed
+    clr a
+    mov dptr,#_misfire_history
+    movx @dptr,a
+    mov dptr,#0xfa45
+    movx @dptr,a
+    mov dptr,#0xfa47
+    movx @dptr,a
+    mov dptr,#0xfa49
+    movx @dptr,a
+    mov a,#0x80
+    mov dptr,#0xfa44
+    movx @dptr,a
+    mov dptr,#0xfa46
+    movx @dptr,a
+    mov dptr,#0xfa48
+    movx @dptr,a
+    mov dptr,#0xfa4a
+    movx @dptr,a
+    sjmp 00984$
+    00985$:
+    mov _mismatch_bits,#0x00
+    mov _recovery_pass,#0x01
+    mov r5,#0x00
+    mov r7,#0x01
+    mov r6,#0x02
+    00984$:
+    mov dptr,#_misfire_history
+    lcall _write_eeprom_shutdown_block
+    00983$:
+    ret
+}
+
+// Compare the XDATA record with scratch while updating Carry and both cursors.
+replace {
+    clr _CARRY
+    mov _stock_r0,#0x94
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov r1,_stock_r0
+    mov ar6,@r1
+    mov a,r7
+    cjne a,ar6,%2
+    ljmp %3
+    %2:
+    setb _CARRY
+    ljmp %4
+    %3:
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    %4:
+    ret
+} by {
+    clr c
+    mov r0,#0x94
+    00987$:
+    movx a,@dptr
+    xrl a,@r0
+    jnz 00986$
+    inc r0
+    inc dptr
+    djnz r1,00987$
+    sjmp 00988$
+    00986$:
+    setb c
+    00988$:
+    ret
+}
+
+// Write all three fault history copies and the wrapped sum in the original order.
+replace {
+    mov _stock_r7,#0x00
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x08
+    clr _eeprom_io_failed
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,_ACC
+    add a, _stock_r7
+    mov _stock_r7,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x80
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+    lcall _wait_for_eeprom_write
+    mov _stock_r4,#0x88
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%5
+    ljmp %6
+    %5:
+    setb _eeprom_io_failed
+    %6:
+    lcall _wait_for_eeprom_write
+    mov _stock_r4,#0x90
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%7
+    ljmp %8
+    %7:
+    setb _eeprom_io_failed
+    %8:
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x03
+    %9:
+    mov r1,_stock_r0
+    mov @r1,_stock_r7
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %10
+    ljmp %9
+    %10:
+    lcall _wait_for_eeprom_write
+    mov _stock_r4,#0x98
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%11
+    ljmp %12
+    %11:
+    setb _eeprom_io_failed
+    %12:
+    lcall _wait_for_eeprom_write
+    %13:
+    ret
+} by {
+    mov r7,#0x00
+    mov r0,#0x94
+    mov r1,#0x08
+    clr _eeprom_io_failed
+    00989$:
+    movx a,@dptr
+    mov @r0,a
+    add a,r7
+    mov r7,a
+    inc dptr
+    inc r0
+    djnz r1,00989$
+    mov r4,#0x80
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00990$
+    setb _eeprom_io_failed
+    00990$:
+    lcall _wait_for_eeprom_write
+    mov r4,#0x88
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00991$
+    setb _eeprom_io_failed
+    00991$:
+    lcall _wait_for_eeprom_write
+    mov r4,#0x90
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00992$
+    setb _eeprom_io_failed
+    00992$:
+    mov r0,#0x94
+    mov r1,#0x03
+    mov a,r7
+    00993$:
+    mov @r0,a
+    inc r0
+    djnz r1,00993$
+    lcall _wait_for_eeprom_write
+    mov r4,#0x98
+    mov r1,#0x03
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00994$
+    setb _eeprom_io_failed
+    00994$:
+    lcall _wait_for_eeprom_write
+    ret
+}
+
+// Copy the eight-byte history record from indirect RAM.
+replace {
+    mov _stock_r0,#0x94
+    mov r6,#_fault_history
+    mov r7,#(_fault_history >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r1,#0x08
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov a,r7
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    %3:
+    ret
+} by {
+    mov r0,#0x94
+    mov dptr,#_fault_history
+    mov r1,#0x08
+    00995$:
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    inc r0
+    djnz r1,00995$
+    ret
+}
