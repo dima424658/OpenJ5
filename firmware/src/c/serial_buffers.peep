@@ -1,0 +1,640 @@
+// Append xdata string to serial.
+replace {
+    mov _DPH,_stock_r3
+    mov _DPL,_stock_r4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov _ACC,r7
+    mov a,r7
+    jnz %2
+    ljmp %3
+    %2:
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _serial_tx_count
+    mov _DPSEL,r7
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    ljmp %1
+    %3:
+    ret
+} by {
+    mov _DPH,r3
+    mov _DPL,r4
+    00971$:
+    movx a,@dptr
+    jz 00970$
+    push _DPSEL
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    inc _serial_tx_count
+    pop _DPSEL
+    inc dptr
+    sjmp 00971$
+    00970$:
+    ret
+}
+
+// Append code string to serial.
+replace {
+    mov _DPH,_stock_r3
+    mov _DPL,_stock_r4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov _ACC,r7
+    mov a,r7
+    jnz %2
+    ljmp %3
+    %2:
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _serial_tx_count
+    mov _DPSEL,r7
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    ljmp %1
+    %3:
+    ret
+} by {
+    mov _DPH,r3
+    mov _DPL,r4
+    00973$:
+    clr a
+    movc a,@a+dptr
+    jz 00972$
+    push _DPSEL
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    inc _serial_tx_count
+    pop _DPSEL
+    inc dptr
+    sjmp 00973$
+    00972$:
+    ret
+}
+
+// Copy xdata bytes.
+replace {
+    _copy_xdata_bytes:
+    %1:
+    mov _DPSEL,#0x03
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _DPSEL,#0x04
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    %3:
+    ret
+} by {
+    _copy_xdata_bytes:
+    00974$:
+    mov _DPSEL,#0x03
+    movx a,@dptr
+    inc dptr
+    mov _DPSEL,#0x04
+    movx @dptr,a
+    inc dptr
+    djnz r2,00974$
+    ret
+}
+
+// Copy code bytes to xdata.
+replace {
+    _copy_code_bytes_to_xdata:
+    %1:
+    mov _DPSEL,#0x03
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _DPSEL,#0x04
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    %3:
+    ret
+} by {
+    _copy_code_bytes_to_xdata:
+    00975$:
+    mov _DPSEL,#0x03
+    clr a
+    movc a,@a+dptr
+    inc dptr
+    mov _DPSEL,#0x04
+    movx @dptr,a
+    inc dptr
+    djnz r2,00975$
+    ret
+}
+
+// Append code bytes to serial.
+replace {
+    mov _DPH,_stock_r3
+    mov _DPL,_stock_r4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _serial_tx_count
+    mov _DPSEL,r7
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    %3:
+    ret
+} by {
+    mov _DPH,r3
+    mov _DPL,r4
+    00976$:
+    clr a
+    movc a,@a+dptr
+    inc dptr
+    push _DPSEL
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    inc _serial_tx_count
+    pop _DPSEL
+    djnz r2,00976$
+    ret
+}
+
+// Copy code string to xdata.
+replace {
+    _copy_code_string_to_xdata:
+    %1:
+    mov _DPSEL,#0x03
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnz %2
+    ljmp %3
+    %2:
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _DPSEL,#0x04
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    ljmp %1
+    %3:
+    mov _DPSEL,#0x04
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    %4:
+    ret
+} by {
+    _copy_code_string_to_xdata:
+    00978$:
+    mov _DPSEL,#0x03
+    clr a
+    movc a,@a+dptr
+    jz 00977$
+    inc dptr
+    mov _DPSEL,#0x04
+    movx @dptr,a
+    inc dptr
+    sjmp 00978$
+    00977$:
+    mov _DPSEL,#0x04
+    movx @dptr,a
+    ret
+}
+
+// Copy xdata string.
+replace {
+    _copy_xdata_string:
+    %1:
+    mov _DPSEL,#0x03
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnz %2
+    ljmp %3
+    %2:
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _DPSEL,#0x04
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    ljmp %1
+    %3:
+    mov _DPSEL,#0x04
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    %4:
+    ret
+} by {
+    _copy_xdata_string:
+    00980$:
+    mov _DPSEL,#0x03
+    movx a,@dptr
+    jz 00979$
+    inc dptr
+    mov _DPSEL,#0x04
+    movx @dptr,a
+    inc dptr
+    sjmp 00980$
+    00979$:
+    mov _DPSEL,#0x04
+    movx @dptr,a
+    ret
+}
+
+// Append iram fields to serial.
+replace {
+    mov _DPH,_stock_r3
+    mov _DPL,_stock_r4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov _ACC,r7
+    mov a,r7
+    jnz %2
+    ljmp %3
+    %2:
+    mov _stock_r0,_ACC
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _serial_tx_count
+    mov _DPSEL,r7
+    ljmp %1
+    %3:
+    ret
+} by {
+    mov _DPH,r3
+    mov _DPL,r4
+    00982$:
+    clr a
+    movc a,@a+dptr
+    jz 00981$
+    mov r0,a
+    mov a,@r0
+    inc dptr
+    push _DPSEL
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    inc _serial_tx_count
+    pop _DPSEL
+    sjmp 00982$
+    00981$:
+    ret
+}
+
+// Append xdata words to serial.
+replace {
+    mov _DPH,_stock_r3
+    mov _DPL,_stock_r4
+    %1:
+    mov _stock_r3,#0x02
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnz %2
+    ljmp %3
+    %2:
+    mov _stock_r4,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r7,_DPSEL
+    mov _DPSEL,#0x03
+    mov _DPH,_stock_r4
+    mov _DPL,_ACC
+    %4:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _serial_tx_count
+    mov _DPSEL,#0x03
+    mov a,_stock_r3
+    dec a
+    mov r6,a
+    mov _stock_r3,r6
+    mov a,r6
+    jz %5
+    ljmp %4
+    %5:
+    mov _DPSEL,r7
+    ljmp %1
+    %3:
+    ret
+} by {
+    mov _DPH,r3
+    mov _DPL,r4
+    00985$:
+    mov r3,#0x02
+    clr a
+    movc a,@a+dptr
+    jz 00983$
+    mov r4,a
+    inc dptr
+    clr a
+    movc a,@a+dptr
+    inc dptr
+    push _DPSEL
+    mov _DPSEL,#0x03
+    mov _DPH,r4
+    mov _DPL,a
+    00984$:
+    movx a,@dptr
+    inc dptr
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    inc _serial_tx_count
+    mov _DPSEL,#0x03
+    djnz r3,00984$
+    pop _DPSEL
+    sjmp 00985$
+    00983$:
+    ret
+}
+
+// Append xdata fields to serial.
+replace {
+    mov _DPH,_stock_r3
+    mov _DPL,_stock_r4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov _ACC,r7
+    mov a,r7
+    jnz %2
+    ljmp %3
+    %2:
+    mov _stock_r4,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r7,_DPSEL
+    mov _DPSEL,#0x03
+    mov _DPH,_stock_r4
+    mov _DPL,_ACC
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _serial_tx_count
+    mov _DPSEL,r7
+    ljmp %1
+    %3:
+    ret
+} by {
+    mov _DPH,r3
+    mov _DPL,r4
+    00987$:
+    clr a
+    movc a,@a+dptr
+    jz 00986$
+    mov r4,a
+    inc dptr
+    clr a
+    movc a,@a+dptr
+    inc dptr
+    push _DPSEL
+    mov _DPSEL,#0x03
+    mov _DPH,r4
+    mov _DPL,a
+    movx a,@dptr
+    inc dptr
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    inc _serial_tx_count
+    pop _DPSEL
+    sjmp 00987$
+    00986$:
+    ret
+}
