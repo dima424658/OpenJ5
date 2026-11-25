@@ -1,0 +1,90 @@
+// Keep a CODE table's base in DPTR and its byte offset in A.
+replace {
+    mov a,%1
+    add a,#%2
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%2 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%2
+    mov a,%1
+    movc a,@a+dptr
+}
+
+// B holds the temperature correction and R1 holds the adjusted base angle.
+replace {
+    mov r7,a
+    mov dptr,#_idle_ignition_by_rpm
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov r6,a
+    mov a,r6
+    clr c
+    subb a,r7
+    mov r7,a
+} by {
+    mov b,a
+    mov dptr,#_idle_ignition_by_rpm
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    clr c
+    subb a,b
+    mov r1,a
+}
+
+// Only the borrow is needed from the unsigned time comparison.
+// CJNE to the next instruction preserves A and supplies that borrow in CY.
+replace {
+    mov dptr,#_warmup_duration
+    movx a,@dptr
+    mov r6,a
+    mov dptr,#_warmup_elapsed
+    movx a,@dptr
+    mov r5,a
+    clr c
+    mov a,r5
+    subb a,r6
+    jnc %1
+    ljmp %2
+    %1:
+    mov r6,#0x00
+    ljmp %3
+} by {
+    mov dptr,#_warmup_duration
+    movx a,@dptr
+    mov b,a
+    mov dptr,#_warmup_elapsed
+    movx a,@dptr
+    cjne a,b,%1
+    %1:
+    jc %2
+    clr a
+    sjmp %3
+}
+
+// Both branches leave the warmup correction in A for addition to R1.
+replace {
+    movc a,@a+dptr
+    mov r6,a
+    %1:
+    mov a,r6
+    add a,r7
+    mov _idle_ignition_target_raw,a
+} by {
+    movc a,@a+dptr
+    %1:
+    add a,r1
+    mov _idle_ignition_target_raw,a
+}
+
+// The original routine continues immediately after the linked C block.
+replace {
+    lcall _idle_ignition_continue
+    %1:
+    ret
+} by {
+    %1:
+}
