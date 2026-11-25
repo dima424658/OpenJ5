@@ -8,6 +8,10 @@ import re
 
 ROM_SIZE = 0x10000
 STOCK_SHA256 = "15530e9459a23cf6a091d75547456f437136e2a7dff7c8a175aa83da2d2af8fb"
+UNUSED_VECTORS = (
+    0x000B, 0x0013, 0x002B, 0x0043, 0x004B, 0x0053, 0x005B,
+    0x0063, 0x0083, 0x0093, 0x009B, 0x00A3, 0x00AB,
+)
 SYMBOLS = {
     "reset_vector": 0x0000,
     "irq_vector_0003": 0x0003,
@@ -21,21 +25,25 @@ SYMBOLS = {
     "interp_curve_end": 0xA62F,
     "_set_flag_2f_4_cd7c": 0xCD7C,
     "_set_flag_2f_7_d2f1": 0xD2F1,
+    "_select_data_pointer_zero": 0xF090,
     "_clear_flag_21_0_f275": 0xF275,
     "_fan_off_temperature": 0x60C7,
     "_fan_on_temperature": 0x60C8,
     "_economy_ignition_half_degrees": 0x6AC8,
     "_desired_idle_rpm": 0x6F56,
     "_base_cylinder_charge_raw": 0x75EF,
+    **{f"_irq_unused_{address:04x}": address for address in UNUSED_VECTORS},
 }
 C_SECTIONS = {
     "code_cd7c": 3,
     "code_d2f1": 3,
+    "code_f090": 4,
     "code_f275": 3,
     "const_60c7": 2,
     "const_6ac8": 256,
     "const_6f56": 39,
     "const_75ef": 256,
+    **{f"code_{address:04x}": 1 for address in UNUSED_VECTORS},
 }
 
 
