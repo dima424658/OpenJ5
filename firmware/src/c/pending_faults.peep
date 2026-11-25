@@ -1,0 +1,61 @@
+// Select shutdown and service paths before sampling driver diagnostics.
+replace {
+    jnb _ignition_supply_low,%1
+    ljmp %2
+    %1:
+    jb _shutdown_pending,%3
+    ljmp %4
+    %3:
+    %2:
+    lcall _continue_shutdown_outputs
+    ljmp %5
+    %4:
+    jb _service_inhibit_69,%6
+    ljmp %7
+    %6:
+    lcall _update_lamp_and_outputs
+    ljmp %5
+    %7:
+    jb _tick_1s,%8
+    ljmp %9
+    %8:
+    lcall _read_driver_diagnostics
+    lcall _decode_driver_diagnostics
+    %9:
+    lcall _accumulate_pending_faults
+    %5:
+    ret
+} by {
+    mov c,_ignition_supply_low
+    orl c,_shutdown_pending
+    jnc %4
+    ljmp _continue_shutdown_outputs
+    %4:
+    jnb _service_inhibit_69,%7
+    ljmp _update_lamp_and_outputs
+    %7:
+    jnb _tick_1s,%9
+    lcall _read_driver_diagnostics
+    lcall _decode_driver_diagnostics
+    %9:
+}
+
+// Keep the mask in B until A has been ANDed with the sampled status.
+replace restart {
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    anl _B,a
+} by {
+    movx a,@dptr
+    anl a,_B
+    mov _B,a
+}
+
+// The pending bytes are immediately followed by the fault-history processor.
+replace {
+    lcall _process_fault_history
+    %1:
+    ret
+} by {
+}
