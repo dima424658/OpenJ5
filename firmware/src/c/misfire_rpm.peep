@@ -1,0 +1,184 @@
+// Keep the capped byte in A throughout the code-table lookup.
+replace {
+    mov _ACC,_rpm_eighth
+    clr c
+    mov a,_ACC
+    subb a,#0x80
+    jnc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0x7f
+    %2:
+    mov a,_ACC
+    add a,#_misfire_rpm_positions
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_misfire_rpm_positions >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_misfire_rpm_position
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+} by {
+    mov a,_rpm_eighth
+    cjne a,#0x80,.+3
+    jc %2
+    mov a,#0x7f
+    %2:
+    mov dptr,#_misfire_rpm_positions
+    movc a,@a+dptr
+    mov dptr,#_misfire_rpm_position
+    movx @dptr,a
+}
+
+// All four reads are in the same XDATA page. Use the active register bank.
+replace {
+    swap a
+    anl a,#0x0f
+    mov _B,a
+    mov a,_B
+    add a,#_misfire_word_bytes
+    mov r6,a
+    mov a,#0x00
+    addc a,#(_misfire_word_bytes >> 8)
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov _stock_r2,a
+    mov dpl,r6
+    mov dph,r7
+    inc dptr
+    movx a,@dptr
+    mov _stock_r3,a
+    mov dpl,r6
+    mov dph,r7
+    inc dptr
+    inc dptr
+    movx a,@dptr
+    mov _stock_r0,a
+    mov dpl,r6
+    mov dph,r7
+    inc dptr
+    inc dptr
+    inc dptr
+    movx a,@dptr
+    mov _stock_r1,a
+} by {
+    swap a
+    anl a,#0x0f
+    mov _B,a
+    mov dptr,#_misfire_word_bytes
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    inc dpl
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+replace {
+    jb _CY,%1
+    ljmp %2
+    %1:
+    lcall _scale_misfire_falling_pair
+    ljmp %3
+    %2:
+    lcall _scale_misfire_rising_pair
+    %3:
+    ret
+} by {
+    jnc %2
+    ljmp _scale_misfire_falling_pair
+    %2:
+}
+
+// Keep the MDU register order and delay. Round through the carry from ADD.
+replace {
+    mov dptr,#_misfire_rpm_position
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0xf0
+    mov _mdu_0,a
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,#0x00
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _ACC,_mdu_0
+    mov _stock_r0,_mdu_1
+    mov _stock_r1,_mdu_2
+    mov _B,_mdu_3
+    mov a,_ACC
+    rl a
+    anl a,#0x01
+    mov r7,a
+    mov r6,#0x00
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov a,r7
+    add a,r4
+    mov r4,a
+    mov a,r6
+    addc a,r5
+    mov r5,a
+    mov _stock_r01,r4
+    mov (_stock_r01 + 1),r5
+} by {
+    mov dptr,#_misfire_rpm_position
+    movx a,@dptr
+    swap a
+    anl a,#0xf0
+    mov _mdu_0,a
+    mov _mdu_4,r0
+    mov _mdu_1,#0x00
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov a,_mdu_0
+    mov r0,_mdu_1
+    mov r1,_mdu_2
+    mov _B,_mdu_3
+    add a,#0x80
+    mov a,r0
+    addc a,#0x00
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+}
+
+replace {
+    lcall _add_u16_register_pairs
+    lcall _apply_misfire_word_bounds
+    %1:
+    ret
+} by {
+    lcall _add_u16_register_pairs
+    ljmp _apply_misfire_word_bounds
+}
+
+replace {
+    lcall _negate_u16_register_pair
+    lcall _apply_misfire_word_bounds
+    %1:
+    ret
+} by {
+    lcall _negate_u16_register_pair
+}
