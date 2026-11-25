@@ -1,0 +1,19 @@
+// JBC tests and clears the interruption flag as a single instruction.
+replace {
+    %1:
+    jnb _adc_busy,%2
+    ljmp %1
+    %2:
+    mov _ACC,_adc_result_high
+    jb _adc_interrupted_by_iac,%3
+    ljmp %4
+    %3:
+    clr _adc_interrupted_by_iac
+    ljmp %5
+    %4:
+} by {
+    %1:
+    jb _adc_busy,%1
+    mov a,_adc_result_high
+    jbc _adc_interrupted_by_iac,%5
+}

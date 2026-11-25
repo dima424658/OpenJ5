@@ -1,0 +1,193 @@
+// Preserve the original ACC value through the critical section.
+replace {
+    mov dptr,#_retained_iac_position
+    mov a,_iac_position
+    movx @dptr,a
+    clr _output_state_flag_45
+    mov dptr,#_cold_start_iac_max_position
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,#0x08
+    add a,r7
+    mov _ACC,a
+    mov _bank_zero_previous_steps,_ACC
+    clr _interrupts_enabled
+    mov _iac_position,_ACC
+    mov _iac_target,#0x00
+    setb _interrupts_enabled
+} by {
+    mov a,_iac_position
+    mov dptr,#_retained_iac_position
+    movx @dptr,a
+    clr _output_state_flag_45
+    mov dptr,#_cold_start_iac_max_position
+    clr a
+    movc a,@a+dptr
+    add a,#0x08
+    mov _bank_zero_previous_steps,a
+    clr _interrupts_enabled
+    mov _iac_position,a
+    mov _iac_target,#0x00
+    setb _interrupts_enabled
+    mov dptr,#_retained_iac_position
+}
+
+// Reuse DPTR across the physical bank-zero step update. The stock XCH
+// sequence computes the delta and leaves the retained byte in ACC.
+replace {
+    mov _ACC,_iac_position
+    mov a,_bank_zero_previous_steps
+    cjne a,_ACC,%1
+    ljmp %2
+    %1:
+    mov a,_bank_zero_previous_steps
+    clr c
+    subb a,_ACC
+    mov _bank_zero_previous_steps,a
+    mov dptr,#_retained_iac_position
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnz %3
+    ljmp %2
+    %3:
+    clr c
+    mov a,_ACC
+    subb a,_bank_zero_previous_steps
+    jc %4
+    ljmp %5
+    %4:
+    mov r7,#0x00
+    ljmp %6
+    %5:
+    mov a,_ACC
+    clr c
+    subb a,_bank_zero_previous_steps
+    mov r6,a
+    mov ar7,r6
+    %6:
+    mov _ACC,r7
+    mov dptr,#_retained_iac_position
+    mov a,_ACC
+    movx @dptr,a
+    mov _bank_zero_previous_steps,_iac_position
+    %2:
+} by {
+    mov a,_iac_position
+    cjne a,_bank_zero_previous_steps,%1
+    sjmp %2
+    %1:
+    xch a,_bank_zero_previous_steps
+    clr c
+    subb a,_bank_zero_previous_steps
+    xch a,_bank_zero_previous_steps
+    movx a,@dptr
+    jz %2
+    clr c
+    subb a,_bank_zero_previous_steps
+    jnc %6
+    clr a
+    %6:
+    movx @dptr,a
+    mov _bank_zero_previous_steps,_iac_position
+    %2:
+}
+
+// Below the supply threshold, keep polling until the motor reaches the seat.
+replace {
+    lcall _read_adc_8bit
+    clr c
+    mov a,_ACC
+    subb a,_bank_zero_shutdown_voltage
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,_iac_target
+    mov a,_iac_position
+    cjne a,_ACC,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    %2:
+} by {
+    lcall _read_adc_8bit
+    mov dptr,#_retained_iac_position
+    cjne a,_bank_zero_shutdown_voltage,%1
+    %1:
+    jnc %2
+    mov a,_iac_target
+    cjne a,_iac_position,%5
+    %2:
+}
+
+// Opening begins with DPTR already pointing to the retained position.
+replace {
+    setb _interrupts_enabled
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov dptr,#_retained_iac_position
+    mov a,_iac_position
+    movx @dptr,a
+} by {
+    setb _interrupts_enabled
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov a,_iac_position
+    movx @dptr,a
+}
+
+// A recovered supply skips the completion write and is sampled once more.
+replace {
+    lcall _read_adc_8bit
+    clr c
+    mov a,_ACC
+    subb a,_bank_zero_shutdown_voltage
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,_iac_target
+    mov a,_iac_position
+    cjne a,_ACC,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    mov dptr,#_retained_iac_position
+    mov a,_iac_position
+    movx @dptr,a
+    %2:
+} by {
+    lcall _read_adc_8bit
+    mov dptr,#_retained_iac_position
+    cjne a,_bank_zero_shutdown_voltage,%1
+    %1:
+    jnc %2
+    mov a,_iac_target
+    cjne a,_iac_position,%5
+    mov a,_iac_position
+    movx @dptr,a
+    %2:
+}
+
+replace {
+    lcall _read_adc_8bit
+    clr c
+    mov a,_ACC
+    subb a,_bank_zero_shutdown_voltage
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _reset_after_supply_return
+    %2:
+} by {
+    lcall _read_adc_8bit
+    cjne a,_bank_zero_shutdown_voltage,%1
+    %1:
+    jc %2
+    lcall _reset_after_supply_return
+    %2:
+}
