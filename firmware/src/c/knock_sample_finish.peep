@@ -1,0 +1,237 @@
+// Send the three stock commands, preserving the settling waits and startup branch.
+replace {
+    mov a,_knock_window_override
+    anl a,#0x10
+    mov _ACC,a
+    mov a,#0xc0
+    orl a,_knock_attenuation
+    anl a,#0xdf
+    mov _B,a
+    anl _knock_serial_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_serial_port,#0x20
+    lcall _wait_knock_filter
+    mov dptr,#_knock_filter_point_raw
+    movx a,@dptr
+    anl a,#0x7f
+    orl a,#0x40
+    mov _B,a
+    anl _knock_serial_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_serial_port,#0x20
+    lcall _wait_knock_filter
+    mov dptr,#_knock_filter_point_raw
+    movx a,@dptr
+    anl a,#0x3f
+    mov _B,a
+    anl _knock_serial_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_serial_port,#0x20
+    jb _startup_flag_53,%1
+    ljmp %2
+    %1:
+    lcall _skip_misfire_period_scaling
+    ljmp %3
+    %2:
+    lcall _scale_misfire_period_sample
+    %3:
+    ret
+} by {
+    mov a,_knock_window_override
+    anl a,#0x10
+    jnz 00940$
+    00940$:
+    mov a,_knock_attenuation
+    setb acc.7
+    setb acc.6
+    clr acc.5
+    mov _B,a
+    anl _knock_serial_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_serial_port,#0x20
+    lcall _wait_knock_filter
+    mov dptr,#_knock_filter_point_raw
+    movx a,@dptr
+    clr acc.7
+    setb acc.6
+    mov _B,a
+    anl _knock_serial_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_serial_port,#0x20
+    lcall _wait_knock_filter
+    mov dptr,#_knock_filter_point_raw
+    movx a,@dptr
+    clr acc.7
+    clr acc.6
+    mov _B,a
+    anl _knock_serial_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_serial_port,#0x20
+    jnb _startup_flag_53,_scale_misfire_period_sample
+    ljmp _skip_misfire_period_scaling
+}
+
+// Compute the byte offset and choose the multiplication coefficient by slot parity.
+replace {
+    mov dptr,#_crank_period_index
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    add a,#0x50
+    mov _stock_r5,a
+    mov r6,#_crank_period_buffer
+    mov r7,#(_crank_period_buffer >> 8)
+    mov r5,_stock_r5
+    mov r4,#0x00
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,r4
+    addc a, r7
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov a,_knock_mask_index
+    jb acc.0,%1
+    ljmp %2
+    %1:
+    mov r6,#0x00
+    mov r7,#0x80
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_bounded_word
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    %3:
+    mov _stock_r23,r6
+    mov (_stock_r23 + 1),r7
+} by {
+    mov dptr,#_crank_period_index
+    movx a,@dptr
+    clr c
+    subb a,#0xb0
+    mov r5,a
+    mov dptr,#_crank_period_buffer
+    clr c
+    add a,dpl
+    mov dpl,a
+    mov a,dph
+    addc a,#0x00
+    mov dph,a
+    movx a,@dptr
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    mov r1,a
+    mov a,_knock_mask_index
+    jnb acc.0,00941$
+    mov r2,#0x00
+    mov r3,#0x80
+    sjmp 00942$
+    00941$:
+    mov dptr,#_misfire_bounded_word
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+}
+
+// Interleave the MDU operand bytes and rotate the top product bits through carry.
+replace {
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r2,_mdu_0
+    mov _ACC,_mdu_1
+    mov _stock_r0,_mdu_2
+    mov _stock_r1,_mdu_3
+    mov a,_stock_r01
+    add a,acc
+    mov r6,a
+    mov a,(_stock_r01 + 1)
+    rlc a
+    mov r7,a
+    mov a,_ACC
+    rl a
+    anl a,#0x01
+    mov r5,a
+    mov r4,#0x00
+    mov a,r5
+    orl a,r6
+    mov _stock_r01,a
+    mov a,r4
+    orl a,r7
+    mov (_stock_r01 + 1),a
+} by {
+    00942$:
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov r2,_mdu_0
+    mov a,_mdu_1
+    mov r0,_mdu_2
+    mov r1,_mdu_3
+    mov c,acc.7
+    mov a,r0
+    rlc a
+    mov r0,a
+    mov a,r1
+    rlc a
+    mov r1,a
+}
+
+// Store the scaled word and fall through to the period history update.
+replace {
+    mov r6,#_scaled_period_buffer
+    mov r7,#(_scaled_period_buffer >> 8)
+    mov r5,_stock_r5
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,r4
+    addc a, r7
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _continue_misfire_period_history
+    %1:
+    ret
+} by {
+    mov a,r5
+    mov dptr,#_scaled_period_buffer
+    clr c
+    add a,dpl
+    mov dpl,a
+    mov a,dph
+    addc a,#0x00
+    mov dph,a
+    mov a,r0
+    movx @dptr,a
+    inc dptr
+    mov a,r1
+    movx @dptr,a
+}
