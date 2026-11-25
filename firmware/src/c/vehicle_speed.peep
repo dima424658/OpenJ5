@@ -1,0 +1,205 @@
+// Exchange the speed pulses atomically and apply movement hysteresis.
+replace {
+    mov dptr,#_speed_window_ticks
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x1e
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_speed_window_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov _ACC,_speed_pulse_count
+    mov _speed_pulse_count,a
+    mov dptr,#_vehicle_speed
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,_ACC
+    mov dptr,#_moving_speed_low
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    jnb _vehicle_moving,%4
+    ljmp %5
+    %4:
+    mov dptr,#_moving_speed_high
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    %5:
+    clr c
+    mov a,_ACC
+    subb a,_B
+    mov _vehicle_moving,c
+    %3:
+    lcall _check_speed_sensor
+    %6:
+    ret
+} by {
+    mov dptr,#_speed_window_ticks
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,#0x1e,%3
+    clr a
+    movx @dptr,a
+    xch a,_speed_pulse_count
+    mov dptr,#_vehicle_speed
+    movx @dptr,a
+    mov _B,a
+    mov dptr,#_moving_speed_low
+    clr a
+    movc a,@a+dptr
+    jb _vehicle_moving,%5
+    mov dptr,#_moving_speed_high
+    clr a
+    movc a,@a+dptr
+    %5:
+    clr c
+    subb a,_B
+    mov _vehicle_moving,c
+    %3:
+}
+
+// Diagnose missing pulses only when configured and above both operating-point thresholds.
+replace {
+    jnb _speed_sensor_fitted,%1
+    ljmp %2
+    %1:
+    lcall _continue_after_speed_update
+    ljmp %3
+    %2:
+    jb _vehicle_moving,%4
+    ljmp %5
+    %4:
+    clr _speed_sensor_fault
+    lcall _clear_missing_speed_timer
+    ljmp %3
+    %5:
+    jb _speed_sensor_fault,%6
+    ljmp %7
+    %6:
+    lcall _continue_after_speed_update
+    ljmp %3
+    %7:
+    mov dptr,#_speed_diagnostic_rpm_bin
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_rpm_nearest_bin
+    subb a,_B
+    jc %8
+    ljmp %9
+    %8:
+    lcall _clear_missing_speed_timer
+    ljmp %3
+    %9:
+    mov dptr,#_speed_diagnostic_charge_bin
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_charge_nearest_bin
+    subb a,_B
+    jc %10
+    ljmp %11
+    %10:
+    lcall _clear_missing_speed_timer
+    ljmp %3
+    %11:
+    lcall _advance_missing_speed_timer
+    %3:
+    ret
+} by {
+    jnb _speed_sensor_fitted,_continue_after_speed_update
+    jnb _vehicle_moving,%5
+    clr _speed_sensor_fault
+    sjmp _clear_missing_speed_timer
+    %5:
+    jb _speed_sensor_fault,_continue_after_speed_update
+    mov dptr,#_speed_diagnostic_rpm_bin
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_rpm_nearest_bin
+    cjne a,_B,.+3
+    jnc %9
+    sjmp _clear_missing_speed_timer
+    %9:
+    mov dptr,#_speed_diagnostic_charge_bin
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_charge_nearest_bin
+    cjne a,_B,.+3
+    jnc _advance_missing_speed_timer
+}
+
+// Reset the diagnostic time without changing the stock continuation.
+replace {
+    _clear_missing_speed_timer:
+    mov dptr,#_missing_speed_seconds
+    mov a,#0x00
+    movx @dptr,a
+    lcall _continue_after_speed_update
+    %1:
+    ret
+} by {
+    _clear_missing_speed_timer:
+    clr a
+    mov dptr,#_missing_speed_seconds
+    movx @dptr,a
+    sjmp _continue_after_speed_update
+}
+
+// Advance the fault counter on the one-second event.
+replace {
+    jb _tick_1s,%1
+    ljmp %2
+    %1:
+    mov dptr,#_speed_diagnostic_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_missing_speed_seconds
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_B
+    cjne a,_ACC,%3
+    sjmp %4
+    %3:
+    ljmp %2
+    %4:
+    setb _speed_sensor_fault
+    %2:
+    lcall _continue_after_speed_update
+    %5:
+    ret
+} by {
+    jnb _tick_1s,_continue_after_speed_update
+    mov dptr,#_speed_diagnostic_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_missing_speed_seconds
+    movx a,@dptr
+    inc a
+    mov dptr,#_missing_speed_seconds
+    movx @dptr,a
+    cjne a,_B,_continue_after_speed_update
+    setb _speed_sensor_fault
+}
