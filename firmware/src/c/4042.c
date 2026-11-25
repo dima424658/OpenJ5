@@ -8,7 +8,7 @@ static volatile __xdata __at (0xf807) uint8_t warmup_elapsed;
 
 extern __code const int8_t load_warmup_ignition[39];
 extern __code const uint8_t warmup_ignition_weight_raw[256];
-extern void load_ignition_continue(void);
+extern void update_engine_torque(void);
 
 void update_load_warmup_ignition(void)
 {
@@ -24,5 +24,5 @@ void update_load_warmup_ignition(void)
     }
     load_warmup_correction_raw = result;
 
-    load_ignition_continue();
+    update_engine_torque();
 }

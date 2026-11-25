@@ -80,15 +80,30 @@ replace {
     mov _idle_ignition_target_raw,a
 }
 
-// XDATA stores take the byte directly from the accumulator.
+// Store a table byte to XDATA directly from the accumulator.
 replace {
+    movc a,@a+dptr
     mov r7,a
-    mov dptr,#_warmup_duration
+    mov dptr,#%1
     mov a,r7
     movx @dptr,a
 } by {
-    mov dptr,#_warmup_duration
+    movc a,@a+dptr
+    mov dptr,#%1
     movx @dptr,a
+}
+
+// The stock test masks the control byte before branching.
+replace {
+    mov a,_injection_control_7a
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,_injection_control_7a
+    anl a,#0x02
+    jnz %2
+    %1:
 }
 
 // Load the multiplicands into B and A, then form the product in B:A.
@@ -151,7 +166,31 @@ replace {
 }
 
 replace {
-    lcall _load_ignition_continue
+    lcall _update_engine_torque
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _load_ignition_tail_continue
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _knock_params_continue
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _injection_axes_continue
     %1:
     ret
 } by {
