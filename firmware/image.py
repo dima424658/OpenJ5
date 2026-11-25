@@ -1,0 +1,134 @@
+"""Convert and verify the absolute C509-L CODE image."""
+
+import argparse
+import hashlib
+from pathlib import Path
+import re
+
+
+ROM_SIZE = 0x10000
+STOCK_SHA256 = "15530e9459a23cf6a091d75547456f437136e2a7dff7c8a175aa83da2d2af8fb"
+SYMBOLS = {
+    "reset_vector": 0x0000,
+    "irq_vector_0003": 0x0003,
+    "irq_vector_001b": 0x001B,
+    "irq_vector_0023": 0x0023,
+    "irq_vector_006b": 0x006B,
+    "vector_block_end": 0x00B0,
+    "interp_bilinear_u8": 0xA59D,
+    "interp_bilinear_end": 0xA5FF,
+    "interp_curve_u8": 0xA611,
+    "interp_curve_end": 0xA62F,
+}
+
+
+def convert_hex(lines):
+    image = bytearray(ROM_SIZE)
+    present = bytearray(ROM_SIZE)
+    eof = False
+    for number, line in enumerate(lines, start=1):
+        line = line.strip()
+        if not line:
+            continue
+        if eof:
+            raise ValueError(f"HEX line {number}: record after end of file")
+        if not re.fullmatch(r":(?:[0-9a-fA-F]{2}){5,}", line):
+            raise ValueError(f"HEX line {number}: invalid record")
+        record = bytes.fromhex(line[1:])
+        if len(record) != record[0] + 5 or sum(record) % 256:
+            raise ValueError(f"HEX line {number}: invalid length or checksum")
+        address = int.from_bytes(record[1:3], "big")
+        kind = record[3]
+        data = record[4:-1]
+        if kind == 0x00:
+            end = address + len(data)
+            if end > ROM_SIZE:
+                raise ValueError(f"HEX line {number}: outside 64 KiB CODE")
+            if 1 in present[address:end]:
+                first = present.index(1, address, end)
+                raise ValueError(f"HEX line {number}: overlapping byte at 0x{first:04X}")
+            image[address:end] = data
+            present[address:end] = b"\x01" * len(data)
+        elif kind == 0x01 and address == 0 and not data:
+            eof = True
+        elif kind in (0x02, 0x04) and address == 0 and data == b"\x00\x00":
+            # Extended address records are valid only for bank zero.
+            continue
+        else:
+            raise ValueError(f"HEX line {number}: unsupported record for 16-bit CODE")
+    if not eof:
+        raise ValueError("HEX: missing end-of-file record")
+    if 0 in present:
+        raise ValueError(f"HEX: missing byte at 0x{present.index(0):04X}")
+    return image
+
+
+def verify(image, reference, linker_map):
+    for address, (actual, expected) in enumerate(zip(image, reference)):
+        if actual != expected:
+            raise ValueError(
+                f"first difference at 0x{address:04X}: "
+                f"built 0x{actual:02X}, expected 0x{expected:02X}"
+            )
+    if len(image) != len(reference):
+        end = min(len(image), len(reference))
+        raise ValueError(f"first difference at 0x{end:04X}: image sizes differ")
+    if len(image) != ROM_SIZE or hashlib.sha256(reference).hexdigest() != STOCK_SHA256:
+        raise ValueError("reference is not the stock 64 KiB J5V05L19 image")
+
+    linked = {
+        symbol: int(address, 16)
+        for address, symbol in re.findall(
+            r"^\s*(?:C:\s+)?([a-fA-F0-9]{4,8})\s+(\w+)\s",
+            linker_map,
+            flags=re.MULTILINE,
+        )
+    }
+    for symbol, address in SYMBOLS.items():
+        if linked.get(symbol) != address:
+            raise ValueError(f"linker map: expected {symbol} at 0x{address:04X}")
+
+    flash = sum(image) & 0xFFFF
+    complement = int.from_bytes(image[0xFFFA:0xFFFC], "little")
+    stored_flash = int.from_bytes(image[0xFFFE:0x10000], "little")
+    if flash != 0x7602 or stored_flash != flash or complement != (flash ^ 0xFFFF):
+        raise ValueError("unexpected Flash checksum or complement")
+    for start, end, stored_at, expected in (
+        (0x6000, 0x8000, 0x5A23, 0xD3B2),
+        (0x8000, 0xA000, 0xB6FD, 0x0780),
+    ):
+        stored = int.from_bytes(image[stored_at:stored_at + 2], "little")
+        if (sum(image[start:end]) & 0xFFFF) != expected or stored != expected:
+            raise ValueError(f"unexpected calibration checksum for 0x{start:04X}–0x{end - 1:04X}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    convert = subcommands.add_parser("convert")
+    convert.add_argument("hex", type=Path)
+    convert.add_argument("binary", type=Path)
+    check = subcommands.add_parser("verify")
+    check.add_argument("binary", type=Path)
+    check.add_argument("linker_map", type=Path)
+    check.add_argument("reference", type=Path)
+    args = parser.parse_args()
+    try:
+        if args.command == "convert":
+            with args.hex.open(encoding="ascii") as lines:
+                image = convert_hex(lines)
+            args.binary.write_bytes(image)
+        else:
+            verify(
+                args.binary.read_bytes(),
+                args.reference.read_bytes(),
+                args.linker_map.read_text(encoding="ascii"),
+            )
+            print(f"J5V05L19: {ROM_SIZE} bytes match. SHA-256 {STOCK_SHA256}")
+            print("Vectors and interpolation addresses match. Checksums: 7602, D3B2, 0780.")
+    except (OSError, ValueError) as error:
+        parser.exit(1, f"{error}\n")
+
+
+if __name__ == "__main__":
+    main()
