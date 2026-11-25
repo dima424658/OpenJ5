@@ -1,0 +1,53 @@
+// Compare the exhaust temperature without clobbering A.
+replace {
+    mov dptr,#_exhaust_temperature_high
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+} by {
+    mov dptr,#_exhaust_temperature_high
+    movx a,@dptr
+    cjne a,_B,.+3
+    jc %2
+}
+
+// A single subtraction supplies both the correction and its underflow check.
+replace {
+    mov r7,_requested_mixture
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov _requested_mixture,r7
+} by {
+    mov a,_requested_mixture
+    clr c
+    subb a,_B
+    jnc %3
+    clr a
+    %3:
+    mov _requested_mixture,a
+}
+
+// The fuel checks follow this section directly.
+replace {
+    lcall _continue_fuel_mixture_checks
+    %1:
+    ret
+} by {
+}
