@@ -1,0 +1,289 @@
+replace {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_iac_adaptation_delay_cold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %2:
+} by {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,%1
+    %1:
+    jc %2
+    mov dptr,#_iac_adaptation_delay_cold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %2:
+}
+
+replace {
+    mov dptr,#_iac_adaptation_elapsed
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    lcall _finish_iac_adaptation_window
+    ljmp %3
+    %2:
+    lcall _calculate_iac_error_spread
+    %3:
+    ret
+} by {
+    mov dptr,#_iac_adaptation_elapsed
+    movx a,@dptr
+    cjne a,_B,%1
+    %1:
+    jnc _calculate_iac_error_spread
+    ljmp _finish_iac_adaptation_window
+}
+
+// Keep the word in the active register bank. The high byte is already
+// in A for the sign test. Shift the absolute sum's high byte into B.
+replace {
+    mov dptr,#_adaptation_error_sum
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov a,_stock_r1
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    lcall _negate_u16_register_pair
+    %2:
+    mov a,_stock_r1
+    add a,acc
+    mov _B,a
+} by {
+    mov dptr,#_adaptation_error_sum
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    jnb _ACC_SIGN,%2
+    lcall _negate_u16_register_pair
+    %2:
+    mov a,r1
+    clr c
+    rlc a
+    mov _B,a
+}
+
+// Carry the borrow across all three bytes of the variance numerator.
+replace {
+    mov dptr,#_adaptation_squared_error_lo
+    movx a,@dptr
+    mov r7,a
+    mov r6,_B
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r7
+    clr c
+    subb a,r6
+    mov r7,a
+    mov a,r5
+    subb a,r4
+    mov r5,a
+    mov _B,r7
+    mov dptr,#_adaptation_squared_error_mid
+    movx a,@dptr
+    mov r6,a
+    mov r4,_stock_r0
+    mov r3,#0x00
+    mov r2,#0x00
+    mov a,r6
+    clr c
+    subb a,r4
+    mov r6,a
+    mov a,r3
+    subb a,r2
+    mov r3,a
+    mov a,r5
+    anl a,#0x01
+    mov r7,a
+    mov r5,#0x00
+    mov a,r6
+    clr c
+    subb a,r7
+    mov r6,a
+    mov a,r3
+    subb a,r5
+    mov r3,a
+    mov _stock_r0,r6
+    mov dptr,#_adaptation_squared_error_hi
+    movx a,@dptr
+    clr c
+    subb a,_stock_r1
+    mov r7,a
+    mov ar6,r3
+    anl ar6,#0x01
+    mov a,r7
+    clr c
+    subb a,r6
+} by {
+    clr c
+    mov dptr,#_adaptation_squared_error_lo
+    movx a,@dptr
+    subb a,_B
+    mov _B,a
+    inc dpl
+    movx a,@dptr
+    subb a,r0
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    subb a,r1
+}
+
+// The range check precedes the fixed-point shift. Its high-byte load
+// deliberately uses the physical bank-zero address.
+replace {
+    jz %1
+    ljmp %2
+    %1:
+    mov a,_stock_r0
+    anl a,#0xe0
+    jnz %3
+    ljmp %4
+    %3:
+    %2:
+    mov _stock_r1,#0xff
+    ljmp %5
+    %4:
+    mov _stock_r1,_bank_zero_r0
+    mov _stock_r0,_B
+    lcall _shift_left_saturating_3
+    %5:
+    lcall _update_iac_rpm_trim
+    %6:
+    ret
+} by {
+    jnz %2
+    mov a,r0
+    anl a,#0xe0
+    jnz %2
+    mov r1,_bank_zero_r0
+    mov r0,_B
+    lcall _shift_left_saturating_3
+    sjmp %5
+    %2:
+    mov r1,#0xff
+    %5:
+}
+
+// Start a new SDAS text record for the external bit branch.
+replace {
+    jnb _idle_speed_trim_enabled,%1
+    ljmp %2
+    %1:
+    lcall _continue_iac_adaptation
+    ljmp %3
+    %2:
+} by {
+    .area code_a0b3 (CODE)
+    jnb _idle_speed_trim_enabled,_continue_iac_adaptation
+}
+
+replace {
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+} by {
+    mov a,r1
+    clr c
+    subb a,_B
+}
+
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    dec a
+    mov _ACC,a
+    ljmp %3
+    %2:
+} by {
+    jnc %2
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    dec a
+    sjmp %3
+    %2:
+}
+
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    lcall _continue_iac_adaptation
+    ljmp %3
+    %2:
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x02
+    add a,r7
+    mov _ACC,a
+} by {
+    jc _continue_iac_adaptation
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    inc a
+    inc a
+}
+
+replace {
+    mov _B,_ACC
+    mov dptr,#_idle_rpm_trim_min
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#_idle_rpm_trim_max
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    mov _ACC,_B
+    lcall _limit_stock_i8_by_sign
+    mov dptr,#_idle_rpm_correction
+    mov a,_ACC
+    movx @dptr,a
+    lcall _continue_iac_adaptation
+    %1:
+    ret
+} by {
+    mov _B,a
+    mov dptr,#_idle_rpm_trim_min
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#_idle_rpm_trim_max
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    mov a,_B
+    lcall _limit_stock_i8_by_sign
+    mov dptr,#_idle_rpm_correction
+    movx @dptr,a
+}
