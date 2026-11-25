@@ -1,0 +1,166 @@
+// Build the conditions in R4, using the stock carry comparisons.
+replace {
+    mov _stock_r4,a
+} by {
+    mov r4,a
+}
+
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,%1
+} by {
+    cjne a,%1,.+3
+}
+
+replace {
+    mov r7,a
+    cjne r7,#0x01,%1
+    %1:
+} by {
+    cjne a,#0x01,.+3
+}
+
+replace {
+    mov %1,c
+    mov c,%1
+    cpl c
+    mov _CY,c
+} by {
+    cpl c
+    mov _CY,c
+}
+
+replace {
+    mov _CY,c
+    mov _ACC,_stock_r4
+    mov c,_CY
+    mov %1,c
+} by {
+    mov a,r4
+    mov %1,c
+}
+
+replace {
+    mov _stock_r4,_ACC
+} by {
+    mov r4,a
+}
+
+// The mask clears the old high bits, so carry is set exactly at 0x3f.
+replace {
+    mov _ACC,a
+    mov c,_ACC_BIT1
+    mov a,r4
+    mov _ACC_BIT5,c
+    anl _ACC,#0x3f
+    mov a,#0x3f
+    cjne a,_ACC,%1
+    setb c
+    sjmp %2
+    %1:
+    clr c
+    %2:
+    mov _CY,c
+    mov c,_CY
+    mov _ACC_SIGN,c
+    mov dptr,#_secondary_misfire_conditions
+    mov a,_ACC
+    movx @dptr,a
+    lcall _update_misfire_rpm_charge_map
+    %3:
+    ret
+} by {
+    mov c,_ACC_BIT1
+    mov a,r4
+    mov _ACC_BIT5,c
+    anl a,#0x3f
+    cjne a,#0x3f,.+3
+    cpl c
+    mov _ACC_SIGN,c
+    mov dptr,#_secondary_misfire_conditions
+    movx @dptr,a
+}
+
+// Pass the table base in DPTR and preserve A as the interpolation result.
+replace {
+    mov _stock_r2,_rpm_index_q4
+    mov _stock_r3,_charge_q4
+    mov r6,#_misfire_rpm_charge_map
+    mov r7,#(_misfire_rpm_charge_map >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_bilinear_u8
+    mov dptr,#_misfire_map_value
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov r2,_rpm_index_q4
+    mov r3,_charge_q4
+    mov dptr,#_misfire_rpm_charge_map
+    lcall _interp_bilinear_u8
+    mov dptr,#_misfire_map_value
+    movx @dptr,a
+}
+
+replace {
+    jb _fuel_mode_flag_56,%1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    jnb acc.2,%3
+    ljmp %2
+    %3:
+    lcall _dispatch_misfire_event
+    ljmp %4
+    %2:
+    lcall _continue_after_misfire
+    %4:
+    ret
+} by {
+    jnb _fuel_mode_flag_56,%2
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    anl a,#0x04
+    jz %3
+    %2:
+    ljmp _continue_after_misfire
+    %3:
+}
+
+// Keep DPTR on the event byte when consuming its pending bit.
+replace {
+    mov dptr,#_misfire_control_fa6c
+    movx a,@dptr
+    mov _ACC,a
+    mov _B,_ACC
+    mov a,_ACC
+    jnb acc.0,%1
+    ljmp %2
+    %1:
+    lcall _misfire_event_not_pending
+    ljmp %3
+    %2:
+    mov a,_B
+    mov dptr,#_misfire_control_fa6c
+    anl a,#0xfe
+    movx @dptr,a
+    lcall _process_pending_misfire_event
+    %3:
+    ret
+} by {
+    mov dptr,#_misfire_control_fa6c
+    movx a,@dptr
+    mov _B,a
+    anl a,#0x01
+    jz %1
+    sjmp %2
+    %1:
+    ljmp _misfire_event_not_pending
+    %2:
+    mov a,_B
+    anl a,#0xfe
+    movx @dptr,a
+}
