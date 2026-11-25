@@ -1,8 +1,5 @@
         .globl interp_bilinear_u8
         .globl interp_bilinear_end
-        .globl interp_curve_u8
-        .globl _interp_curve_u8
-        .globl interp_curve_end
 
         .org 0xa59d
 ; DPTR = CODE table, R2 = 4.4 column coordinate, R3 = 4.4 row coordinate.
@@ -95,36 +92,4 @@ bilinear_weighted:
         ret
 interp_bilinear_end:
 
-        .org 0xa611
-; DPTR = CODE curve, R2 = left node index, R3 = fractional weight / 256.
-; A = interpolated byte. R0, B and arithmetic flags are clobbered.
-; The increasing and decreasing branches intentionally round differently.
-interp_curve_u8:
-_interp_curve_u8:
-        mov     a,r2
-        movc    a,@a+dptr
-        mov     r0,a
-        mov     a,r2
-        inc     a
-        movc    a,@a+dptr
-        clr     c
-        subb    a,r0
-        jc      curve_decreasing
-        mov     b,r3
-        mul     ab
-        add     a,#0x80
-        mov     a,b
-        addc    a,r0
-        sjmp    curve_done
-
-curve_decreasing:
-        cpl     a
-        inc     a
-        mov     b,r3
-        mul     ab
-        clr     c
-        mov     a,r0
-        subb    a,b
-curve_done:
-        ret
-interp_curve_end:
+; CODE [0xa611, 0xa62f) comes from src/c/a611.c.
