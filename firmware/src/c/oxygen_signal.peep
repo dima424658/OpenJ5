@@ -1,0 +1,179 @@
+// Use the borrow from the difference and round its magnitude before restoring the sign.
+replace {
+    mov _B,_ACC
+    mov dptr,#_oxygen_filtered
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r6,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov ar5,r6
+    mov r7,#0x00
+    mov a,r7
+    anl a,#0x01
+    mov c,acc.0
+    xch a,r5
+    rrc a
+    xch a,r5
+    rrc a
+    xch a,r5
+    mov r7,a
+    mov ar5,r7
+    clr c
+    clr a
+    subb a,r5
+    mov _B,a
+    ljmp %3
+    %2:
+    clr c
+    clr a
+    subb a,r6
+    mov r6,a
+    mov r7,#0x00
+    mov a,r7
+    anl a,#0x01
+    mov c,acc.0
+    xch a,r6
+    rrc a
+    xch a,r6
+    rrc a
+    xch a,r6
+    mov r7,a
+    mov _B,r7
+    %3:
+    mov dptr,#_oxygen_filtered
+    movx a,@dptr
+    add a,_B
+    mov _ACC,a
+    mov _stock_r0,_ACC
+    mov a,_ACC
+    movx @dptr,a
+    mov r7,_ACC
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov dptr,#_oxygen_scaled
+    mov a,r7
+    movx @dptr,a
+    lcall _classify_oxygen_signal
+    %4:
+    ret
+} by {
+    mov _B,a
+    mov dptr,#_oxygen_filtered
+    movx a,@dptr
+    clr c
+    subb a,_B
+    mov _B,#0x80
+    jc %2
+    mul ab
+    mov a,_B
+    cpl a
+    inc a
+    mov _B,a
+    sjmp %3
+    %2:
+    cpl a
+    inc a
+    mul ab
+    %3:
+    mov dptr,#_oxygen_filtered
+    movx a,@dptr
+    add a,_B
+    mov r0,a
+    mov dptr,#_oxygen_filtered
+    movx @dptr,a
+    mov _B,#0x04
+    mul ab
+    mov dptr,#_oxygen_scaled
+    movx @dptr,a
+}
+
+// Choose the hysteresis threshold from the previous rich indication and bank bit.
+replace {
+    jnb _oxygen_threshold_set_4f,%1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_alternate_thresholds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    jnb _oxygen_signal_rich,%3
+    ljmp %4
+    %3:
+    mov dptr,#(_oxygen_alternate_thresholds + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %4
+    %2:
+    mov dptr,#_oxygen_switch_thresholds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    jnb _oxygen_signal_rich,%5
+    ljmp %4
+    %5:
+    mov dptr,#(_oxygen_switch_thresholds + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %4:
+    clr c
+    mov a,_stock_r0
+    subb a,_B
+    mov _classify_oxygen_signal_sloc0_1_0,c
+    mov c,_classify_oxygen_signal_sloc0_1_0
+    cpl c
+    mov _oxygen_signal_rich,c
+    jb _oxygen_sensor_configured,%6
+    ljmp %7
+    %6:
+    lcall _check_oxygen_diagnostics
+    ljmp %8
+    %7:
+    lcall _continue_without_oxygen
+    %8:
+    ret
+} by {
+    jb _oxygen_threshold_set_4f,%2
+    mov dptr,#_oxygen_alternate_thresholds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    jb _oxygen_signal_rich,%4
+    mov dptr,#(_oxygen_alternate_thresholds + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp %4
+    %2:
+    mov dptr,#_oxygen_switch_thresholds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    jb _oxygen_signal_rich,%4
+    mov dptr,#(_oxygen_switch_thresholds + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %4:
+    mov a,r0
+    clr c
+    subb a,_B
+    cpl c
+    mov _oxygen_signal_rich,c
+    jb _oxygen_sensor_configured,%8
+    ljmp _continue_without_oxygen
+    %8:
+}
