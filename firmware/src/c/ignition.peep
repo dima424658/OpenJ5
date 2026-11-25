@@ -58,6 +58,12 @@ replace {
 }
 
 replace {
+    mov _stock_r2,_rpm_q4
+} by {
+    mov r2,_rpm_q4
+}
+
+replace {
     mov _requested_mixture,_ACC
 } by {
     mov _requested_mixture,a
@@ -192,6 +198,76 @@ replace {
     mov a,b
     addc a,#0x80
     mov dptr,#_fuel_weighted_correction
+}
+
+// Widen the biased knock correction directly into R1:R0.
+replace {
+    mov r6,_ACC
+    mov r7,#0x00
+    mov a,#0x80
+    add a,r6
+    mov r6,a
+    mov a,#0x00
+    addc a,r7
+    mov r7,a
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r7
+} by {
+    add a,#0x80
+    mov r0,a
+    clr a
+    addc a,#0x00
+    mov r1,a
+}
+
+// The high product byte signals that the middle byte must saturate.
+replace {
+    mov a,_stock_r1
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0xff
+    %2:
+} by {
+    mov a,r1
+    jz %2
+    %1:
+    mov r0,#0xff
+    %2:
+}
+
+// Compare the scaled byte in R0 with the wrapping headroom in B.
+replace {
+    mov r7,_knock_limit_offset_42
+    mov a,#0xfe
+    clr c
+    subb a,r7
+    mov r7,a
+    mov r6,_stock_r0
+    clr c
+    mov a,r6
+    subb a,r7
+    jc %1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov ar6,r7
+    %3:
+    mov dptr,#_knock_threshold_correction
+    mov a,r6
+} by {
+    mov a,#0xfe
+    clr c
+    subb a,_knock_limit_offset_42
+    mov b,a
+    mov a,r0
+    cjne a,b,%1
+    %1:
+    jc %3
+    mov a,b
+    %3:
+    mov dptr,#_knock_threshold_correction
 }
 
 // Only the borrow is needed from the unsigned time comparison.
@@ -381,7 +457,15 @@ replace {
 }
 
 replace {
-    lcall _injection_axes_continue
+    lcall _update_knock_threshold_scale
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_knock_rpm_parameters
     %1:
     ret
 } by {

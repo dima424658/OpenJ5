@@ -7,7 +7,7 @@ static volatile __data __at (0x5f) uint8_t rpm_charge_index;
 static volatile __data __at (0x4d) uint8_t injection_phase;
 
 extern __code const uint8_t injection_phase_raw[256];
-extern void injection_axes_continue(void);
+extern void update_knock_threshold_scale(void);
 
 void update_injection_phase(void)
 {
@@ -15,5 +15,5 @@ void update_injection_phase(void)
         injection_phase = injection_phase_raw[rpm_charge_index];
     }
 
-    injection_axes_continue();
+    update_knock_threshold_scale();
 }

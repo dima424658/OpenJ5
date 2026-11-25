@@ -7,7 +7,7 @@ IMAGE := build/J5v05l19
 REFERENCE ?= ../bins/J5v05l19.bin
 SOURCES := src/j5v05l19.asm src/vectors.asm src/opaque.asm
 C_REGISTER_HELPERS := a33a a381 a3f9
-C_IGNITION := 280e 3f74 3f95 3fad 3fef 400d 4042 406d 4081 430d
+C_IGNITION := 280e 3f74 3f95 3fad 3fbb 3fef 400d 4042 406d 4081 430d
 C_INTERPOLATION := a5ff a611
 C_FUNCTIONS := 2bcd 2c3f 3396 $(C_IGNITION) $(C_REGISTER_HELPERS) a429 a575 a59d $(C_INTERPOLATION) a62f cd7c d2f1 f090 f275
 C_VECTORS := 000b 0013 002b 0043 004b 0053 005b 0063 0083 0093 009b 00a3 00ab
@@ -61,7 +61,7 @@ build/3396.rel: src/c/coolant_axis.peep
 $(addprefix build/,$(addsuffix .rel,$(C_IGNITION))): C_OPTIONS += \
 	--no-peep --peep-file src/c/ignition.peep
 $(addprefix build/,$(addsuffix .rel,$(C_IGNITION))): src/c/ignition.peep
-build/3f74.rel build/3f95.rel build/400d.rel build/4081.rel: src/c/stock_registers.h
+build/3f74.rel build/3f95.rel build/3fbb.rel build/400d.rel build/4081.rel: src/c/stock_registers.h
 
 $(addprefix build/,$(addsuffix .rel,$(C_REGISTER_HELPERS))): C_OPTIONS += \
 	--std-sdcc23 --no-peep --peep-file src/c/stock_registers.peep
