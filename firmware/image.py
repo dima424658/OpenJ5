@@ -44,6 +44,7 @@ SYMBOLS = {
     "_fan_on_temperature": 0x60C8,
     "_rpm_quantization_q4": 0x613C,
     "_rpm_breakpoints": 0x623C,
+    "_barometric_correction_zone": 0x62AC,
     "_economy_ignition_half_degrees": 0x6AC8,
     "_desired_idle_rpm": 0x6F56,
     "_cranking_small_fuel_raw": 0x710B,
@@ -56,6 +57,7 @@ SYMBOLS = {
     "_knock_maximum_retard_raw": 0x71E8,
     "_throttle_quantization_q4": 0x7208,
     "_base_cylinder_charge_raw": 0x75EF,
+    "_knock_noise_zone_flags": 0x7AC7,
     "_maf_transfer_raw": 0x99B9,
     **{f"_irq_unused_{address:04x}": address for address in UNUSED_VECTORS},
 }
@@ -72,10 +74,12 @@ C_SECTIONS = {
     "code_f275": 3,
     "const_60c7": 2,
     "const_613c": 288,
+    "const_62ac": 256,
     "const_6ac8": 256,
     "const_6f56": 39,
     "const_710b": 354,
     "const_75ef": 256,
+    "const_7ac7": 256,
     "const_99b9": 256,
     **{f"code_{address:04x}": 1 for address in UNUSED_VECTORS},
 }
