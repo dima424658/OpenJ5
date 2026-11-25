@@ -1,0 +1,139 @@
+replace {
+    jnb _service_inhibit_69,%1
+    ljmp %2
+    %1:
+    jb _service_request_79,%3
+    ljmp %2
+    %3:
+    mov r0,#_service_status_91
+    mov _ACC,@r0
+    jb _ACC_BIT5,%4
+    ljmp %2
+    %4:
+    jb _service_park_iac_56,%5
+    ljmp %6
+    %5:
+    lcall _park_iac_for_service
+    ljmp %7
+    %6:
+    lcall _save_service_state
+    ljmp %7
+    %2:
+    lcall _continue_service_cycle
+    %7:
+    ret
+} by {
+    jnb _service_inhibit_69,%1
+    ljmp _continue_service_cycle
+    %1:
+    jnb _service_request_79,_continue_service_cycle
+    mov r0,#_service_status_91
+    mov _ACC,@r0
+    jnb _ACC_BIT5,_continue_service_cycle
+    jnb _service_park_iac_56,_save_service_state
+}
+
+replace {
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov a,_iac_target
+    xrl a,_iac_position
+    mov _ACC,a
+    mov a,_ACC
+    jz %2
+    ljmp %1
+    %2:
+    mov dptr,#_retained_iac_position
+    mov a,_iac_position
+    movx @dptr,a
+    lcall _stop_engine_outputs
+    lcall _save_service_state
+    %3:
+    ret
+} by {
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov a,_iac_position
+    xrl a,_iac_target
+    jnz %1
+    mov a,_iac_position
+    mov dptr,#_retained_iac_position
+    movx @dptr,a
+    lcall _stop_engine_outputs
+}
+
+replace {
+    mov _ACC,#0xff
+    lcall _write_eeprom_status_marker
+} by {
+    mov a,#0xff
+    lcall _write_eeprom_status_marker
+}
+
+replace {
+    mov r6,#_service_eeprom_block
+    mov r7,#(_service_eeprom_block >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#_service_eeprom_block
+}
+
+replace {
+    mov dptr,#_service_saved_marker
+    mov a,#0x55
+    movx @dptr,a
+    lcall _save_service_ram_checksum
+    %1:
+    ret
+} by {
+    mov a,#0x55
+    mov dptr,#_service_saved_marker
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_retained_ram_checksum
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov _sfr_86,#0x7f
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    %1:
+    ljmp %1
+    %2:
+    ret
+} by {
+    mov dptr,#_retained_ram_checksum
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov _sfr_86,#0x7f
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    %1:
+    sjmp %1
+}
+
+replace {
+    jb _service_mode_45,%1
+    ljmp %2
+    %1:
+    lcall _run_service_mode_53b1
+    ljmp %3
+    %2:
+    lcall _continue_service_normal
+    %3:
+    ret
+} by {
+    jnb _service_mode_45,%2
+    ljmp _run_service_mode_53b1
+    %2:
+}
