@@ -10,9 +10,9 @@ C_REGISTER_HELPERS := a33a a381 a3f9
 C_IGNITION := 280e 3f74 3f95 3fad 3fbb 3fef 400d 4042 406d 4081 430d
 C_INTERPOLATION := a5ff a611
 C_SIGNED_BOUNDS := a412 a42f
-C_FUNCTIONS := 2bcd 2c3f 3396 $(C_IGNITION) 428d 433a 4383 44db 4b1a a22e a314 $(C_REGISTER_HELPERS) a352 a39e a3d9 $(C_SIGNED_BOUNDS) a429 a575 a59d $(C_INTERPOLATION) a62f cd7c d2f1 f090 f275
+C_FUNCTIONS := 2bcd 2c3f 3396 $(C_IGNITION) 428d 433a 4383 44db 454e 4b1a a22e a314 $(C_REGISTER_HELPERS) a352 a39e a3d9 $(C_SIGNED_BOUNDS) a429 a575 a59d $(C_INTERPOLATION) a62f cd7c d2f1 f090 f275
 C_VECTORS := 000b 0013 002b 0043 004b 0053 005b 0063 0083 0093 009b 00a3 00ab
-C_DATA := 5f57 607b 6086 608a 608d 60ad 60c7 60e5 60ea 60ed 613c 62ac 64d3 6613 6ac8 6f56 6fe4 710b 75ef 7877 7ac7 7e07 8193 83ba 852f 866f 87e4 8ac0 98f2 99b9
+C_DATA := 5f57 607b 6086 608a 608d 60ad 60c7 60e5 60ea 60ed 613c 62ac 64d3 6613 6ac8 6f56 6fc4 6fe4 710b 75ef 7877 7ac7 7e07 8193 83ba 852f 866f 87e4 8ac0 98f2 99b9
 C_FLAGS := -mmcs51 --model-small
 C_OBJECTS := $(addprefix build/,$(addsuffix .rel,$(C_FUNCTIONS) $(C_VECTORS) $(C_DATA)))
 C_PLACEMENT := $(foreach address,$(C_FUNCTIONS) $(C_VECTORS),-b code_$(address)=0x$(address)) \
@@ -90,8 +90,8 @@ build/433a.rel: src/c/idle_airflow.peep src/c/stock_registers.h
 build/4383.rel: C_OPTIONS += --no-peep --peep-file src/c/idle_dispatch.peep
 build/4383.rel: src/c/idle_dispatch.peep
 
-build/44db.rel: C_OPTIONS += --no-peep --peep-file src/c/coast_cut.peep
-build/44db.rel: src/c/coast_cut.peep
+build/44db.rel build/454e.rel: C_OPTIONS += --no-peep --peep-file src/c/coast_cut.peep
+build/44db.rel build/454e.rel: src/c/coast_cut.peep
 
 $(addprefix build/,$(addsuffix .rel,$(C_IGNITION))): C_OPTIONS += \
 	--no-peep --peep-file src/c/ignition.peep

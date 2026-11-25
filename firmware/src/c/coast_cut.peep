@@ -35,6 +35,15 @@ replace {
 }
 
 replace {
+    jnb acc.5,%1
+    ljmp %2
+    %1:
+} by {
+    anl a,#0x20
+    jnz %2
+}
+
+replace {
     mov dptr,#%1
     mov a,#0x00
     movx @dptr,a
@@ -124,4 +133,73 @@ replace {
     ret
 } by {
     jc %2
+}
+
+// Keep the phase byte in A for the two tests. Phases 2 and 4 share the
+// delay increment. Otherwise select the deceleration ignition curve.
+replace {
+    mov r7,_fuel_cut_phase
+    cjne r7,#0x02,%1
+    ljmp %2
+    %1:
+    cjne r7,#0x04,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    %2:
+    mov dptr,#_fuel_cut_ignition_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    inc _fuel_cut_elapsed
+    mov a,_fuel_cut_elapsed
+    clr c
+    subb a,_B
+    jnc %6
+    ljmp %7
+    %6:
+    inc _fuel_cut_phase
+    %5:
+} by {
+    mov a,_fuel_cut_phase
+    cjne a,#0x02,%1
+    sjmp %2
+    %1:
+    cjne a,#0x04,%5
+    %2:
+    mov dptr,#_fuel_cut_ignition_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    inc _fuel_cut_elapsed
+    mov a,_fuel_cut_elapsed
+    clr c
+    subb a,_B
+    jc %7
+    inc _fuel_cut_phase
+    %5:
+}
+
+replace {
+    mov a,_rpm_nearest_half_bin
+    add a,#_fuel_cut_ignition_half_degrees
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_fuel_cut_ignition_half_degrees >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov _base_ignition,r7
+    %1:
+    lcall _check_fuel_cut_recovery
+    %2:
+    ret
+} by {
+    mov dptr,#_fuel_cut_ignition_half_degrees
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov _base_ignition,a
+    %1:
 }
