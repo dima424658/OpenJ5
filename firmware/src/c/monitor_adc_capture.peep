@@ -1,0 +1,159 @@
+// Walk the command pairs in CODE, preserving the sentinel exit and DPTR.
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r4,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,#0xff
+    cjne a,_stock_r0,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    lcall _resume_service_monitor
+    ljmp %4
+    %3:
+    mov a,_monitor_request_kind
+    cjne a,_stock_r0,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    %4:
+    ret
+} by {
+    clr a
+    movc a,@a+dptr
+    inc dptr
+    mov r0,a
+    clr a
+    movc a,@a+dptr
+    inc dptr
+    mov r4,a
+    cjne r0,#0xff,00970$
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    ljmp _resume_service_monitor
+    00970$:
+    mov a,r0
+    cjne a,_monitor_request_kind,_select_monitor_adc_channel
+    ret
+}
+
+// Preserve timer reload, ADC wait and ordered writes of each sample.
+replace {
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0x66
+    mov _TH0,#0xfd
+    clr _timer0_overflow
+    setb _timer0_running
+    mov r6,#_monitor_adc_samples
+    mov r7,#(_monitor_adc_samples >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _B,#0x00
+    %1:
+    jb _timer0_overflow,%2
+    ljmp %1
+    %2:
+    mov _adc_channel,_stock_r4
+    orl _adc_channel,#0x40
+    mov _adc_start_result_low,#0x00
+    %3:
+    jnb _adc_busy,%4
+    ljmp %3
+    %4:
+    mov _stock_r0,_adc_result_high
+    mov _ACC,_adc_start_result_low
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _ACC,_stock_r0
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    clr _timer0_running
+    mov _TL0,#0x66
+    mov _TH0,#0xfd
+    clr _timer0_overflow
+    setb _timer0_running
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    %6:
+    ret
+} by {
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0x66
+    mov _TH0,#0xfd
+    clr _timer0_overflow
+    setb _timer0_running
+    mov dptr,#_monitor_adc_samples
+    mov _B,#0x00
+    00971$:
+    jnb _timer0_overflow,00971$
+    mov _adc_channel,r4
+    orl _adc_channel,#0x40
+    mov _adc_start_result_low,#0x00
+    00972$:
+    jb _adc_busy,00972$
+    mov r0,_adc_result_high
+    mov a,_adc_start_result_low
+    movx @dptr,a
+    inc dptr
+    mov a,r0
+    movx @dptr,a
+    inc dptr
+    clr _timer0_running
+    mov _TL0,#0x66
+    mov _TH0,#0xfd
+    clr _timer0_overflow
+    setb _timer0_running
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    djnz _B,00971$
+    ret
+}
