@@ -1236,6 +1236,7 @@ C_SECTIONS = {
     "code_be7f": 384,
     "code_c010": 268,
     "code_c11c": 145,
+    "code_c1ad": 133,
     "code_c232": 66,
     "code_c274": 76,
     "code_c2c0": 91,
