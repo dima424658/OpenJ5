@@ -1239,6 +1239,8 @@ C_SECTIONS = {
     "code_c470": 224,
     "code_c550": 35,
     "code_c573": 39,
+    "code_c640": 86,
+    "code_c696": 79,
     "code_c6e5": 46,
     "code_c713": 106,
     "code_ceaf": 201,
