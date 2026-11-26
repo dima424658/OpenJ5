@@ -222,7 +222,7 @@ replace {
     %12:
     ljmp %14
     %13:
-    lcall _monitor_handler_e665
+    lcall _reject_monitor_request
     ljmp %3
     %14:
     mov a,#0x04
@@ -231,7 +231,7 @@ replace {
     %15:
     ljmp %17
     %16:
-    lcall _monitor_handler_e66c
+    lcall _mirror_monitor_input
     ljmp %3
     %17:
     mov a,#0x05
@@ -339,8 +339,8 @@ replace {
     ljmp _check_monitor_flash_checksum
     ljmp _toggle_monitor_output
     ljmp _monitor_handler_e470
-    ljmp _monitor_handler_e665
-    ljmp _monitor_handler_e66c
+    ljmp _reject_monitor_request
+    ljmp _mirror_monitor_input
     ljmp _monitor_handler_e6b0
     ljmp _monitor_handler_e7a9
     ljmp _monitor_handler_eb0f
