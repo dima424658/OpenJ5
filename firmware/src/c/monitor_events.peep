@@ -1,0 +1,221 @@
+// Preserve the interrupt state across the two latch reads.
+replace {
+    mov _monitor_flags_snapshot,_monitor_flags
+    mov _monitor_request_offset,#0x00
+    mov c,_EA
+    clr a
+    rlc a
+    mov r7,a
+    clr _EA
+    mov _ACC,_monitor_latched_events
+    mov _monitor_latched_events,#0x00
+    mov _B,(_monitor_latched_events + 0x0001)
+    mov (_monitor_latched_events + 0x0001),#0x00
+    mov a,r7
+    add a,#0xff
+    mov _EA,c
+} by {
+    mov _monitor_flags_snapshot,_monitor_flags
+    mov _monitor_request_offset,#0x00
+    mov r0,#_monitor_event_report
+    mov r1,#_monitor_latched_events
+    mov r2,#0x00
+    mov c,_EA
+    clr _EA
+    mov a,@r1
+    mov @r1,#0x00
+    inc r1
+    mov _B,@r1
+    mov @r1,#0x00
+    mov _EA,c
+    inc r1
+}
+
+// Pack the lower nibbles through the monitor register convention.
+replace {
+    mov r7,_ACC
+    anl ar7,#0x0f
+    mov r6,_B
+    anl ar6,#0x0f
+    mov _stock_r2,#0x00
+    mov a,r7
+    jb acc.0,%1
+    ljmp %2
+    %1:
+    orl _stock_r2,#0x03
+    %2:
+    mov a,r6
+    jb acc.0,%3
+    ljmp %4
+    %3:
+    orl _stock_r2,#0x03
+    %4:
+    mov a,r7
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _stock_r2,#0x08
+    %6:
+    mov a,r6
+    jb acc.1,%7
+    ljmp %8
+    %7:
+    orl _stock_r2,#0x04
+    %8:
+    mov a,r7
+    jb acc.2,%9
+    ljmp %10
+    %9:
+    orl _stock_r2,#0x20
+    %10:
+    mov a,r6
+    jb acc.2,%11
+    ljmp %12
+    %11:
+    orl _stock_r2,#0x10
+    %12:
+    mov a,r7
+    jb acc.3,%13
+    ljmp %14
+    %13:
+    orl _stock_r2,#0x80
+    %14:
+    mov a,r6
+    jb acc.3,%15
+    ljmp %16
+    %15:
+    orl _stock_r2,#0x40
+    %16:
+    mov r0,#_monitor_event_report
+    mov @r0,_stock_r2
+} by {
+    jnb acc.0,00970$
+    orl _stock_r2,#0x03
+    00970$:
+    jnb b.0,00971$
+    orl _stock_r2,#0x03
+    00971$:
+    jnb acc.1,00972$
+    orl _stock_r2,#0x08
+    00972$:
+    jnb b.1,00973$
+    orl _stock_r2,#0x04
+    00973$:
+    jnb acc.2,00974$
+    orl _stock_r2,#0x20
+    00974$:
+    jnb b.2,00975$
+    orl _stock_r2,#0x10
+    00975$:
+    jnb acc.3,00976$
+    orl _stock_r2,#_monitor_event_report
+    00976$:
+    jnb b.3,00977$
+    orl _stock_r2,#0x40
+    00977$:
+    mov @r0,_stock_r2
+    inc r0
+}
+
+// Pack the upper nibbles and fall through to the auxiliary status reader.
+replace {
+    mov a,_ACC
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    anl ar7,#0x0f
+    mov a,_B
+    swap a
+    anl a,#0x0f
+    mov r6,a
+    anl ar6,#0x0f
+    mov _stock_r2,#0x00
+    mov a,r7
+    jb acc.0,%1
+    ljmp %2
+    %1:
+    orl _stock_r2,#0x03
+    %2:
+    mov a,r6
+    jb acc.0,%3
+    ljmp %4
+    %3:
+    orl _stock_r2,#0x03
+    %4:
+    mov a,r7
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _stock_r2,#0x08
+    %6:
+    mov a,r6
+    jb acc.1,%7
+    ljmp %8
+    %7:
+    orl _stock_r2,#0x04
+    %8:
+    mov a,r7
+    jb acc.2,%9
+    ljmp %10
+    %9:
+    orl _stock_r2,#0x20
+    %10:
+    mov a,r6
+    jb acc.2,%11
+    ljmp %12
+    %11:
+    orl _stock_r2,#0x10
+    %12:
+    mov a,r7
+    jb acc.3,%13
+    ljmp %14
+    %13:
+    orl _stock_r2,#0x80
+    %14:
+    mov a,r6
+    jb acc.3,%15
+    ljmp %16
+    %15:
+    orl _stock_r2,#0x40
+    %16:
+    mov r0,#(_monitor_event_report + 0x0001)
+    mov @r0,_stock_r2
+    mov r7,#_monitor_event_report
+    inc r7
+    inc r7
+    mov _stock_r0,r7
+    mov _stock_r2,#0x00
+    lcall _read_monitor_aux_status
+    %17:
+    ret
+} by {
+    mov r2,#0x00
+    jnb acc.4,00978$
+    orl _stock_r2,#0x03
+    00978$:
+    jnb b.4,00979$
+    orl _stock_r2,#0x03
+    00979$:
+    jnb acc.5,00980$
+    orl _stock_r2,#0x08
+    00980$:
+    jnb b.5,00981$
+    orl _stock_r2,#0x04
+    00981$:
+    jnb acc.6,00982$
+    orl _stock_r2,#0x20
+    00982$:
+    jnb b.6,00983$
+    orl _stock_r2,#0x10
+    00983$:
+    jnb acc.7,00984$
+    orl _stock_r2,#_monitor_event_report
+    00984$:
+    jnb b.7,00985$
+    orl _stock_r2,#0x40
+    00985$:
+    mov @r0,_stock_r2
+    inc r0
+    mov r2,#0x00
+    mov r0,#(_monitor_event_report + 2)
+}
