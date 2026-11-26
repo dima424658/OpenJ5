@@ -1,0 +1,561 @@
+// Advance the staged transfer with the stock timer and error response.
+replace {
+    mov _monitor_serial_steps,#0x0b
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    lcall _step_monitor_serial_block
+    jnb _CY,%2
+    ljmp %3
+    %2:
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0xeb
+    mov _TH0,#0xcb
+    clr _timer0_overflow
+    setb _timer0_running
+    %4:
+    jb _timer0_overflow,%5
+    ljmp %4
+    %5:
+    mov a,_monitor_serial_steps
+    jz %6
+    ljmp %1
+    %6:
+    clr _CY
+    %3:
+    mov _monitor_selected_field,_monitor_serial_steps
+    mov c,_CY
+    mov _monitor_checksum_failed,c
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    %7:
+    ret
+} by {
+    mov _monitor_serial_steps,#0x0b
+    00972$:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    lcall _step_monitor_serial_block
+    jc 00970$
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0xeb
+    mov _TH0,#0xcb
+    clr _timer0_overflow
+    setb _timer0_running
+    00971$:
+    jnb _timer0_overflow,00971$
+    mov a,_monitor_serial_steps
+    jnz 00972$
+    clr c
+    00970$:
+    mov _monitor_selected_field,_monitor_serial_steps
+    mov _monitor_checksum_failed,c
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+}
+
+// Preserve the reset pulse and both presence polling limits.
+replace {
+    orl _sfr_b9,#0x80
+    anl _P5,#0x7f
+    clr _serial_line
+    mov _ACC,#0xd6
+    lcall _monitor_delay_acc
+    setb _serial_line
+    orl _sfr_b9,#0x80
+    orl _P5,#0x80
+    mov _B,#0x16
+    %1:
+    mov c,_serial_line
+    mov _CY,c
+    dec _B
+    mov a,_B
+    jnz %2
+    ljmp %3
+    %2:
+    jnb _CY,%4
+    ljmp %1
+    %4:
+    %3:
+    mov a,_B
+    jnz %5
+    ljmp %6
+    %5:
+    mov _B,#0x5b
+    %7:
+    mov c,_serial_line
+    mov _CY,c
+    dec _B
+    mov a,_B
+    jnz %8
+    ljmp %9
+    %8:
+    jb _CY,%10
+    ljmp %7
+    %10:
+    %9:
+    mov a,_B
+    jnz %11
+    ljmp %12
+    %11:
+    mov _ACC,#0xd5
+    %13:
+    nop
+    mov a,_ACC
+    dec a
+    mov r7,a
+    mov _ACC,r7
+    mov a,r7
+    jz %14
+    ljmp %13
+    %14:
+    %12:
+    cpl _CY
+    %6:
+    mov c,_CY
+    mov _monitor_serial_error,c
+    %15:
+    ret
+} by {
+    orl _sfr_b9,#0x80
+    anl _P5,#0x7f
+    clr _serial_line
+    mov a,#0xd6
+    lcall _monitor_delay_acc
+    setb _serial_line
+    orl _sfr_b9,#0x80
+    orl _P5,#0x80
+    mov _B,#0x16
+    00971$:
+    mov c,_serial_line
+    dec _B
+    mov a,_B
+    jz 00970$
+    jc 00971$
+    mov _B,#0x5b
+    00973$:
+    mov c,_serial_line
+    dec _B
+    mov a,_B
+    jz 00972$
+    jnc 00973$
+    mov a,#0xd5
+    00974$:
+    nop
+    djnz acc,00974$
+    00972$:
+    cpl c
+    00970$:
+    mov _monitor_serial_error,c
+    ret
+}
+
+// Send each bit in the original timed slot.
+replace {
+    mov _B,#0x08
+    orl _sfr_b9,#0x80
+    anl _P5,#0x7f
+    %1:
+    nop
+    nop
+    clr _serial_line
+    jb _CY,%2
+    ljmp %3
+    %2:
+    mov r7,#0x80
+    ljmp %4
+    %3:
+    mov r7,#0x00
+    %4:
+    mov a,_ACC
+    anl a,#0x01
+    mov r6,a
+    mov a,r6
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    nop
+    nop
+    mov c,_CY
+    mov _serial_line,c
+    mov r7,_ACC
+    mov _ACC,#0x1b
+    push ar7
+    lcall _monitor_delay_acc
+    pop ar7
+    mov _ACC,r7
+    setb _serial_line
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    orl _sfr_b9,#0x80
+    orl _P5,#0x80
+    %6:
+    ret
+} by {
+    mov _B,#0x08
+    orl _sfr_b9,#0x80
+    anl _P5,#0x7f
+    00975$:
+    nop
+    nop
+    clr _serial_line
+    rrc a
+    nop
+    nop
+    mov _serial_line,c
+    push acc
+    mov a,#0x1b
+    lcall _monitor_delay_acc
+    pop acc
+    setb _serial_line
+    djnz _B,00975$
+    orl _sfr_b9,#0x80
+    orl _P5,#0x80
+    ret
+}
+
+// Keep sampling, interrupt restoration and CRC-8 feedback in stock order.
+replace {
+    mov _B,#0x08
+    mov c,_EA
+    mov _saved_interrupt_enable,c
+    %1:
+    orl _sfr_b9,#0x80
+    anl _P5,#0x7f
+    clr _EA
+    clr _serial_line
+    orl _sfr_b9,#0x80
+    orl _P5,#0x80
+    setb _serial_line
+    mov c,_serial_line
+    mov _CY,c
+    jb _CY,%2
+    ljmp %3
+    %2:
+    mov r7,#0x80
+    ljmp %4
+    %3:
+    mov r7,#0x00
+    %4:
+    mov a,_ACC
+    anl a,#0x01
+    mov r6,a
+    mov a,r6
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    mov c,_saved_interrupt_enable
+    mov _EA,c
+    mov r7,_ACC
+    mov a,r7
+    rl a
+    anl a,#0x01
+    mov r7,a
+    mov a,_stock_r0
+    xrl ar7,a
+    mov a,r7
+    clr c
+    rrc a
+    mov r6,a
+    mov a,r7
+    jb acc.0,%5
+    ljmp %6
+    %5:
+    mov r5,#0x8c
+    ljmp %7
+    %6:
+    mov r5,#0x00
+    %7:
+    mov a,r5
+    xrl a,r6
+    mov _stock_r0,a
+    anl ar7,#0x01
+    mov a,r7
+    cjne a,#0x01,%8
+    %8:
+    mov _read_monitor_serial_byte_sloc0_1_0,c
+    mov c,_read_monitor_serial_byte_sloc0_1_0
+    cpl c
+    mov _CY,c
+    mov r7,_ACC
+    mov _ACC,#0x1b
+    push ar7
+    lcall _monitor_delay_acc
+    pop ar7
+    mov _ACC,r7
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %9
+    ljmp %1
+    %9:
+    %10:
+    ret
+} by {
+    mov _B,#0x08
+    mov c,_EA
+    mov _saved_interrupt_enable,c
+    00978$:
+    orl _sfr_b9,#0x80
+    anl _P5,#0x7f
+    clr _EA
+    clr _serial_line
+    orl _sfr_b9,#0x80
+    orl _P5,#0x80
+    setb _serial_line
+    mov c,_serial_line
+    rrc a
+    mov c,_saved_interrupt_enable
+    mov _EA,c
+    mov c,acc.7
+    xch a,r0
+    jnc 00976$
+    xrl a,#0x01
+    00976$:
+    clr c
+    jnb acc.0,00977$
+    xrl a,#0x18
+    setb c
+    00977$:
+    rrc a
+    xch a,r0
+    push acc
+    mov a,#0x1b
+    lcall _monitor_delay_acc
+    pop acc
+    djnz _B,00978$
+    ret
+}
+
+// Clear the eight-byte monitor buffer in register order.
+replace {
+    mov r6,#_monitor_serial_buffer
+    mov r7,#(_monitor_serial_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _B,#0x08
+    mov _ACC,#0x00
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    %3:
+    ret
+} by {
+    mov dptr,#_monitor_serial_buffer
+    mov _B,#0x08
+    clr a
+    00979$:
+    movx @dptr,a
+    inc dptr
+    djnz _B,00979$
+    ret
+}
+
+// Read one complete block and return the presence or checksum result.
+replace {
+    lcall _reset_monitor_serial_line
+    jnb _CY,%1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0x00
+    mov _stock_r1,#0x08
+    mov _ACC,#0x0f
+    lcall _write_monitor_serial_byte
+    %3:
+    lcall _read_monitor_serial_byte
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    mov a,_stock_r0
+    jz %5
+    ljmp %2
+    %5:
+    clr _CY
+    ljmp %6
+    %2:
+    setb _monitor_serial_error
+    setb _CY
+    %6:
+    ret
+} by {
+    lcall _reset_monitor_serial_line
+    jc 00980$
+    mov r0,#0x00
+    mov r1,#0x08
+    mov a,#0x0f
+    lcall _write_monitor_serial_byte
+    00981$:
+    lcall _read_monitor_serial_byte
+    movx @dptr,a
+    inc dptr
+    djnz r1,00981$
+    mov a,r0
+    jnz 00980$
+    clr c
+    ret
+    00980$:
+    setb _monitor_serial_error
+    setb c
+    ret
+}
+
+// Preserve the exact step numbers, destination offsets and error flag.
+replace {
+    mov _ACC,_monitor_serial_steps
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    clr c
+    mov a,_ACC
+    subb a,#0x0c
+    jnc %3
+    ljmp %4
+    %3:
+    %2:
+    ljmp %5
+    %4:
+    dec _monitor_serial_steps
+    mov a,#0x0a
+    cjne a,_ACC,%6
+    sjmp %7
+    %6:
+    ljmp %8
+    %7:
+    lcall _reset_monitor_serial_line
+    ljmp %5
+    %8:
+    mov a,#0x09
+    cjne a,_ACC,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    mov _ACC,#0x0f
+    lcall _write_monitor_serial_byte
+    mov _monitor_serial_crc,#0x00
+    ljmp %5
+    %11:
+    mov r6,#_monitor_serial_buffer
+    mov r7,#(_monitor_serial_buffer >> 8)
+    dec r6
+    cjne r6,#0xff,%12
+    dec r7
+    %12:
+    mov r5,_ACC
+    mov r4,#0x00
+    mov a,r5
+    add a, r6
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,r4
+    addc a, r7
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _stock_r0,_monitor_serial_crc
+    lcall _read_monitor_serial_byte
+    mov _monitor_serial_crc,_stock_r0
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    clr _CY
+    mov a,_monitor_serial_steps
+    jz %13
+    ljmp %5
+    %13:
+    mov a,_stock_r0
+    jnz %14
+    ljmp %5
+    %14:
+    setb _monitor_serial_error
+    %5:
+    ret
+} by {
+    mov a,_monitor_serial_steps
+    jz 00982$
+    cjne a,#0x0c,00983$
+    00983$:
+    jnc 00982$
+    dec _monitor_serial_steps
+    cjne a,#0x0a,00984$
+    lcall _reset_monitor_serial_line
+    sjmp 00982$
+    00984$:
+    cjne a,#0x09,00985$
+    mov a,#0x0f
+    lcall _write_monitor_serial_byte
+    mov _monitor_serial_crc,#0x00
+    sjmp 00982$
+    00985$:
+    mov dptr,#(_monitor_serial_buffer - 1)
+    add a,dpl
+    mov dpl,a
+    clr a
+    addc a,dph
+    mov dph,a
+    mov r0,_monitor_serial_crc
+    lcall _read_monitor_serial_byte
+    mov _monitor_serial_crc,r0
+    movx @dptr,a
+    mov a,_monitor_serial_steps
+    cjne a,#0x00,00982$
+    mov a,r0
+    jz 00982$
+    setb _monitor_serial_error
+    00982$:
+    ret
+}

@@ -303,7 +303,7 @@ replace {
     %39:
     ljmp %41
     %40:
-    lcall _monitor_handler_eae0
+    lcall _request_monitor_serial_block
     ljmp %3
     %41:
     mov a,#0x0d
@@ -348,6 +348,6 @@ replace {
     ljmp _monitor_handler_e978
     ljmp _test_monitor_mdu_divide
     ljmp _fill_or_read_monitor_eeprom
-    ljmp _monitor_handler_eae0
+    ljmp _request_monitor_serial_block
     ljmp _check_blank_monitor_eeprom
 }

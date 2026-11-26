@@ -34,7 +34,7 @@ extern void measure_monitor_adc_window(void);
 extern void monitor_handler_e978(void);
 extern void test_monitor_mdu_divide(void);
 extern void fill_or_read_monitor_eeprom(void);
-extern void monitor_handler_eae0(void);
+extern void request_monitor_serial_block(void);
 extern void check_blank_monitor_eeprom(void);
 
 #define MONITOR_COMMAND(index, handler)              \
@@ -106,6 +106,6 @@ void dispatch_monitor_request(void)
     MONITOR_COMMAND(9, monitor_handler_e978);
     MONITOR_COMMAND(10, test_monitor_mdu_divide);
     MONITOR_COMMAND(11, fill_or_read_monitor_eeprom);
-    MONITOR_COMMAND(12, monitor_handler_eae0);
+    MONITOR_COMMAND(12, request_monitor_serial_block);
     MONITOR_COMMAND(13, check_blank_monitor_eeprom);
 }
