@@ -1,3 +1,3 @@
-#include <stdint.h>
+#include "flash_checksum.h"
 
-__code const uint16_t flash_checksum_expected = 0x7602;
+__code const uint16_t flash_checksum_expected = STOCK_FLASH_CHECKSUM;
