@@ -213,7 +213,7 @@ replace {
     %9:
     ljmp %11
     %10:
-    lcall _monitor_handler_e470
+    lcall _mirror_monitor_output
     ljmp %3
     %11:
     mov a,#0x03
@@ -338,7 +338,7 @@ replace {
     00987$:
     ljmp _check_monitor_flash_checksum
     ljmp _toggle_monitor_output
-    ljmp _monitor_handler_e470
+    ljmp _mirror_monitor_output
     ljmp _reject_monitor_request
     ljmp _mirror_monitor_input
     ljmp _count_monitor_edges

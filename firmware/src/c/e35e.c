@@ -24,7 +24,7 @@ static volatile __data __at (0x7e) uint8_t monitor_transfer_bytes[2];
 
 extern void check_monitor_flash_checksum(void);
 extern void toggle_monitor_output(void);
-extern void monitor_handler_e470(void);
+extern void mirror_monitor_output(void);
 extern void reject_monitor_request(void);
 extern void mirror_monitor_input(void);
 extern void count_monitor_edges(void);
@@ -96,7 +96,7 @@ void dispatch_monitor_request(void)
     stock_r0 -= 0x1e;
     MONITOR_COMMAND(0, check_monitor_flash_checksum);
     MONITOR_COMMAND(1, toggle_monitor_output);
-    MONITOR_COMMAND(2, monitor_handler_e470);
+    MONITOR_COMMAND(2, mirror_monitor_output);
     MONITOR_COMMAND(3, reject_monitor_request);
     MONITOR_COMMAND(4, mirror_monitor_input);
     MONITOR_COMMAND(5, count_monitor_edges);

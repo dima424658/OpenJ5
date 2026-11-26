@@ -1,0 +1,808 @@
+// Initialize the report field mask.
+replace {
+    mov _monitor_field_mask,#0x00
+    mov _ACC,_monitor_request_kind
+} by {
+    mov _monitor_field_mask,#0x00
+    mov a,_monitor_request_kind
+}
+
+// Keep the stock test and output loop for subcode 01.
+replace {
+    mov a,#0x01
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port5_bit1,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    cjne a,#0x01,00970$
+    00971$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port5_bit1,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00971$
+}
+
+// Keep the stock test and output loop for subcode 03.
+replace {
+    mov a,#0x03
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0x0c
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _monitor_transfer_byte,#0x02
+    ljmp %7
+    %6:
+    anl _monitor_transfer_byte,#0xfd
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00970$:
+    cjne a,#0x03,00972$
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0x0c
+    00975$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 00973$
+    orl _monitor_transfer_byte,#0x02
+    sjmp 00974$
+    00973$:
+    anl _monitor_transfer_byte,#0xfd
+    00974$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 00975$
+}
+
+// Keep the stock test and output loop for subcode 04.
+replace {
+    mov a,#0x04
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _P6,#0x80
+    ljmp %7
+    %6:
+    anl _P6,#0x7f
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00972$:
+    cjne a,#0x04,00976$
+    00979$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 00977$
+    orl _P6,#0x80
+    sjmp 00978$
+    00977$:
+    anl _P6,#0x7f
+    00978$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 00979$
+}
+
+// Keep the stock test and output loop for subcode 05.
+replace {
+    mov a,#0x05
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x85
+    mov _monitor_field_mask,#0x07
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port4_bit6,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00976$:
+    cjne a,#0x05,00980$
+    mov _monitor_field_address,#0x85
+    mov _monitor_field_mask,#0x07
+    00981$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port4_bit6,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00981$
+}
+
+// Keep the stock test and output loop for subcode 06.
+replace {
+    mov a,#0x06
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0x30
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _monitor_transfer_byte,#0x40
+    ljmp %7
+    %6:
+    anl _monitor_transfer_byte,#0xbf
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00980$:
+    cjne a,#0x06,00982$
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0x30
+    00985$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 00983$
+    orl _monitor_transfer_byte,#0x40
+    sjmp 00984$
+    00983$:
+    anl _monitor_transfer_byte,#0xbf
+    00984$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 00985$
+}
+
+// Keep the stock test and output loop for subcode 10.
+replace {
+    mov a,#0x10
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x83
+    mov _monitor_field_mask,#0x07
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port4_bit1,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00982$:
+    cjne a,#0x10,00986$
+    mov _monitor_field_address,#0x83
+    mov _monitor_field_mask,#0x07
+    00987$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port4_bit1,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00987$
+}
+
+// Keep the stock test and output loop for subcode 11.
+replace {
+    mov a,#0x11
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x85
+    mov _monitor_field_mask,#0x70
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port4_bit7,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00986$:
+    cjne a,#0x11,00988$
+    mov _monitor_field_address,#0x85
+    mov _monitor_field_mask,#0x70
+    00989$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port4_bit7,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00989$
+}
+
+// Keep the stock test and output loop for subcode 14.
+replace {
+    mov a,#0x14
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port5_bit2,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00988$:
+    cjne a,#0x14,00990$
+    00991$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port5_bit2,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00991$
+}
+
+// Keep the stock test and output loop for subcode 15.
+replace {
+    mov a,#0x15
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _P6,#0x40
+    ljmp %7
+    %6:
+    anl _P6,#0xbf
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00990$:
+    cjne a,#0x15,00992$
+    00995$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 00993$
+    orl _P6,#0x40
+    sjmp 00994$
+    00993$:
+    anl _P6,#0xbf
+    00994$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 00995$
+}
+
+// Keep the stock test and output loop for subcode 16.
+replace {
+    mov a,#0x16
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0xc0
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _monitor_transfer_byte,#0x08
+    ljmp %7
+    %6:
+    anl _monitor_transfer_byte,#0xf7
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00992$:
+    cjne a,#0x16,00996$
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0xc0
+    00999$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 00997$
+    orl _monitor_transfer_byte,#0x08
+    sjmp 00998$
+    00997$:
+    anl _monitor_transfer_byte,#0xf7
+    00998$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 00999$
+}
+
+// Keep the stock test and output loop for subcode 17.
+replace {
+    mov a,#0x17
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x83
+    mov _monitor_field_mask,#0x70
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port4_bit0,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    00996$:
+    cjne a,#0x17,01000$
+    mov _monitor_field_address,#0x83
+    mov _monitor_field_mask,#0x70
+    01001$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port4_bit0,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01001$
+}
+
+// Keep the stock test and output loop for subcode 19.
+replace {
+    mov a,#0x19
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0xc0
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _monitor_transfer_byte,#0x80
+    ljmp %7
+    %6:
+    anl _monitor_transfer_byte,#0x7f
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01000$:
+    cjne a,#0x19,01002$
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0xc0
+    01005$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 01003$
+    orl _monitor_transfer_byte,#0x80
+    sjmp 01004$
+    01003$:
+    anl _monitor_transfer_byte,#0x7f
+    01004$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 01005$
+}
+
+// Keep the stock test and output loop for subcode 1A.
+replace {
+    mov a,#0x1a
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _P6,#0x10
+    ljmp %7
+    %6:
+    anl _P6,#0xef
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01002$:
+    cjne a,#0x1a,01006$
+    01009$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 01007$
+    orl _P6,#0x10
+    sjmp 01008$
+    01007$:
+    anl _P6,#0xef
+    01008$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 01009$
+}
+
+// Keep the stock test and output loop for subcode 1F.
+replace {
+    mov a,#0x1f
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x84
+    mov _monitor_field_mask,#0x70
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port1_bit1,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01006$:
+    cjne a,#0x1f,01010$
+    mov _monitor_field_address,#0x84
+    mov _monitor_field_mask,#0x70
+    01011$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port1_bit1,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01011$
+}
+
+// Keep the stock test and output loop for subcode 21.
+replace {
+    mov a,#0x21
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port5_bit6,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01010$:
+    cjne a,#0x21,01012$
+    01013$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port5_bit6,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01013$
+}
+
+// Keep the stock test and output loop for subcode 22.
+replace {
+    mov a,#0x22
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x82
+    mov _monitor_field_mask,#0x70
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port4_bit3,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01012$:
+    cjne a,#0x22,01014$
+    mov _monitor_field_address,#0x82
+    mov _monitor_field_mask,#0x70
+    01015$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port4_bit3,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01015$
+}
+
+// Keep the stock test and output loop for subcode 23.
+replace {
+    mov a,#0x23
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x82
+    mov _monitor_field_mask,#0x07
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port4_bit2,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01014$:
+    cjne a,#0x23,01016$
+    mov _monitor_field_address,#0x82
+    mov _monitor_field_mask,#0x07
+    01017$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port4_bit2,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01017$
+}
+
+// Keep the stock test and output loop for subcode 24.
+replace {
+    mov a,#0x24
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x84
+    mov _monitor_field_mask,#0x07
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port1_bit0,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01016$:
+    cjne a,#0x24,01018$
+    mov _monitor_field_address,#0x84
+    mov _monitor_field_mask,#0x07
+    01019$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port1_bit0,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01019$
+}
+
+// Keep the stock test and output loop for subcode 26.
+replace {
+    mov a,#0x26
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0x30
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _monitor_transfer_byte,#0x04
+    ljmp %7
+    %6:
+    anl _monitor_transfer_byte,#0xfb
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01018$:
+    cjne a,#0x26,01020$
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0x30
+    01023$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 01021$
+    orl _monitor_transfer_byte,#0x04
+    sjmp 01022$
+    01021$:
+    anl _monitor_transfer_byte,#0xfb
+    01022$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 01023$
+}
+
+// Keep the stock test and output loop for subcode 2B.
+replace {
+    mov a,#0x2b
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0x03
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port5_bit5,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01020$:
+    cjne a,#0x2b,01024$
+    mov _monitor_field_address,#0x80
+    mov _monitor_field_mask,#0x03
+    01025$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port5_bit5,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01025$
+}
+
+// Keep the stock test and output loop for subcode 2E.
+replace {
+    mov a,#0x2e
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0x0c
+    %4:
+    mov a,_sfr_b2
+    jb acc.1,%5
+    ljmp %6
+    %5:
+    orl _monitor_transfer_byte,#0x20
+    ljmp %7
+    %6:
+    anl _monitor_transfer_byte,#0xdf
+    %7:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01024$:
+    cjne a,#0x2e,01026$
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0x0c
+    01029$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    jnc 01027$
+    orl _monitor_transfer_byte,#0x20
+    sjmp 01028$
+    01027$:
+    anl _monitor_transfer_byte,#0xdf
+    01028$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 01029$
+}
+
+// Keep the stock test and output loop for subcode 36.
+replace {
+    mov a,#0x36
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0x03
+    %4:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _port4_bit5,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+} by {
+    01026$:
+    cjne a,#0x36,01030$
+    mov _monitor_field_address,#0x81
+    mov _monitor_field_mask,#0x03
+    01031$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _port4_bit5,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 01031$
+}
+
+// Return the unsupported subcode to the monitor.
+replace {
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    lcall _resume_service_monitor
+    %1:
+    ret
+} by {
+    01030$:
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    ljmp _resume_service_monitor
+}
