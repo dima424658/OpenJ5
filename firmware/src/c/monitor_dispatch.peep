@@ -1,0 +1,353 @@
+// Select the stock port setup and outgoing seed.
+replace {
+    clr _EA
+    mov _stock_r0,_ACC
+    mov _ACC,_monitor_port_mode
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+    mov _P0,#0xff
+    mov _P1,#0xef
+    mov _P2,#0xff
+    mov _P3,#0xff
+    mov _P4,#0xef
+    mov _P5,#0xff
+    mov _P6,#0x2f
+    mov _P9,#0x66
+    mov _monitor_transfer_bytes,#0x00
+    ljmp %3
+    %2:
+    mov _P0,#0xff
+    mov _P1,#0xec
+    mov _P2,#0xff
+    mov _P3,#0xff
+    mov _P4,#0x00
+    mov _P5,#0x99
+    mov _P6,#0xff
+    mov _P9,#0x66
+    mov _monitor_transfer_bytes,#0xee
+    %3:
+} by {
+    clr _EA
+    mov r0,a
+    mov a,_monitor_port_mode
+    jnz 00970$
+    mov _P0,#0xff
+    mov _P1,#0xef
+    mov _P2,#0xff
+    mov _P3,#0xff
+    mov _P4,#0xef
+    mov _P5,#0xff
+    mov _P6,#0x2f
+    mov _P9,#0x66
+    mov _monitor_transfer_bytes,#0x00
+    sjmp 00971$
+    00970$:
+    mov _P0,#0xff
+    mov _P1,#0xec
+    mov _P2,#0xff
+    mov _P3,#0xff
+    mov _P4,#0x00
+    mov _P5,#0x99
+    mov _P6,#0xff
+    mov _P9,#0x66
+    mov _monitor_transfer_bytes,#0xee
+}
+
+// Preserve the P9 transfer and the stock stack discipline.
+replace {
+    mov r7,_stock_r0
+    mov _stock_r0,#_monitor_transfer_bytes
+    anl _P9,#0xfb
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov _B,#0x08
+    %1:
+    jb _CY,%2
+    ljmp %3
+    %2:
+    mov r6,#0x80
+    ljmp %4
+    %3:
+    mov r6,#0x00
+    %4:
+    mov a,_ACC
+    anl a,#0x01
+    mov r5,a
+    mov a,r5
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r5,a
+    mov a,r6
+    orl a,r5
+    mov _ACC,a
+    jb _CY,%5
+    ljmp %6
+    %5:
+    orl _P9,#0x08
+    ljmp %7
+    %6:
+    anl _P9,#0xf7
+    %7:
+    orl _P9,#0x01
+    mov r6,_P9
+    anl ar6,#0x40
+    mov a,r6
+    cjne a,#0x01,%8
+    %8:
+    mov _dispatch_monitor_request_sloc0_1_0,c
+    mov c,_dispatch_monitor_request_sloc0_1_0
+    cpl c
+    mov _CY,c
+    anl _P9,#0xfe
+    mov a,_B
+    dec a
+    mov r6,a
+    mov _B,r6
+    mov a,r6
+    jz %9
+    ljmp %1
+    %9:
+    jb _CY,%10
+    ljmp %11
+    %10:
+    mov r6,#0x80
+    ljmp %12
+    %11:
+    mov r6,#0x00
+    %12:
+    mov a,_ACC
+    anl a,#0x01
+    mov r5,a
+    mov a,r5
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r5,a
+    mov a,r6
+    orl a,r5
+    mov _ACC,a
+    inc _stock_r0
+    orl _P9,#0x04
+    mov _stock_r0,r7
+} by {
+    00971$:
+    mov a,r0
+    push acc
+    mov r0,#_monitor_transfer_bytes
+    anl _P9,#0xfb
+    00975$:
+    mov a,@r0
+    inc r0
+    mov @r0,a
+    mov _B,#0x08
+    00974$:
+    rrc a
+    jnc 00972$
+    orl _P9,#0x08
+    sjmp 00973$
+    00972$:
+    anl _P9,#0xf7
+    00973$:
+    orl _P9,#0x01
+    push acc
+    mov a,_P9
+    mov c,acc.6
+    pop acc
+    anl _P9,#0xfe
+    djnz _B,00974$
+    rrc a
+    inc r0
+    cjne r0,#0x80,00975$
+    orl _P9,#0x04
+    pop acc
+    mov r0,a
+}
+
+// Preserve the startup marker branch and three-byte long-jump table.
+replace {
+    setb _monitor_command_active
+    clr _monitor_flag_01
+    clr _monitor_result_ready
+    clr _monitor_checksum_failed
+    clr _monitor_request_invalid
+    mov a,#0x55
+    cjne a,_alternate_startup_marker,%1
+    ljmp %2
+    %1:
+    lcall _monitor_handler_e978
+    ljmp %3
+    %2:
+    mov r7,_stock_r0
+    mov a,r7
+    add a,#0xe2
+    mov _stock_r0,a
+    mov a,_stock_r0
+    jz %4
+    ljmp %5
+    %4:
+    lcall _check_monitor_flash_checksum
+    ljmp %3
+    %5:
+    mov a,#0x01
+    cjne a,_stock_r0,%6
+    sjmp %7
+    %6:
+    ljmp %8
+    %7:
+    lcall _toggle_monitor_output
+    ljmp %3
+    %8:
+    mov a,#0x02
+    cjne a,_stock_r0,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    lcall _monitor_handler_e470
+    ljmp %3
+    %11:
+    mov a,#0x03
+    cjne a,_stock_r0,%12
+    sjmp %13
+    %12:
+    ljmp %14
+    %13:
+    lcall _monitor_handler_e665
+    ljmp %3
+    %14:
+    mov a,#0x04
+    cjne a,_stock_r0,%15
+    sjmp %16
+    %15:
+    ljmp %17
+    %16:
+    lcall _monitor_handler_e66c
+    ljmp %3
+    %17:
+    mov a,#0x05
+    cjne a,_stock_r0,%18
+    sjmp %19
+    %18:
+    ljmp %20
+    %19:
+    lcall _monitor_handler_e6b0
+    ljmp %3
+    %20:
+    mov a,#0x06
+    cjne a,_stock_r0,%21
+    sjmp %22
+    %21:
+    ljmp %23
+    %22:
+    lcall _monitor_handler_e7a9
+    ljmp %3
+    %23:
+    mov a,#0x07
+    cjne a,_stock_r0,%24
+    sjmp %25
+    %24:
+    ljmp %26
+    %25:
+    lcall _monitor_handler_eb0f
+    ljmp %3
+    %26:
+    mov a,#0x08
+    cjne a,_stock_r0,%27
+    sjmp %28
+    %27:
+    ljmp %29
+    %28:
+    lcall _monitor_handler_e7c0
+    ljmp %3
+    %29:
+    mov a,#0x09
+    cjne a,_stock_r0,%30
+    sjmp %31
+    %30:
+    ljmp %32
+    %31:
+    lcall _monitor_handler_e978
+    ljmp %3
+    %32:
+    mov a,#0x0a
+    cjne a,_stock_r0,%33
+    sjmp %34
+    %33:
+    ljmp %35
+    %34:
+    lcall _monitor_handler_ebc1
+    ljmp %3
+    %35:
+    mov a,#0x0b
+    cjne a,_stock_r0,%36
+    sjmp %37
+    %36:
+    ljmp %38
+    %37:
+    lcall _monitor_handler_ea58
+    ljmp %3
+    %38:
+    mov a,#0x0c
+    cjne a,_stock_r0,%39
+    sjmp %40
+    %39:
+    ljmp %41
+    %40:
+    lcall _monitor_handler_eae0
+    ljmp %3
+    %41:
+    mov a,#0x0d
+    cjne a,_stock_r0,%42
+    sjmp %43
+    %42:
+    ljmp %3
+    %43:
+    lcall _monitor_handler_eaab
+    %3:
+    ret
+} by {
+    setb _monitor_command_active
+    clr _monitor_flag_01
+    clr _monitor_result_ready
+    clr _monitor_checksum_failed
+    clr _monitor_request_invalid
+    mov a,_alternate_startup_marker
+    clr c
+    subb a,#0x55
+    jz 00976$
+    ljmp _monitor_handler_e978
+    00976$:
+    mov dptr,#00987$
+    mov a,r0
+    clr c
+    subb a,#0x1e
+    mov r0,a
+    rl a
+    add a,r0
+    jmp @a+dptr
+    00987$:
+    ljmp _check_monitor_flash_checksum
+    ljmp _toggle_monitor_output
+    ljmp _monitor_handler_e470
+    ljmp _monitor_handler_e665
+    ljmp _monitor_handler_e66c
+    ljmp _monitor_handler_e6b0
+    ljmp _monitor_handler_e7a9
+    ljmp _monitor_handler_eb0f
+    ljmp _monitor_handler_e7c0
+    ljmp _monitor_handler_e978
+    ljmp _monitor_handler_ebc1
+    ljmp _monitor_handler_ea58
+    ljmp _monitor_handler_eae0
+    ljmp _monitor_handler_eaab
+}
