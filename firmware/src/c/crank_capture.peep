@@ -1,0 +1,599 @@
+// Preserve the compare interrupt and schedule the next synthetic tooth.
+replace {
+    mov r6,_crank_capture_low
+    mov r7,#0x00
+    mov r4,_crank_capture_high
+    mov r5,#0x00
+    mov ar5,r4
+    mov r4,#0x00
+    mov a,r4
+    orl a,r6
+    mov _last_crank_capture,a
+    mov a,r5
+    orl a,r7
+    mov (_last_crank_capture + 1),a
+    mov a,#0x39
+    cjne a,_crank_tooth,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov a,_previous_tooth_period
+    add a, _last_crank_capture
+    mov r6,a
+    mov a,(_previous_tooth_period + 1)
+    addc a, (_last_crank_capture + 1)
+    mov r7,a
+    mov _crank_capture_low,r6
+    mov _crank_capture_high,r7
+    clr _capture_compare_pending
+    inc _crank_tooth
+    mov _half_turn_tooth,#0x1c
+    ljmp %4
+    %3:
+    clr _crank_gap_compare_active
+    mov a,_capture_compare_control
+    anl a,#0x3f
+    orl a,#0x40
+    mov _capture_compare_control,a
+    inc _crank_tooth
+    mov _half_turn_tooth,#0x1d
+    %4:
+    lcall _dispatch_crank_tooth_event
+    %5:
+} by {
+    mov r2,_crank_capture_low
+    mov r3,_crank_capture_high
+    cjne r6,#0x39,00970$
+    mov a,r2
+    add a,r4
+    mov _crank_capture_low,a
+    mov a,r3
+    addc a,r5
+    mov _crank_capture_high,a
+    clr _capture_compare_pending
+    inc r6
+    mov r7,#0x1c
+    ljmp _dispatch_crank_tooth_event
+    00970$:
+    clr _crank_gap_compare_active
+    anl _capture_compare_control,#0x3f
+    orl _capture_compare_control,#0x40
+    inc r6
+    mov r7,#0x1d
+    ljmp _dispatch_crank_tooth_event
+}
+
+// Use the common synchronization-loss branch.
+replace {
+    lcall _mark_crank_sync_lost
+    %1:
+    ret
+} by {
+    ljmp _mark_crank_sync_lost
+}
+
+// Keep the short branch to the common reset path after noting a tooth event.
+replace {
+    setb _crank_event
+    lcall _reset_crank_capture_state
+    %1:
+    ret
+} by {
+    setb _crank_event
+    ljmp _reset_crank_capture_state
+}
+
+// Retain the direct interrupt exit entry.
+replace {
+    lcall _irq_crank_reti
+    %1:
+    ret
+} by {
+    ljmp _irq_crank_reti
+}
+
+// Keep the unsigned period comparisons in the original timer register bank.
+replace {
+    jb _crank_gap_compare_active,%1
+    ljmp %2
+    %1:
+    lcall _crank_gap_compare
+    ljmp %3
+    %2:
+    push psw
+    push acc
+    push b
+    mov psw,#0x18
+    mov r6,_crank_capture_low
+    mov r7,#0x00
+    mov r4,_crank_capture_high
+    mov r5,#0x00
+    mov ar5,r4
+    mov r4,#0x00
+    mov a,r4
+    orl ar6,a
+    mov a,r5
+    orl ar7,a
+    mov a,r6
+    clr c
+    subb a,_last_crank_capture
+    mov _measured_tooth_period,a
+    mov a,r7
+    subb a,(_last_crank_capture + 1)
+    mov (_measured_tooth_period + 1),a
+    jnb _crank_timing_ready,%4
+    ljmp %5
+    %4:
+    lcall _report_early_crank_event
+    ljmp %3
+    %5:
+    mov r6,_previous_tooth_period
+    mov r7,(_previous_tooth_period + 1)
+    mov _crank_capture_interrupt_measured_10001_25,_measured_tooth_period
+    mov (_crank_capture_interrupt_measured_10001_25 + 1),(_measured_tooth_period + 1)
+    mov ar2,r6
+    mov ar3,r7
+    clr c
+    mov a,r3
+    subb a,#0x01
+    jnc %6
+    ljmp %7
+    %6:
+    mov ar0,r2
+    mov ar1,r3
+    ljmp %8
+    %7:
+    mov ar0,r2
+    mov a,r3
+    clr c
+    rrc a
+    xch a,r0
+    rrc a
+    xch a,r0
+    mov r1,a
+    %8:
+    mov _crank_capture_interrupt_excess_limit_10001_25,r0
+    mov (_crank_capture_interrupt_excess_limit_10001_25 + 1),r1
+    mov a,#0x04
+    cjne a,_crank_sync_state,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    clr c
+    mov a,_crank_capture_interrupt_measured_10001_25
+    subb a,r6
+    mov a,(_crank_capture_interrupt_measured_10001_25 + 1)
+    subb a,r7
+    jc %12
+    ljmp %13
+    %12:
+    mov a,r6
+    clr c
+    subb a,_crank_capture_interrupt_measured_10001_25
+    mov _crank_capture_interrupt_sloc0_1_0,a
+    mov a,r7
+    subb a,(_crank_capture_interrupt_measured_10001_25 + 1)
+    mov (_crank_capture_interrupt_sloc0_1_0 + 1),a
+    mov _crank_capture_interrupt_sloc1_1_0,r2
+    mov a,r3
+    clr c
+    rrc a
+    xch a,_crank_capture_interrupt_sloc1_1_0
+    rrc a
+    xch a,_crank_capture_interrupt_sloc1_1_0
+    mov (_crank_capture_interrupt_sloc1_1_0 + 1),a
+    mov r4,_crank_capture_interrupt_sloc0_1_0
+    mov r5,(_crank_capture_interrupt_sloc0_1_0 + 1)
+    clr c
+    mov a,_crank_capture_interrupt_sloc1_1_0
+    subb a,r4
+    mov a,(_crank_capture_interrupt_sloc1_1_0 + 1)
+    subb a,r5
+    jnc %14
+    ljmp %15
+    %14:
+    lcall _advance_crank_tooth
+    ljmp %16
+    %15:
+    jnb _current_tooth_short,%17
+    ljmp %18
+    %17:
+    jb _previous_tooth_short,%19
+    ljmp %20
+    %19:
+    %18:
+    lcall _mark_crank_sync_lost
+    ljmp %16
+    %20:
+    setb _current_tooth_short
+    lcall _irq_crank_epilogue
+    ljmp %16
+    %13:
+    mov a,_crank_capture_interrupt_measured_10001_25
+    clr c
+    subb a,r6
+    mov r4,a
+    mov a,(_crank_capture_interrupt_measured_10001_25 + 1)
+    subb a,r7
+    mov r5,a
+    clr c
+    mov a,_crank_capture_interrupt_excess_limit_10001_25
+    subb a,r4
+    mov a,(_crank_capture_interrupt_excess_limit_10001_25 + 1)
+    subb a,r5
+    jnc %21
+    ljmp %22
+    %21:
+    lcall _advance_crank_tooth
+    ljmp %16
+    %22:
+    lcall _mark_crank_sync_lost
+    %16:
+    ljmp %3
+    %11:
+    clr c
+    mov a,_crank_sync_state
+    subb a,#0x02
+    jc %23
+    ljmp %24
+    %23:
+    inc _crank_sync_state
+    ljmp %25
+    %24:
+    clr c
+    mov a,#0xff
+    subb a,r6
+    mov a,#0x7f
+    subb a,r7
+    jnc %26
+    ljmp %27
+    %26:
+    mov a,r2
+    add a,acc
+    mov r4,a
+    mov a,r3
+    rlc a
+    mov r5,a
+    clr c
+    mov a,_crank_capture_interrupt_measured_10001_25
+    subb a,r4
+    mov a,(_crank_capture_interrupt_measured_10001_25 + 1)
+    subb a,r5
+    mov _crank_capture_interrupt_sloc2_1_0,c
+    mov c,_crank_capture_interrupt_sloc2_1_0
+    cpl c
+    clr a
+    rlc a
+    mov _crank_capture_interrupt_long_tooth_30001_41,a
+    mov _crank_capture_interrupt_sloc1_1_0,_crank_capture_interrupt_long_tooth_30001_41
+    mov a,_crank_capture_interrupt_long_tooth_30001_41
+    jnz %28
+    ljmp %29
+    %28:
+    mov a,_crank_capture_interrupt_measured_10001_25
+    clr c
+    subb a,r4
+    mov _crank_capture_interrupt_deviation_30001_41,a
+    mov a,(_crank_capture_interrupt_measured_10001_25 + 1)
+    subb a,r5
+    mov (_crank_capture_interrupt_deviation_30001_41 + 1),a
+    ljmp %30
+    %29:
+    mov a,r4
+    clr c
+    subb a,_crank_capture_interrupt_measured_10001_25
+    mov _crank_capture_interrupt_deviation_30001_41,a
+    mov a,r5
+    subb a,(_crank_capture_interrupt_measured_10001_25 + 1)
+    mov (_crank_capture_interrupt_deviation_30001_41 + 1),a
+    %30:
+    mov r4,_crank_capture_interrupt_deviation_30001_41
+    mov r5,(_crank_capture_interrupt_deviation_30001_41 + 1)
+    mov ar0,r2
+    mov a,r3
+    clr c
+    rrc a
+    xch a,r0
+    rrc a
+    xch a,r0
+    mov r1,a
+    mov a,r2
+    clr c
+    subb a,r0
+    mov r2,a
+    mov a,r3
+    subb a,r1
+    mov r3,a
+    mov ar0,r4
+    mov ar1,r5
+    clr c
+    mov a,r0
+    subb a,r2
+    mov a,r1
+    subb a,r3
+    jnc %31
+    ljmp %27
+    %31:
+    clr c
+    mov a,r4
+    subb a,r6
+    mov a,r5
+    subb a,r7
+    jnc %32
+    ljmp %33
+    %32:
+    mov a,r4
+    clr c
+    subb a,r6
+    mov r6,a
+    mov a,r5
+    subb a,r7
+    mov r7,a
+    clr c
+    mov a,_crank_capture_interrupt_excess_limit_10001_25
+    subb a,r6
+    mov a,(_crank_capture_interrupt_excess_limit_10001_25 + 1)
+    subb a,r7
+    jnc %34
+    ljmp %27
+    %34:
+    %33:
+    mov a,_crank_capture_interrupt_sloc1_1_0
+    jz %35
+    ljmp %36
+    %35:
+    mov _crank_sync_state,#0x03
+    ljmp %25
+    %36:
+    mov a,#0x03
+    cjne a,_crank_sync_state,%37
+    sjmp %38
+    %37:
+    ljmp %27
+    %38:
+    mov r6,_crank_capture_low
+    mov r7,#0x00
+    mov r4,_crank_capture_high
+    mov r5,#0x00
+    mov ar5,r4
+    mov r4,#0x00
+    mov a,r4
+    orl a,r6
+    mov _last_crank_capture,a
+    mov a,r5
+    orl a,r7
+    mov (_last_crank_capture + 1),a
+    inc _crank_sync_state
+    clr _crank_sync_lost
+    clr _current_tooth_short
+    clr _previous_tooth_short
+    lcall _reset_crank_tooth_and_phase
+    ljmp %3
+    %27:
+    mov _crank_sync_state,#0x02
+    %25:
+    mov _previous_tooth_period,_measured_tooth_period
+    mov (_previous_tooth_period + 1),(_measured_tooth_period + 1)
+    mov r6,_crank_capture_low
+    mov r7,#0x00
+    mov r4,_crank_capture_high
+    mov r5,#0x00
+    mov ar5,r4
+    mov r4,#0x00
+    mov a,r4
+    orl a,r6
+    mov _last_crank_capture,a
+    mov a,r5
+    orl a,r7
+    mov (_last_crank_capture + 1),a
+    setb _crank_event
+    lcall _irq_crank_epilogue
+    %3:
+} by {
+    jb _crank_gap_compare_active,_crank_gap_compare
+    push psw
+    push acc
+    push b
+    mov psw,#0x18
+    mov a,_crank_capture_low
+    clr c
+    subb a,r2
+    mov r0,a
+    mov a,_crank_capture_high
+    subb a,r3
+    mov r1,a
+    jnb _crank_timing_ready,_report_early_crank_event
+    mov a,_crank_sync_state
+    cjne a,#0x04,00971$
+    ljmp 00972$
+    00971$:
+    clr c
+    subb a,#0x02
+    jnc 00973$
+    inc _crank_sync_state
+    ljmp 00974$
+    00976$:
+    ljmp 00975$
+    00973$:
+    mov a,r4
+    clr c
+    rlc a
+    mov 0x06,a
+    mov a,r5
+    rlc a
+    jc 00976$
+    mov 0x07,a
+    mov a,r0
+    clr c
+    subb a,0x06
+    mov 0x06,a
+    mov a,r1
+    subb a,0x07
+    mov 0x07,a
+    setb psw.5
+    jnc 00977$
+    clr psw.5
+    mov a,0x06
+    cpl a
+    add a,#0x01
+    mov 0x06,a
+    mov a,0x07
+    cpl a
+    addc a,#0x00
+    mov 0x07,a
+    00977$:
+    mov a,0x06
+    clr c
+    subb a,r4
+    mov 0x06,a
+    mov a,0x07
+    subb a,r5
+    mov 0x07,a
+    jnc 00978$
+    mov a,r5
+    jz 00979$
+    rrc a
+    anl a,#0x7f
+    mov b,a
+    mov a,r4
+    rrc a
+    add a,0x06
+    mov a,b
+    addc a,0x07
+    jnc 00975$
+    sjmp 00980$
+    00979$:
+    mov a,r4
+    rrc a
+    anl a,#0x7f
+    add a,0x06
+    clr a
+    addc a,0x07
+    jnc 00975$
+    sjmp 00980$
+    00978$:
+    mov a,r5
+    jz 00981$
+    mov b,a
+    mov a,r4
+    clr c
+    subb a,0x06
+    mov a,b
+    subb a,0x07
+    jc 00975$
+    sjmp 00980$
+    00981$:
+    mov a,r4
+    rrc a
+    anl a,#0x7f
+    clr c
+    subb a,0x06
+    clr a
+    subb a,0x07
+    jc 00975$
+    00980$:
+    jb psw.5,00982$
+    mov _crank_sync_state,#0x03
+    sjmp 00974$
+    00982$:
+    mov a,_crank_sync_state
+    cjne a,#0x03,00975$
+    mov r2,_crank_capture_low
+    mov r3,_crank_capture_high
+    inc _crank_sync_state
+    clr _crank_sync_lost
+    clr _current_tooth_short
+    clr _previous_tooth_short
+    ljmp _reset_crank_tooth_and_phase
+    00975$:
+    mov _crank_sync_state,#0x02
+    00974$:
+    mov r4,_measured_tooth_period
+    mov r5,(_measured_tooth_period + 1)
+    mov r2,_crank_capture_low
+    mov r3,_crank_capture_high
+    setb _crank_event
+    ljmp _irq_crank_epilogue
+    00985$:
+    jb _current_tooth_short,_mark_crank_sync_lost
+    jb _previous_tooth_short,_mark_crank_sync_lost
+    setb _current_tooth_short
+    ljmp _irq_crank_epilogue
+    00972$:
+    mov a,r0
+    clr c
+    subb a,r4
+    mov 0x06,a
+    mov a,r1
+    subb a,r5
+    mov 0x07,a
+    jnc 00983$
+    mov a,r5
+    jz 00984$
+    rrc a
+    anl a,#0x7f
+    mov b,a
+    mov a,r4
+    rrc a
+    add a,0x06
+    mov a,b
+    addc a,0x07
+    jc _advance_crank_tooth
+    sjmp 00985$
+    00984$:
+    mov a,r4
+    rrc a
+    anl a,#0x7f
+    add a,0x06
+    clr a
+    addc a,0x07
+    jc _advance_crank_tooth
+    sjmp 00985$
+    00983$:
+    mov a,r5
+    jz 00986$
+    mov b,a
+    mov a,r4
+    clr c
+    subb a,0x06
+    mov a,b
+    subb a,0x07
+    jnc _advance_crank_tooth
+    sjmp _mark_crank_sync_lost
+    00986$:
+    mov a,r4
+    rrc a
+    anl a,#0x7f
+    clr c
+    subb a,0x06
+    clr a
+    subb a,0x07
+    jnc _advance_crank_tooth
+}
+
+// Clear the sync state and both pending half-turn flags before restoring the context.
+replace {
+    setb _crank_sync_lost
+    lcall _reset_crank_capture_state
+    %1:
+    ret
+} by {
+    setb _crank_sync_lost
+}
+
+// Tail into the hand-written register restoration.
+replace {
+    mov _crank_sync_state,#0x00
+    clr _pending_half_turn_a
+    clr _pending_half_turn_b
+    lcall _irq_crank_epilogue
+    %1:
+    ret
+} by {
+    mov _crank_sync_state,#0x00
+    clr _pending_half_turn_a
+    clr _pending_half_turn_b
+    ljmp _irq_crank_epilogue
+}
