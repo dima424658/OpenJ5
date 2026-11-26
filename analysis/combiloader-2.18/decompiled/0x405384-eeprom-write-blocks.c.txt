@@ -1,0 +1,60 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00405384 at 0x405384
+// REA Evidence ev_2355a31f0da184a45ebba29c42a09c5f05d50354102b8b8607e30dca8222064c
+
+undefined4 FUN_00405384(void)
+
+{
+  undefined4 uVar1;
+  int iVar2;
+  int iVar3;
+  uint uVar4;
+  int in_stack_00000004;
+  uint in_stack_00000008;
+
+  FUN_0048d36c(DAT_0073f504);
+  if (DAT_004d230b != '\0') {
+    FUN_004045bc();
+  }
+  if (DAT_0073c500 == '\0') {
+    uVar4 = 0;
+    if (in_stack_00000008 != 0) {
+      do {
+        FUN_0048d36c(DAT_0073f504);
+        if (DAT_004d230b != '\0') {
+          FUN_004045bc();
+        }
+        if (DAT_0073c500 != '\0') {
+          return 0xffffffff;
+        }
+        iVar3 = in_stack_00000008 - uVar4;
+        if (0x80 < iVar3) {
+          iVar3 = 0x80;
+        }
+        if (iVar3 == 0) break;
+        DAT_004ec880 = (undefined1)(in_stack_00000004 + uVar4);
+        DAT_004ec87f = (undefined1)(in_stack_00000004 + uVar4 >> 8);
+        DAT_004ec881 = (char)iVar3;
+        FUN_004c14f8();
+        FUN_004027b4((uVar4 * 100) / in_stack_00000008,(uVar4 * 100) % in_stack_00000008);
+        FUN_0042f93c();
+        FUN_0042f954();
+        iVar2 = FUN_00404d78(CONCAT31((int3)((uint)iVar3 >> 8),(char)iVar3 + '\x03'),7,&DAT_004ec87f
+                            );
+        FUN_0042f954();
+        if (iVar2 != 0) {
+          return 0xfffffffe;
+        }
+        if (DAT_004ec758 != 'U') {
+          return 1;
+        }
+        uVar4 = uVar4 + iVar3;
+      } while (uVar4 < in_stack_00000008);
+    }
+    FUN_004027b4((uVar4 * 100) / in_stack_00000008,(uVar4 * 100) % in_stack_00000008);
+    uVar1 = 0;
+  }
+  else {
+    uVar1 = 0xffffffff;
+  }
+  return uVar1;
+}

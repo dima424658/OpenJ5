@@ -1,0 +1,68 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00404c54 at 0x404c54
+// REA Evidence ev_4dcbd1cb50113d210de8e0072c71f9aac4ec2748fa330b309d9ada08dee1e6d5
+
+int FUN_00404c54(void)
+
+{
+  int iVar1;
+  int iVar2;
+  char cVar3;
+  int iVar4;
+  char *pcVar5;
+  undefined1 *puVar6;
+
+  iVar1 = FUN_0042f8ac();
+  if (iVar1 == -1) {
+    iVar1 = -1;
+  }
+  else if (iVar1 < 0x91) {
+    DAT_004ec756 = (byte)iVar1;
+    iVar1 = FUN_0042f8ac();
+    if (iVar1 == -1) {
+      iVar1 = -3;
+    }
+    else {
+      DAT_004ec757 = (byte)iVar1;
+      puVar6 = &DAT_004ec758;
+      for (iVar1 = 0; iVar1 < (int)(DAT_004ec756 - 3); iVar1 = iVar1 + 1) {
+        iVar4 = FUN_0042f8ac();
+        if (iVar4 == -1) {
+          return -4 - iVar1;
+        }
+        *puVar6 = (char)iVar4;
+        puVar6 = puVar6 + 1;
+      }
+      iVar1 = FUN_0042f8ac();
+      if (iVar1 == -1) {
+        iVar1 = -0xff;
+      }
+      else {
+        cVar3 = DAT_004ec756 + DAT_004ec757;
+        pcVar5 = &DAT_004ec758;
+        for (iVar4 = 0; iVar4 < (int)(DAT_004ec756 - 3); iVar4 = iVar4 + 1) {
+          cVar3 = cVar3 + *pcVar5;
+          pcVar5 = pcVar5 + 1;
+        }
+        if ((char)iVar1 == cVar3) {
+          if ((DAT_004ec757 & 0xf0) == 0x90) {
+            iVar1 = 0;
+          }
+          else {
+            iVar1 = 2;
+          }
+        }
+        else {
+          iVar1 = 1;
+        }
+      }
+    }
+  }
+  else {
+    iVar4 = 0;
+    while ((iVar4 < iVar1 + -1 && (iVar2 = FUN_0042f8ac(), iVar2 != -1))) {
+      iVar4 = iVar4 + 1;
+    }
+    iVar1 = -2;
+  }
+  return iVar1;
+}

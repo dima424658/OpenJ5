@@ -1,0 +1,11 @@
+[package]
+name = "janvar-flash-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "janvar-flash"
+path = "src/main.rs"
+
+[dependencies]
+janvar-flash = { path = "../flash" }

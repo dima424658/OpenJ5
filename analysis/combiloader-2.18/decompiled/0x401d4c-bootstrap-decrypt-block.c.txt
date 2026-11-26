@@ -1,0 +1,106 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00401d4c at 0x401d4c
+// REA Evidence ev_ee830935d1581be2edfbcfd028ebdd6d61a87a8a96f70e6db616e6928711a54a
+
+void FUN_00401d4c(void)
+
+{
+  undefined4 uVar1;
+  uint uVar2;
+  uint uVar3;
+  uint uVar4;
+  uint uVar5;
+  uint uVar6;
+  uint uVar7;
+  uint uVar8;
+  uint uVar9;
+  uint uVar10;
+  uint uVar11;
+  uint uVar12;
+  uint uVar13;
+  uint uVar14;
+  uint uVar15;
+  uint uVar16;
+  uint uVar17;
+  uint uVar18;
+  uint uVar19;
+  uint uVar20;
+  uint uVar21;
+  uint uVar22;
+  uint uVar23;
+  uint uVar24;
+  uint uVar25;
+  uint uVar26;
+  undefined4 uVar27;
+  undefined4 uVar28;
+  undefined4 uVar29;
+  int in_stack_00000004;
+  undefined4 *in_stack_00000008;
+
+  uVar27 = *(undefined4 *)(in_stack_00000004 + 4);
+  uVar28 = *(undefined4 *)(in_stack_00000004 + 8);
+  FUN_0040191c();
+  uVar1 = FUN_0040191c();
+  uVar2 = FUN_0040191c(uVar1,uVar28,uVar27,uVar28);
+  uVar3 = FUN_0040191c();
+  uVar4 = FUN_0040194c();
+  FUN_004019a4();
+  FUN_004019fc();
+  uVar5 = FUN_0040194c();
+  uVar6 = FUN_0040194c();
+  FUN_004019a4();
+  FUN_004019fc();
+  uVar7 = FUN_0040194c();
+  uVar8 = FUN_0040194c();
+  FUN_004019a4();
+  FUN_004019fc();
+  uVar9 = FUN_0040194c();
+  uVar10 = FUN_0040194c();
+  FUN_004019a4();
+  FUN_004019fc();
+  uVar11 = FUN_0040194c();
+  uVar12 = FUN_0040194c();
+  FUN_004019a4();
+  FUN_004019fc();
+  uVar13 = FUN_0040194c();
+  uVar14 = FUN_0040194c();
+  FUN_004019a4();
+  FUN_004019fc();
+  uVar15 = FUN_0040194c();
+  uVar16 = FUN_0040194c();
+  FUN_004019fc();
+  FUN_004019a4();
+  uVar17 = FUN_0040194c();
+  uVar18 = FUN_0040194c();
+  FUN_004019fc();
+  FUN_004019a4();
+  uVar19 = FUN_0040194c();
+  uVar20 = FUN_0040194c();
+  FUN_004019fc();
+  FUN_004019a4();
+  uVar21 = FUN_0040194c();
+  uVar22 = FUN_0040194c();
+  FUN_004019fc();
+  FUN_004019a4();
+  uVar23 = FUN_0040194c();
+  uVar24 = FUN_0040194c();
+  FUN_004019fc();
+  FUN_004019a4();
+  uVar25 = FUN_0040194c();
+  uVar26 = FUN_0040194c();
+  uVar26 = uVar3 ^ uVar5 ^ uVar7 ^ uVar9 ^ uVar11 ^ uVar13 ^ uVar15 ^ uVar16 ^ uVar18 ^ uVar20 ^
+           uVar22 ^ uVar24 ^ uVar26;
+  FUN_004019fc();
+  FUN_004019a4();
+  uVar3 = FUN_0040194c();
+  uVar3 = uVar2 ^ uVar4 ^ uVar6 ^ uVar8 ^ uVar10 ^ uVar12 ^ uVar14 ^ uVar17 ^ uVar19 ^ uVar21 ^
+          uVar23 ^ uVar25 ^ uVar3;
+  uVar27 = FUN_0040191c();
+  uVar28 = FUN_0040191c();
+  uVar1 = FUN_0040191c();
+  uVar29 = FUN_0040191c(uVar1,uVar26,uVar3,uVar26);
+  *in_stack_00000008 = uVar27;
+  in_stack_00000008[1] = uVar28;
+  in_stack_00000008[2] = uVar1;
+  in_stack_00000008[3] = uVar29;
+  return;
+}

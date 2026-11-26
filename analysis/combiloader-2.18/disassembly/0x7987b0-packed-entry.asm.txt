@@ -1,0 +1,139 @@
+; LLVM objdump, PE entry point to original-entry jump
+
+Disassembly of section MASKT:
+
+0071d000 <MASKT>:
+  7987b0: 60                           	pushal
+  7987b1: be 00 d0 71 00               	mov	esi, 0x71d000
+  7987b6: 8d be 00 40 ce ff            	lea	edi, [esi - 0x31c000]
+  7987bc: 57                           	push	edi
+  7987bd: 83 cd ff                     	or	ebp, -0x1
+  7987c0: eb 10                        	jmp	0x7987d2 <MASKT+0x7b7d2>
+  7987c2: 90                           	nop
+  7987c3: 90                           	nop
+  7987c4: 90                           	nop
+  7987c5: 90                           	nop
+  7987c6: 90                           	nop
+  7987c7: 90                           	nop
+  7987c8: 8a 06                        	mov	al, byte ptr [esi]
+  7987ca: 46                           	inc	esi
+  7987cb: 88 07                        	mov	byte ptr [edi], al
+  7987cd: 47                           	inc	edi
+  7987ce: 01 db                        	add	ebx, ebx
+  7987d0: 75 07                        	jne	0x7987d9 <MASKT+0x7b7d9>
+  7987d2: 8b 1e                        	mov	ebx, dword ptr [esi]
+  7987d4: 83 ee fc                     	sub	esi, -0x4
+  7987d7: 11 db                        	adc	ebx, ebx
+  7987d9: 72 ed                        	jb	0x7987c8 <MASKT+0x7b7c8>
+  7987db: b8 01 00 00 00               	mov	eax, 0x1
+  7987e0: 01 db                        	add	ebx, ebx
+  7987e2: 75 07                        	jne	0x7987eb <MASKT+0x7b7eb>
+  7987e4: 8b 1e                        	mov	ebx, dword ptr [esi]
+  7987e6: 83 ee fc                     	sub	esi, -0x4
+  7987e9: 11 db                        	adc	ebx, ebx
+  7987eb: 11 c0                        	adc	eax, eax
+  7987ed: 01 db                        	add	ebx, ebx
+  7987ef: 73 0b                        	jae	0x7987fc <MASKT+0x7b7fc>
+  7987f1: 75 19                        	jne	0x79880c <MASKT+0x7b80c>
+  7987f3: 8b 1e                        	mov	ebx, dword ptr [esi]
+  7987f5: 83 ee fc                     	sub	esi, -0x4
+  7987f8: 11 db                        	adc	ebx, ebx
+  7987fa: 72 10                        	jb	0x79880c <MASKT+0x7b80c>
+  7987fc: 48                           	dec	eax
+  7987fd: 01 db                        	add	ebx, ebx
+  7987ff: 75 07                        	jne	0x798808 <MASKT+0x7b808>
+  798801: 8b 1e                        	mov	ebx, dword ptr [esi]
+  798803: 83 ee fc                     	sub	esi, -0x4
+  798806: 11 db                        	adc	ebx, ebx
+  798808: 11 c0                        	adc	eax, eax
+  79880a: eb d4                        	jmp	0x7987e0 <MASKT+0x7b7e0>
+  79880c: 31 c9                        	xor	ecx, ecx
+  79880e: 83 e8 03                     	sub	eax, 0x3
+  798811: 72 11                        	jb	0x798824 <MASKT+0x7b824>
+  798813: c1 e0 08                     	shl	eax, 0x8
+  798816: 8a 06                        	mov	al, byte ptr [esi]
+  798818: 46                           	inc	esi
+  798819: 83 f0 ff                     	xor	eax, -0x1
+  79881c: 74 78                        	je	0x798896 <MASKT+0x7b896>
+  79881e: d1 f8                        	sar	eax
+  798820: 89 c5                        	mov	ebp, eax
+  798822: eb 0b                        	jmp	0x79882f <MASKT+0x7b82f>
+  798824: 01 db                        	add	ebx, ebx
+  798826: 75 07                        	jne	0x79882f <MASKT+0x7b82f>
+  798828: 8b 1e                        	mov	ebx, dword ptr [esi]
+  79882a: 83 ee fc                     	sub	esi, -0x4
+  79882d: 11 db                        	adc	ebx, ebx
+  79882f: 11 c9                        	adc	ecx, ecx
+  798831: 01 db                        	add	ebx, ebx
+  798833: 75 07                        	jne	0x79883c <MASKT+0x7b83c>
+  798835: 8b 1e                        	mov	ebx, dword ptr [esi]
+  798837: 83 ee fc                     	sub	esi, -0x4
+  79883a: 11 db                        	adc	ebx, ebx
+  79883c: 11 c9                        	adc	ecx, ecx
+  79883e: 75 20                        	jne	0x798860 <MASKT+0x7b860>
+  798840: 41                           	inc	ecx
+  798841: 01 db                        	add	ebx, ebx
+  798843: 75 07                        	jne	0x79884c <MASKT+0x7b84c>
+  798845: 8b 1e                        	mov	ebx, dword ptr [esi]
+  798847: 83 ee fc                     	sub	esi, -0x4
+  79884a: 11 db                        	adc	ebx, ebx
+  79884c: 11 c9                        	adc	ecx, ecx
+  79884e: 01 db                        	add	ebx, ebx
+  798850: 73 ef                        	jae	0x798841 <MASKT+0x7b841>
+  798852: 75 09                        	jne	0x79885d <MASKT+0x7b85d>
+  798854: 8b 1e                        	mov	ebx, dword ptr [esi]
+  798856: 83 ee fc                     	sub	esi, -0x4
+  798859: 11 db                        	adc	ebx, ebx
+  79885b: 73 e4                        	jae	0x798841 <MASKT+0x7b841>
+  79885d: 83 c1 02                     	add	ecx, 0x2
+  798860: 81 fd 00 fb ff ff            	cmp	ebp, 0xfffffb00
+  798866: 83 d1 01                     	adc	ecx, 0x1
+  798869: 8d 14 2f                     	lea	edx, [edi + ebp]
+  79886c: 83 fd fc                     	cmp	ebp, -0x4
+  79886f: 76 0f                        	jbe	0x798880 <MASKT+0x7b880>
+  798871: 8a 02                        	mov	al, byte ptr [edx]
+  798873: 42                           	inc	edx
+  798874: 88 07                        	mov	byte ptr [edi], al
+  798876: 47                           	inc	edi
+  798877: 49                           	dec	ecx
+  798878: 75 f7                        	jne	0x798871 <MASKT+0x7b871>
+  79887a: e9 4f ff ff ff               	jmp	0x7987ce <MASKT+0x7b7ce>
+  79887f: 90                           	nop
+  798880: 8b 02                        	mov	eax, dword ptr [edx]
+  798882: 83 c2 04                     	add	edx, 0x4
+  798885: 89 07                        	mov	dword ptr [edi], eax
+  798887: 83 c7 04                     	add	edi, 0x4
+  79888a: 83 e9 04                     	sub	ecx, 0x4
+  79888d: 77 f1                        	ja	0x798880 <MASKT+0x7b880>
+  79888f: 01 cf                        	add	edi, ecx
+  798891: e9 38 ff ff ff               	jmp	0x7987ce <MASKT+0x7b7ce>
+  798896: 5e                           	pop	esi
+  798897: 8d be 00 50 39 00            	lea	edi, [esi + 0x395000]
+  79889d: 8b 07                        	mov	eax, dword ptr [edi]
+  79889f: 09 c0                        	or	eax, eax
+  7988a1: 74 3c                        	je	0x7988df <MASKT+0x7b8df>
+  7988a3: 8b 5f 04                     	mov	ebx, dword ptr [edi + 0x4]
+  7988a6: 8d 84 30 a0 92 39 00         	lea	eax, [eax + esi + 0x3992a0]
+  7988ad: 01 f3                        	add	ebx, esi
+  7988af: 50                           	push	eax
+  7988b0: 83 c7 08                     	add	edi, 0x8
+  7988b3: ff 96 7c 93 39 00            	call	dword ptr [esi + 0x39937c]
+  7988b9: 95                           	xchg	eax, ebp
+  7988ba: 8a 07                        	mov	al, byte ptr [edi]
+  7988bc: 47                           	inc	edi
+  7988bd: 08 c0                        	or	al, al
+  7988bf: 74 dc                        	je	0x79889d <MASKT+0x7b89d>
+  7988c1: 89 f9                        	mov	ecx, edi
+  7988c3: 57                           	push	edi
+  7988c4: 48                           	dec	eax
+  7988c5: f2 ae                        	repne		scasb	al, byte ptr es:[edi]
+  7988c7: 55                           	push	ebp
+  7988c8: ff 96 80 93 39 00            	call	dword ptr [esi + 0x399380]
+  7988ce: 09 c0                        	or	eax, eax
+  7988d0: 74 07                        	je	0x7988d9 <MASKT+0x7b8d9>
+  7988d2: 89 03                        	mov	dword ptr [ebx], eax
+  7988d4: 83 c3 04                     	add	ebx, 0x4
+  7988d7: eb e1                        	jmp	0x7988ba <MASKT+0x7b8ba>
+  7988d9: ff 96 84 93 39 00            	call	dword ptr [esi + 0x399384]
+  7988df: 61                           	popal
+  7988e0: e9 35 8b c6 ff               	jmp	0x40141a

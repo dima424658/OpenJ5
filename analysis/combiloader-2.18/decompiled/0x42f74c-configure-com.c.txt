@@ -1,0 +1,53 @@
+// REA / Ghidra 12.2 pseudocode, FUN_0042f74c at 0x42f74c
+// REA Evidence ev_4dcbd1cb50113d210de8e0072c71f9aac4ec2748fa330b309d9ada08dee1e6d5
+
+undefined4 FUN_0042f74c(void)
+
+{
+  BOOL BVar1;
+  undefined4 uVar2;
+  undefined4 in_stack_00000004;
+  undefined1 in_stack_00000008;
+  int in_stack_0000000c;
+  int in_stack_00000010;
+
+  BVar1 = GetCommState(DAT_0073c8d8,(LPDCB)&DAT_0073c8dc);
+  if (BVar1 == 0) {
+    uVar2 = 0xffffffff;
+  }
+  else {
+    DAT_0073c8e0 = in_stack_00000004;
+    DAT_0073c8ee = in_stack_00000008;
+    if (in_stack_0000000c == 0) {
+      DAT_0073c8ef = 0;
+    }
+    else if (in_stack_0000000c == 1) {
+      DAT_0073c8ef = 1;
+    }
+    else if (in_stack_0000000c == 2) {
+      DAT_0073c8ef = 2;
+    }
+    else {
+      DAT_0073c8ef = 3;
+    }
+    if (in_stack_00000010 == 1) {
+      DAT_0073c8f0 = 0;
+    }
+    else if (in_stack_00000010 == 2) {
+      DAT_0073c8f0 = 2;
+    }
+    else {
+      DAT_0073c8f0 = 1;
+    }
+    DAT_0073c8e4 = DAT_0073c8e4 & 0x81 | 1;
+    DAT_0073c8e5 = DAT_0073c8e5 & 0x84 | 0x10;
+    BVar1 = SetCommState(DAT_0073c8d8,(LPDCB)&DAT_0073c8dc);
+    if (BVar1 == 0) {
+      uVar2 = 0xfffffffe;
+    }
+    else {
+      uVar2 = 0;
+    }
+  }
+  return uVar2;
+}
