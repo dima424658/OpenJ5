@@ -38,6 +38,7 @@ extern void update_fuel_resume_mixture(void);
 extern void select_fuel_adaptation(void);
 
 void publish_fuel_mixture(void);
+void apply_requested_mixture(void);
 
 void continue_fuel_mixture_checks(void)
 {
@@ -82,6 +83,11 @@ void publish_fuel_mixture(void)
     stock_r01 = floor >= B ? floor - B : 0;
     poststart_fuel_floor = stock_r01;
 
+    apply_requested_mixture();
+}
+
+void apply_requested_mixture(void)
+{
     if (!(control_7a & HOLD_MIXTURE_OUTPUT)) {
         applied_mixture = requested_mixture;
     }

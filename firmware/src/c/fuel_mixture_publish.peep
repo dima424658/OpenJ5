@@ -235,6 +235,14 @@ replace {
     movx @dptr,a
 }
 
+// The output update follows the fuel floor directly.
+replace {
+    lcall _apply_requested_mixture
+    %1:
+    ret
+} by {
+}
+
 replace {
     mov a,_control_7a
     jnb acc.0,%1
