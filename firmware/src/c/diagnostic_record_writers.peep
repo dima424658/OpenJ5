@@ -1,0 +1,349 @@
+// Keep the transmit DPTR bank and register calling convention.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x82
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0x7b
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov _serial_tx_count,#0x05
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x82
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0x7b
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x05
+    pop _DPSEL
+    lcall _append_serial_checksum
+    ret
+}
+
+// Copy and terminate the 90 record before committing it to EEPROM.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x04
+    mov r5,#_identification_90
+    mov r6,#(_identification_90 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _stock_r2,#0x13
+    mov _DPSEL,#0x03
+    jb _serial_extended_length,%1
+    ljmp %2
+    %1:
+    mov r6,#0x06
+    ljmp %3
+    %2:
+    mov r6,#0x05
+    %3:
+    mov a,r6
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#0x00
+    addc a, #(_serial_rx_buffer >> 8)
+    mov r5,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r5
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+    mov dptr,#(_identification_90 + 0x0013)
+    mov a,#0x00
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _write_eeprom_record_f460
+    mov _stock_r4,#0x90
+    lcall _build_record_write_ack
+    %4:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x04
+    mov dptr,#_identification_90
+    mov r2,#0x13
+    mov _DPSEL,#0x03
+    jnb _serial_extended_length,00970$
+    mov dptr,#(_serial_rx_buffer + 6)
+    sjmp 00971$
+    00970$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    00971$:
+    lcall _copy_xdata_bytes
+    clr a
+    movx @dptr,a
+    pop _DPSEL
+    lcall _write_eeprom_record_f460
+    mov r4,#0x90
+    lcall _build_record_write_ack
+    ret
+}
+
+// The final LCALL shares its operands with SETB at the separate D2F1 entry.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x04
+    mov r5,#_identification_98
+    mov r6,#(_identification_98 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _stock_r2,#0x07
+    mov _DPSEL,#0x03
+    jb _serial_extended_length,%1
+    ljmp %2
+    %1:
+    mov r6,#0x06
+    ljmp %3
+    %2:
+    mov r6,#0x05
+    %3:
+    mov a,r6
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#0x00
+    addc a, #(_serial_rx_buffer >> 8)
+    mov r5,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r5
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+    mov dptr,#(_identification_98 + 0x0007)
+    mov a,#0x00
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _write_eeprom_record_f474
+    mov _stock_r4,#0x98
+    lcall _build_record_write_ack
+    %4:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x04
+    mov dptr,#_identification_98
+    mov r2,#0x07
+    mov _DPSEL,#0x03
+    jnb _serial_extended_length,00972$
+    mov dptr,#(_serial_rx_buffer + 6)
+    sjmp 00973$
+    00972$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    00973$:
+    lcall _copy_xdata_bytes
+    clr a
+    movx @dptr,a
+    pop _DPSEL
+    lcall _write_eeprom_record_f474
+    mov r4,#0x98
+    .db 0x12
+}
+
+// Copy and terminate the A1 record before committing it to EEPROM.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x04
+    mov r5,#_diagnostic_record_a1
+    mov r6,#(_diagnostic_record_a1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _stock_r2,#0x07
+    mov _DPSEL,#0x03
+    jb _serial_extended_length,%1
+    ljmp %2
+    %1:
+    mov r6,#0x06
+    ljmp %3
+    %2:
+    mov r6,#0x05
+    %3:
+    mov a,r6
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#0x00
+    addc a, #(_serial_rx_buffer >> 8)
+    mov r5,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r5
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+    mov dptr,#(_diagnostic_record_a1 + 0x0007)
+    mov a,#0x00
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _write_eeprom_record_f485
+    mov _stock_r4,#0xa1
+    lcall _build_record_write_ack
+    %4:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x04
+    mov dptr,#_diagnostic_record_a1
+    mov r2,#0x07
+    mov _DPSEL,#0x03
+    jnb _serial_extended_length,00974$
+    mov dptr,#(_serial_rx_buffer + 6)
+    sjmp 00975$
+    00974$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    00975$:
+    lcall _copy_xdata_bytes
+    clr a
+    movx @dptr,a
+    pop _DPSEL
+    lcall _write_eeprom_record_f485
+    mov r4,#0xa1
+    lcall _build_record_write_ack
+    ret
+}
+
+// Copy and terminate the A2 record before committing it to EEPROM.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x04
+    mov r5,#_diagnostic_record_a2
+    mov r6,#(_diagnostic_record_a2 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _stock_r2,#0x07
+    mov _DPSEL,#0x03
+    jb _serial_extended_length,%1
+    ljmp %2
+    %1:
+    mov r6,#0x06
+    ljmp %3
+    %2:
+    mov r6,#0x05
+    %3:
+    mov a,r6
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#0x00
+    addc a, #(_serial_rx_buffer >> 8)
+    mov r5,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r5
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+    mov dptr,#(_diagnostic_record_a2 + 0x0007)
+    mov a,#0x00
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _write_eeprom_record_f48d
+    mov _stock_r4,#0xa2
+    lcall _build_record_write_ack
+    %4:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x04
+    mov dptr,#_diagnostic_record_a2
+    mov r2,#0x07
+    mov _DPSEL,#0x03
+    jnb _serial_extended_length,00976$
+    mov dptr,#(_serial_rx_buffer + 6)
+    sjmp 00977$
+    00976$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    00977$:
+    lcall _copy_xdata_bytes
+    clr a
+    movx @dptr,a
+    pop _DPSEL
+    lcall _write_eeprom_record_f48d
+    mov r4,#0xa2
+    lcall _build_record_write_ack
+    ret
+}
+
+// Copy and terminate the A3 record before committing it to EEPROM.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x04
+    mov r5,#_diagnostic_record_a3
+    mov r6,#(_diagnostic_record_a3 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _stock_r2,#0x0a
+    mov _DPSEL,#0x03
+    jb _serial_extended_length,%1
+    ljmp %2
+    %1:
+    mov r6,#0x06
+    ljmp %3
+    %2:
+    mov r6,#0x05
+    %3:
+    mov a,r6
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#0x00
+    addc a, #(_serial_rx_buffer >> 8)
+    mov r5,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r5
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+    mov dptr,#(_diagnostic_record_a3 + 0x000a)
+    mov a,#0x00
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _write_eeprom_record_f495
+    mov _stock_r4,#0xa3
+    lcall _build_record_write_ack
+    %4:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x04
+    mov dptr,#_diagnostic_record_a3
+    mov r2,#0x0a
+    mov _DPSEL,#0x03
+    jnb _serial_extended_length,00978$
+    mov dptr,#(_serial_rx_buffer + 6)
+    sjmp 00979$
+    00978$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    00979$:
+    lcall _copy_xdata_bytes
+    clr a
+    movx @dptr,a
+    pop _DPSEL
+    lcall _write_eeprom_record_f495
+    mov r4,#0xa3
+    lcall _build_record_write_ack
+    ret
+}
