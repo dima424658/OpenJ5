@@ -51,6 +51,9 @@ __code const uint8_t diag_misfire_xdata_bytes[][2] = {
     ADDRESS_BE(0xf93d), ADDRESS_BE(0),
 };
 
-__code const char diag_software_identifier[16] = "J5V05L19        ";
+__code const char diag_software_identifier[16] = {
+    'J', '5', 'V', '0', '5', 'L', '1', '9',
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+};
 
 #undef ADDRESS_BE
