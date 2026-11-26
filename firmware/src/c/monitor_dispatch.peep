@@ -258,7 +258,7 @@ replace {
     %24:
     ljmp %26
     %25:
-    lcall _monitor_handler_eb0f
+    lcall _sample_monitor_adc_corrected
     ljmp %3
     %26:
     mov a,#0x08
@@ -343,7 +343,7 @@ replace {
     ljmp _mirror_monitor_input
     ljmp _count_monitor_edges
     ljmp _sample_monitor_adc
-    ljmp _monitor_handler_eb0f
+    ljmp _sample_monitor_adc_corrected
     ljmp _measure_monitor_adc_window
     ljmp _monitor_handler_e978
     ljmp _monitor_handler_ebc1
