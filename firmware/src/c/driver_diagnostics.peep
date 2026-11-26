@@ -1,0 +1,901 @@
+// Sample on the selected clock edges and update the gate fault counter.
+replace {
+    jb _serial_data_in,%1
+    ljmp %2
+    %1:
+    anl _driver_bus_f9,#0xfd
+    mov _stock_r2,#0x08
+    nop
+    %3:
+    setb _serial_clock
+    clr _serial_clock
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r7,a
+    jb _serial_data_in,%4
+    ljmp %5
+    %4:
+    mov r6,#0x80
+    ljmp %6
+    %5:
+    mov r6,#0x00
+    %6:
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %7
+    ljmp %3
+    %7:
+    lcall _reverse_driver_response_bits
+    mov dptr,#_injector_driver_response
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r2,#0x08
+    %8:
+    setb _serial_clock
+    clr _serial_clock
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r7,a
+    jb _serial_data_in,%9
+    ljmp %10
+    %9:
+    mov r6,#0x80
+    ljmp %11
+    %10:
+    mov r6,#0x00
+    %11:
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %12
+    ljmp %8
+    %12:
+    lcall _reverse_driver_response_bits
+    mov dptr,#_evap_driver_response
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %13
+    %2:
+    anl _driver_bus_f9,#0xfd
+    mov _stock_r2,#0x07
+    nop
+    nop
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r7,a
+    jb _serial_data_in,%14
+    ljmp %15
+    %14:
+    mov r6,#0x80
+    ljmp %16
+    %15:
+    mov r6,#0x00
+    %16:
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    nop
+    %17:
+    setb _serial_clock
+    nop
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r7,a
+    jb _serial_data_in,%18
+    ljmp %19
+    %18:
+    mov r6,#0x80
+    ljmp %20
+    %19:
+    mov r6,#0x00
+    %20:
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    clr _serial_clock
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %21
+    ljmp %17
+    %21:
+    mov dptr,#_injector_driver_response
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r2,#0x08
+    %22:
+    setb _serial_clock
+    nop
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r7,a
+    jb _serial_data_in,%23
+    ljmp %24
+    %23:
+    mov r6,#0x80
+    ljmp %25
+    %24:
+    mov r6,#0x00
+    %25:
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    clr _serial_clock
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %26
+    ljmp %22
+    %26:
+    mov dptr,#_evap_driver_response
+    mov a,_ACC
+    movx @dptr,a
+    %13:
+    orl _driver_bus_f9,#0x02
+    mov dptr,#_driver_gate_level
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_driver_gate_input_4b
+    jc %27
+    ljmp %28
+    %27:
+    mov a,_driver_control_fa
+    jnb acc.5,%29
+    ljmp %28
+    %29:
+    jb _driver_diagnostics_enabled,%30
+    ljmp %28
+    %30:
+    mov dptr,#_driver_gate_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_driver_gate_fault_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %31
+    ljmp %32
+    %31:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    orl acc,#0x10
+    movx @dptr,a
+    ljmp %32
+    %28:
+    mov dptr,#_driver_gate_fault_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_retained_status
+    movx a,@dptr
+    anl acc,#0xef
+    movx @dptr,a
+    %32:
+    lcall _update_relay_outputs
+    %33:
+    ret
+} by {
+    jnb _serial_data_in,00970$
+    anl _driver_bus_f9,#0xfd
+    mov r2,#0x08
+    nop
+    00971$:
+    setb _serial_clock
+    clr _serial_clock
+    mov c,_serial_data_in
+    rrc a
+    djnz r2,00971$
+    lcall _reverse_driver_response_bits
+    mov dptr,#_injector_driver_response
+    movx @dptr,a
+    mov r2,#0x08
+    00972$:
+    setb _serial_clock
+    clr _serial_clock
+    mov c,_serial_data_in
+    rrc a
+    djnz r2,00972$
+    lcall _reverse_driver_response_bits
+    mov dptr,#_evap_driver_response
+    movx @dptr,a
+    sjmp 00973$
+    00970$:
+    anl _driver_bus_f9,#0xfd
+    mov r2,#0x07
+    nop
+    nop
+    mov c,_serial_data_in
+    rrc a
+    nop
+    00974$:
+    setb _serial_clock
+    nop
+    mov c,_serial_data_in
+    rrc a
+    clr _serial_clock
+    djnz r2,00974$
+    mov dptr,#_injector_driver_response
+    movx @dptr,a
+    mov r2,#0x08
+    00975$:
+    setb _serial_clock
+    nop
+    mov c,_serial_data_in
+    rrc a
+    clr _serial_clock
+    djnz r2,00975$
+    mov dptr,#_evap_driver_response
+    movx @dptr,a
+    00973$:
+    orl _driver_bus_f9,#0x02
+    mov dptr,#_driver_gate_level
+    clr a
+    movc a,@a+dptr
+    cjne a,_driver_gate_input_4b,00976$
+    00976$:
+    jnc 00977$
+    mov a,_driver_control_fa
+    jb acc.5,00977$
+    jnb _driver_diagnostics_enabled,00977$
+    mov dptr,#_driver_gate_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_driver_gate_fault_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,00978$
+    00978$:
+    jc 00979$
+    mov dptr,#_retained_status
+    movx a,@dptr
+    orl a,#0x10
+    movx @dptr,a
+    sjmp 00979$
+    00977$:
+    clr a
+    mov dptr,#_driver_gate_fault_count
+    movx @dptr,a
+    mov dptr,#_retained_status
+    movx a,@dptr
+    anl a,#0xef
+    movx @dptr,a
+    00979$:
+    lcall _update_relay_outputs
+    ret
+}
+
+// Reverse all eight bits through the stock Carry and B registers.
+replace {
+    mov r7,_ACC
+    mov r6,#0x00
+    mov r5,#0x00
+    %1:
+    cjne r5,#0x08,%2
+    %2:
+    jc %3
+    ljmp %4
+    %3:
+    mov a,r6
+    add a,acc
+    mov r4,a
+    mov a,#0x01
+    anl a,r7
+    orl a,r4
+    mov r6,a
+    mov a,r7
+    clr c
+    rrc a
+    mov r7,a
+    inc r5
+    ljmp %1
+    %4:
+    mov _B,r6
+    mov _ACC,_B
+    %5:
+    ret
+} by {
+    mov c,acc.0
+    mov b.7,c
+    mov c,acc.1
+    mov b.6,c
+    mov c,acc.2
+    mov b.5,c
+    mov c,acc.3
+    mov b.4,c
+    mov c,acc.4
+    mov b.3,c
+    mov c,acc.5
+    mov b.2,c
+    mov c,acc.6
+    mov b.1,c
+    mov c,acc.7
+    mov b.0,c
+    mov a,_B
+    ret
+}
+
+// Decode the injector and EVAP pairs, retaining only the wanted debounce conditions.
+replace {
+    mov dptr,#_injector_low_or_open_faults
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_injector_high_and_evap_faults
+    movx @dptr,a
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    anl acc,#0xf0
+    movx @dptr,a
+    mov dptr,#_injector_driver_response
+    movx a,@dptr
+    mov _stock_r4,a
+    mov a,#0xff
+    cjne a,_stock_r4,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_enabled_flags
+    mov a,#0xff
+    movx @dptr,a
+    ljmp %4
+    %3:
+    mov dptr,#_misfire_enabled_flags
+    mov a,#0x00
+    movx @dptr,a
+    mov a,_stock_r4
+    anl a,#0xc0
+    mov _stock_r3,a
+    mov a,#0xc0
+    cjne a,_stock_r3,%5
+    ljmp %6
+    %5:
+    mov a,_stock_r3
+    jz %7
+    ljmp %8
+    %7:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x10
+    movx @dptr,a
+    ljmp %6
+    %8:
+    mov a,#0x80
+    cjne a,_stock_r3,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x01
+    movx @dptr,a
+    ljmp %6
+    %11:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x01
+    movx @dptr,a
+    %6:
+    mov a,_stock_r4
+    anl a,#0x30
+    mov _stock_r3,a
+    mov a,#0x30
+    cjne a,_stock_r3,%12
+    ljmp %13
+    %12:
+    mov a,_stock_r3
+    jz %14
+    ljmp %15
+    %14:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x20
+    movx @dptr,a
+    ljmp %13
+    %15:
+    mov a,#0x20
+    cjne a,_stock_r3,%16
+    sjmp %17
+    %16:
+    ljmp %18
+    %17:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x02
+    movx @dptr,a
+    ljmp %13
+    %18:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x02
+    movx @dptr,a
+    %13:
+    mov a,_stock_r4
+    anl a,#0x03
+    mov _stock_r3,a
+    mov a,#0x03
+    cjne a,_stock_r3,%19
+    ljmp %20
+    %19:
+    mov a,_stock_r3
+    jz %21
+    ljmp %22
+    %21:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x40
+    movx @dptr,a
+    ljmp %20
+    %22:
+    mov a,#0x02
+    cjne a,_stock_r3,%23
+    sjmp %24
+    %23:
+    ljmp %25
+    %24:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x04
+    movx @dptr,a
+    ljmp %20
+    %25:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x04
+    movx @dptr,a
+    %20:
+    mov a,_stock_r4
+    anl a,#0x0c
+    mov _stock_r3,a
+    mov a,#0x0c
+    cjne a,_stock_r3,%26
+    ljmp %4
+    %26:
+    mov a,_stock_r3
+    jz %27
+    ljmp %28
+    %27:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x80
+    movx @dptr,a
+    ljmp %4
+    %28:
+    mov a,#0x08
+    cjne a,_stock_r3,%29
+    sjmp %30
+    %29:
+    ljmp %31
+    %30:
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl acc,#0x08
+    movx @dptr,a
+    ljmp %4
+    %31:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x08
+    movx @dptr,a
+    %4:
+    mov dptr,#_evap_driver_response
+    movx a,@dptr
+    anl a,#0x30
+    mov _stock_r4,a
+    mov a,#0x30
+    cjne a,_stock_r4,%32
+    ljmp %33
+    %32:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x10
+    movx @dptr,a
+    mov a,_stock_r4
+    jz %34
+    ljmp %35
+    %34:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x40
+    movx @dptr,a
+    ljmp %33
+    %35:
+    mov a,#0x20
+    cjne a,_stock_r4,%36
+    sjmp %37
+    %36:
+    ljmp %38
+    %37:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x20
+    movx @dptr,a
+    ljmp %33
+    %38:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl acc,#0x80
+    movx @dptr,a
+    %33:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    anl a,#0x42
+    mov _stock_r3,a
+    mov dptr,#_relay_driver_response
+    movx a,@dptr
+    anl a,#0x42
+    mov _stock_r4,a
+    mov a,_stock_r4
+    xrl a,_stock_r3
+    mov r7,a
+    mov a,r7
+    jz %39
+    ljmp %40
+    %39:
+    mov dptr,#_relay_bit6_mismatch_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_relay_bit1_mismatch_count
+    movx @dptr,a
+    ljmp %41
+    %40:
+    mov a,r7
+    jnb acc.1,%42
+    ljmp %43
+    %42:
+    mov dptr,#_relay_bit1_mismatch_count
+    movx a,@dptr
+    mov r6,a
+    mov a,r6
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_relay_bit1_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    clr c
+    mov a,_ACC
+    subb a,r6
+    jnc %44
+    ljmp %43
+    %44:
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    orl acc,#0x01
+    movx @dptr,a
+    %43:
+    mov a,r7
+    jnb acc.6,%45
+    ljmp %41
+    %45:
+    mov dptr,#_relay_bit6_mismatch_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_relay_bit6_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,_ACC
+    subb a,r7
+    jnc %46
+    ljmp %41
+    %46:
+    mov a,_stock_r4
+    jb acc.6,%47
+    ljmp %48
+    %47:
+    mov r7,#0x08
+    ljmp %49
+    %48:
+    mov r7,#0x02
+    %49:
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    movx @dptr,a
+    %41:
+    ret
+} by {
+    clr a
+    mov dptr,#_injector_low_or_open_faults
+    movx @dptr,a
+    mov dptr,#_injector_high_and_evap_faults
+    movx @dptr,a
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    anl a,#0xf0
+    movx @dptr,a
+    mov dptr,#_injector_driver_response
+    movx a,@dptr
+    mov r4,a
+    xrl a,#0xff
+    jnz 00970$
+    mov a,#0xff
+    mov dptr,#_misfire_enabled_flags
+    movx @dptr,a
+    ljmp 00971$
+    00970$:
+    mov a,#0x00
+    mov dptr,#_misfire_enabled_flags
+    movx @dptr,a
+    mov a,r4
+    anl a,#0xc0
+    mov r3,a
+    xrl a,#0xc0
+    jz 00972$
+    mov a,r3
+    jnz 00973$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x10
+    movx @dptr,a
+    sjmp 00972$
+    00973$:
+    mov a,r3
+    xrl a,#0x80
+    jnz 00974$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x01
+    movx @dptr,a
+    sjmp 00972$
+    00974$:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x01
+    movx @dptr,a
+    00972$:
+    mov a,r4
+    anl a,#0x30
+    mov r3,a
+    xrl a,#0x30
+    jz 00975$
+    mov a,r3
+    jnz 00976$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x20
+    movx @dptr,a
+    sjmp 00975$
+    00976$:
+    mov a,r3
+    xrl a,#0x20
+    jnz 00977$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x02
+    movx @dptr,a
+    sjmp 00975$
+    00977$:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x02
+    movx @dptr,a
+    00975$:
+    mov a,r4
+    anl a,#0x03
+    mov r3,a
+    xrl a,#0x03
+    jz 00978$
+    mov a,r3
+    jnz 00979$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x40
+    movx @dptr,a
+    sjmp 00978$
+    00979$:
+    mov a,r3
+    xrl a,#0x02
+    jnz 00980$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x04
+    movx @dptr,a
+    sjmp 00978$
+    00980$:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x04
+    movx @dptr,a
+    00978$:
+    mov a,r4
+    anl a,#0x0c
+    mov r3,a
+    xrl a,#0x0c
+    jz 00971$
+    mov a,r3
+    jnz 00981$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x80
+    movx @dptr,a
+    sjmp 00971$
+    00981$:
+    mov a,r3
+    xrl a,#0x08
+    jnz 00982$
+    mov dptr,#_injector_low_or_open_faults
+    movx a,@dptr
+    orl a,#0x08
+    movx @dptr,a
+    sjmp 00971$
+    00982$:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x08
+    movx @dptr,a
+    00971$:
+    mov dptr,#_evap_driver_response
+    movx a,@dptr
+    anl a,#0x30
+    mov r4,a
+    xrl a,#0x30
+    jz 00983$
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x10
+    movx @dptr,a
+    mov a,r4
+    jnz 00984$
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x40
+    movx @dptr,a
+    sjmp 00983$
+    00984$:
+    mov a,r4
+    xrl a,#0x20
+    jnz 00985$
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x20
+    movx @dptr,a
+    sjmp 00983$
+    00985$:
+    mov dptr,#_injector_high_and_evap_faults
+    movx a,@dptr
+    orl a,#0x80
+    movx @dptr,a
+    00983$:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    anl a,#0x42
+    mov b,a
+    mov r3,a
+    mov dptr,#_relay_driver_response
+    movx a,@dptr
+    anl a,#0x42
+    mov r4,a
+    xrl a,b
+    jnz 00986$
+    ljmp 00987$
+    00986$:
+    jb b.1,00988$
+    mov a,r4
+    jb acc.1,00989$
+    mov dptr,#_relay_bit1_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov b,a
+    mov dptr,#_relay_bit1_mismatch_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,b,00990$
+    00990$:
+    jc 00988$
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    orl a,#0x01
+    movx @dptr,a
+    sjmp 00989$
+    00988$:
+    mov a,r4
+    jnb acc.1,00989$
+    mov dptr,#_relay_bit1_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov b,a
+    mov dptr,#_relay_bit1_mismatch_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,b,00991$
+    00991$:
+    jc 00989$
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    orl a,#0x01
+    movx @dptr,a
+    00989$:
+    mov b,r3
+    jb b.6,00992$
+    mov a,r4
+    jb acc.6,00993$
+    mov dptr,#_relay_bit6_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov b,a
+    mov dptr,#_relay_bit6_mismatch_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,b,00994$
+    00994$:
+    jc 00992$
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    orl a,#0x02
+    movx @dptr,a
+    sjmp 00993$
+    00992$:
+    mov a,r4
+    jnb acc.6,00993$
+    mov dptr,#_relay_bit6_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov b,a
+    mov dptr,#_relay_bit6_mismatch_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,b,00995$
+    00995$:
+    jc 00993$
+    mov dptr,#_driver_diagnostics_f9b4
+    movx a,@dptr
+    orl a,#0x08
+    movx @dptr,a
+    sjmp 00993$
+    00987$:
+    clr a
+    mov dptr,#_relay_bit6_mismatch_count
+    movx @dptr,a
+    mov dptr,#_relay_bit1_mismatch_count
+    movx @dptr,a
+    00993$:
+    ret
+}
