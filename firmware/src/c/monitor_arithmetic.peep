@@ -1,0 +1,59 @@
+// Preserve the signed multiply and the two carry-propagation paths for negation.
+replace {
+    mov r7,_ACC
+    mov a,r7
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    clr c
+    clr a
+    subb a,r7
+    mov r6,a
+    ljmp %3
+    %2:
+    mov ar6,r7
+    %3:
+    mov r5,_B
+    mov b,r6
+    mov a,r5
+    mul ab
+    mov r6,a
+    mov r4,b
+    mov a,r7
+    jb acc.7,%4
+    ljmp %5
+    %4:
+    clr c
+    clr a
+    subb a,r6
+    mov r6,a
+    clr a
+    subb a,r4
+    mov r4,a
+    %5:
+    mov _B,r4
+    mov _ACC,r6
+    %6:
+    ret
+} by {
+    jb acc.7,00970$
+    mul ab
+    ret
+    00970$:
+    cpl a
+    inc a
+    mul ab
+    cpl a
+    inc a
+    jz 00971$
+    xch a,_B
+    cpl a
+    xch a,_B
+    ret
+    00971$:
+    xch a,_B
+    cpl a
+    inc a
+    xch a,_B
+    ret
+}

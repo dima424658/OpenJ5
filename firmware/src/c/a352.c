@@ -2,10 +2,19 @@
 
 static __sfr __at (0xf0) B;
 
+/* The service monitor embeds a byte-identical copy at EDC2. */
+#ifdef MONITOR_MULTIPLY_COPY
+#define MULTIPLY_U16_U8 multiply_monitor_u16_u8
+#define MULTIPLY_I16_U8 multiply_monitor_i16_u8
+#else
+#define MULTIPLY_U16_U8 multiply_stock_u16_u8
+#define MULTIPLY_I16_U8 multiply_stock_i16_u8
+#endif
+
 /* Multiply the word in R1:R0 by B. The product is returned in R1:R0:B,
  * with A also holding the high byte.
  */
-void multiply_stock_u16_u8(void)
+void MULTIPLY_U16_U8(void)
 {
     const uint8_t factor = B;
     const uint16_t high_product = (uint16_t)stock_r1 * factor;
@@ -17,7 +26,7 @@ void multiply_stock_u16_u8(void)
 }
 
 /* The word is signed and the factor in B is unsigned. */
-void multiply_stock_i16_u8(void)
+void MULTIPLY_I16_U8(void)
 {
     const uint8_t factor = B;
     const uint8_t high = stock_r1;
