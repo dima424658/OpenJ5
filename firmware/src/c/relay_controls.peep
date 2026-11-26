@@ -1,0 +1,502 @@
+// Preserve the active-low lamp override and output-latch status.
+replace {
+    mov r7,_stock_r3
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    cjne r7,#0x01,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x06,%5
+    ljmp %6
+    %5:
+    ljmp %7
+    %2:
+    anl _output_override_flags,#0xfe
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov r7,a
+    anl ar7,#0x10
+    mov a,r7
+    cjne a,#0x01,%8
+    %8:
+    mov _apply_output_control_0c_sloc0_1_0,c
+    cpl _apply_output_control_0c_sloc0_1_0
+    mov c,_apply_output_control_0c_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %4:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov r7,a
+    anl ar7,#0x10
+    mov a,r7
+    cjne a,#0x01,%10
+    %10:
+    mov _apply_output_control_0c_sloc0_1_0,c
+    cpl _apply_output_control_0c_sloc0_1_0
+    mov c,_apply_output_control_0c_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %6:
+    orl _output_override_flags,#0x01
+    jb _serial_extended_length,%11
+    ljmp %12
+    %11:
+    mov r7,#0x01
+    ljmp %13
+    %12:
+    mov r7,#0x00
+    %13:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%14
+    %14:
+    mov _apply_output_control_0c_sloc0_1_0,c
+    cpl _apply_output_control_0c_sloc0_1_0
+    mov c,_apply_output_control_0c_sloc0_1_0
+    cpl c
+    mov _lamp_off_request,c
+    mov c,_lamp_off_request
+    cpl c
+    mov _apply_output_control_0c_sloc0_1_0,c
+    mov c,_apply_output_control_0c_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %7:
+    mov _stock_r2,#0x12
+    %9:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00970$
+    anl _output_override_flags,#0xfe
+    sjmp 00971$
+    00970$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00972$
+    00971$:
+    mov r2,#0x01
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov c,acc.4
+    jc 00973$
+    mov r2,#0x00
+    sjmp 00973$
+    00972$:
+    mov a,r3
+    xrl a,#0x06
+    jnz 00974$
+    orl _output_override_flags,#0x01
+    jnb _serial_extended_length,00975$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00976$
+    00975$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00976$:
+    jnz 00977$
+    setb _lamp_off_request
+    mov r2,#0x00
+    sjmp 00973$
+    00977$:
+    clr _lamp_off_request
+    mov r2,#0x01
+    sjmp 00973$
+    00974$:
+    mov r2,#0x12
+    00973$:
+    ret
+}
+
+// Preserve the air-conditioning override and relay status.
+replace {
+    mov r7,_stock_r3
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    cjne r7,#0x01,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x06,%5
+    ljmp %6
+    %5:
+    ljmp %7
+    %2:
+    anl _output_override_flags,#0xfb
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov r7,a
+    anl ar7,#0x01
+    mov a,r7
+    cjne a,#0x01,%8
+    %8:
+    mov _apply_output_control_0b_sloc0_1_0,c
+    cpl _apply_output_control_0b_sloc0_1_0
+    mov c,_apply_output_control_0b_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %4:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov r7,a
+    anl ar7,#0x01
+    mov a,r7
+    cjne a,#0x01,%10
+    %10:
+    mov _apply_output_control_0b_sloc0_1_0,c
+    cpl _apply_output_control_0b_sloc0_1_0
+    mov c,_apply_output_control_0b_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %6:
+    orl _output_override_flags,#0x04
+    jb _serial_extended_length,%11
+    ljmp %12
+    %11:
+    mov r7,#0x01
+    ljmp %13
+    %12:
+    mov r7,#0x00
+    %13:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%14
+    %14:
+    mov _apply_output_control_0b_sloc0_1_0,c
+    mov c,_apply_output_control_0b_sloc0_1_0
+    cpl c
+    mov _ac_override_on,c
+    mov c,_ac_override_on
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %7:
+    mov _stock_r2,#0x12
+    %9:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00978$
+    anl _output_override_flags,#0xfb
+    mov r2,#0x01
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    setb c
+    anl c,acc.0
+    jc 00979$
+    mov r2,#0x00
+    sjmp 00979$
+    00978$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00980$
+    mov r2,#0x01
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    setb c
+    anl c,acc.0
+    jc 00979$
+    mov r2,#0x00
+    sjmp 00979$
+    00980$:
+    mov a,r3
+    xrl a,#0x06
+    jnz 00981$
+    orl _output_override_flags,#0x04
+    jnb _serial_extended_length,00982$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00983$
+    00982$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00983$:
+    jnz 00984$
+    clr _ac_override_on
+    mov r2,#0x00
+    sjmp 00979$
+    00984$:
+    setb _ac_override_on
+    mov r2,#0x01
+    sjmp 00979$
+    00981$:
+    mov r2,#0x12
+    00979$:
+    ret
+}
+
+// Preserve the active-low fan status and override request.
+replace {
+    mov r7,_stock_r3
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    cjne r7,#0x01,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x06,%5
+    ljmp %6
+    %5:
+    ljmp %7
+    %2:
+    anl _output_override_flags,#0xfd
+    mov c,_fan_off
+    cpl c
+    mov _apply_output_control_0a_sloc0_1_0,c
+    mov c,_apply_output_control_0a_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %8
+    %4:
+    mov c,_fan_off
+    cpl c
+    mov _apply_output_control_0a_sloc0_1_0,c
+    mov c,_apply_output_control_0a_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %8
+    %6:
+    orl _output_override_flags,#0x02
+    jb _serial_extended_length,%9
+    ljmp %10
+    %9:
+    mov r7,#0x01
+    ljmp %11
+    %10:
+    mov r7,#0x00
+    %11:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%12
+    %12:
+    mov _apply_output_control_0a_sloc0_1_0,c
+    mov c,_apply_output_control_0a_sloc0_1_0
+    cpl c
+    mov _fan_override_on,c
+    mov c,_fan_override_on
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %8
+    %7:
+    mov _stock_r2,#0x12
+    %8:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00985$
+    anl _output_override_flags,#0xfd
+    mov r2,#0x00
+    setb c
+    anl c,_fan_off
+    jc 00986$
+    mov r2,#0x01
+    sjmp 00986$
+    00985$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00987$
+    mov r2,#0x00
+    setb c
+    anl c,_fan_off
+    jc 00986$
+    mov r2,#0x01
+    sjmp 00986$
+    00987$:
+    mov a,r3
+    xrl a,#0x06
+    jnz 00988$
+    orl _output_override_flags,#0x02
+    jnb _serial_extended_length,00989$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00990$
+    00989$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00990$:
+    jnz 00991$
+    clr _fan_override_on
+    mov r2,#0x00
+    sjmp 00986$
+    00991$:
+    setb _fan_override_on
+    mov r2,#0x01
+    sjmp 00986$
+    00988$:
+    mov r2,#0x12
+    00986$:
+    ret
+}
+
+// Preserve the pump override and relay status.
+replace {
+    mov r7,_stock_r3
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    cjne r7,#0x01,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x06,%5
+    ljmp %6
+    %5:
+    ljmp %7
+    %2:
+    anl _output_override_flags,#0xf7
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov r7,a
+    anl ar7,#0x40
+    mov a,r7
+    cjne a,#0x01,%8
+    %8:
+    mov _apply_output_control_09_sloc0_1_0,c
+    cpl _apply_output_control_09_sloc0_1_0
+    mov c,_apply_output_control_09_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %4:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov r7,a
+    anl ar7,#0x40
+    mov a,r7
+    cjne a,#0x01,%10
+    %10:
+    mov _apply_output_control_09_sloc0_1_0,c
+    cpl _apply_output_control_09_sloc0_1_0
+    mov c,_apply_output_control_09_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %6:
+    orl _output_override_flags,#0x08
+    jb _serial_extended_length,%11
+    ljmp %12
+    %11:
+    mov r7,#0x01
+    ljmp %13
+    %12:
+    mov r7,#0x00
+    %13:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%14
+    %14:
+    mov _apply_output_control_09_sloc0_1_0,c
+    mov c,_apply_output_control_09_sloc0_1_0
+    cpl c
+    mov _service_pump_output,c
+    mov c,_service_pump_output
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %7:
+    mov _stock_r2,#0x12
+    %9:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00992$
+    anl _output_override_flags,#0xf7
+    sjmp 00993$
+    00992$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00994$
+    00993$:
+    mov r2,#0x00
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    setb c
+    anl c,acc.6
+    jnc 00995$
+    mov r2,#0x01
+    sjmp 00995$
+    00994$:
+    mov a,r3
+    xrl a,#0x06
+    jnz 00996$
+    orl _output_override_flags,#0x08
+    jnb _serial_extended_length,00997$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00998$
+    00997$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00998$:
+    jnz 00999$
+    clr _service_pump_output
+    mov r2,#0x00
+    sjmp 00995$
+    00999$:
+    setb _service_pump_output
+    mov r2,#0x01
+    sjmp 00995$
+    00996$:
+    mov r2,#0x12
+    00995$:
+    ret
+}
