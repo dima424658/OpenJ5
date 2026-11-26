@@ -22,12 +22,12 @@ SYMBOLS = {
     "_calibration_suffix_7f9e": 0x7F9E,
     "_calibration_upper_prefix": 0x8000,
     "_calibration_6125": 0x6125,
-    "reset_vector": 0x0000,
-    "irq_vector_0003": 0x0003,
-    "irq_vector_001b": 0x001B,
-    "irq_vector_0023": 0x0023,
-    "irq_vector_006b": 0x006B,
-    "vector_block_end": 0x00B0,
+    "_reset_vector": 0x0000,
+    "_irq_vector_0003": 0x0003,
+    "_irq_vector_001b": 0x001B,
+    "_irq_vector_0023": 0x0023,
+    "_irq_vector_006b": 0x006B,
+    "_vector_gap_00b0": 0x00B0,
     "_irq_unused_00d3": 0x00D3,
     "_increment_irq_counter_78": 0x00DB,
     "_clear_fuel_history_f839": 0x2041,
@@ -1126,7 +1126,63 @@ SYMBOLS = {
     "_alternate_tps_quantization_q4": 0x8D95,
     "_alternate_throttle_breakpoints": 0x8DFA,
 }
+C_ABSOLUTE_DATA = {
+    0x0006: 5,
+    0x000C: 7,
+    0x0014: 7,
+    0x001E: 5,
+    0x0026: 5,
+    0x002C: 23,
+    0x0044: 7,
+    0x004C: 7,
+    0x0054: 7,
+    0x005C: 7,
+    0x0064: 7,
+    0x006E: 21,
+    0x0084: 15,
+    0x0094: 7,
+    0x009C: 7,
+    0x00A4: 7,
+    0x00AC: 4,
+    0x5ABD: 1171,
+    0x5F68: 2,
+    0x5F78: 5,
+    0x5FAB: 1,
+    0x5FC4: 2,
+    0x5FD4: 1,
+    0x5FEC: 1,
+    0x5FEF: 1,
+    0x5FF7: 9,
+    0x6053: 1,
+    0x605B: 1,
+    0x6088: 2,
+    0x608C: 1,
+    0x6096: 2,
+    0x609C: 1,
+    0x60A5: 1,
+    0x60A9: 1,
+    0x60AB: 2,
+    0x60AF: 2,
+    0x60B3: 2,
+    0x60B6: 4,
+    0x60C1: 6,
+    0x60CB: 1,
+    0x60D2: 3,
+    0x60D9: 1,
+    0x60E2: 1,
+    0x60E7: 2,
+    0x60EC: 1,
+    0x60FB: 5,
+    0xBFFF: 17,
+}
+
 C_SECTIONS = {
+    "code_0000": 3,
+    "code_0003": 3,
+    "code_001b": 3,
+    "code_0023": 3,
+    "code_006b": 3,
+
     "code_5a25": 152,
     "code_00d3": 1,
     "code_00db": 3,
@@ -1782,6 +1838,35 @@ def convert_hex(lines):
     return image
 
 
+def verify_absolute_c_data(linker_map):
+    sizes_by_address = {}
+    for page in linker_map.split("\f"):
+        area = re.search(
+            r"^CABS[0-9A-Fa-f]+ +[0-9A-F]+ +([0-9A-F]+) +=.*\(ABS,CON,CODE\)",
+            page,
+            flags=re.MULTILINE,
+        )
+        if area is None:
+            continue
+        symbol = re.search(
+            r"^C:\s+([0-9A-F]+) +_rom_layout_([0-9a-f]{4}) +rom_layout\s*$",
+            page,
+            flags=re.MULTILINE,
+        )
+        if symbol is None:
+            continue
+        actual, expected = (int(value, 16) for value in symbol.groups())
+        if actual != expected:
+            raise ValueError(f"linker map: expected fixed C data at 0x{expected:04X}")
+        sizes_by_address[actual] = int(area[1], 16)
+
+    for address, size in C_ABSOLUTE_DATA.items():
+        if sizes_by_address.get(address) != size:
+            raise ValueError(f"linker map: expected {size} bytes of fixed C data at 0x{address:04X}")
+    if sizes_by_address.keys() != C_ABSOLUTE_DATA.keys():
+        raise ValueError("linker map: unexpected section of fixed C data")
+
+
 def verify(image, reference, linker_map):
     for address, (actual, expected) in enumerate(zip(image, reference)):
         if actual != expected:
@@ -1809,6 +1894,8 @@ def verify(image, reference, linker_map):
     for section, size in C_SECTIONS.items():
         if linked.get(f"l_{section}") != size:
             raise ValueError(f"linker map: expected {size} bytes in {section}")
+
+    verify_absolute_c_data(linker_map)
 
     flash = sum(image) & 0xFFFF
     complement = int.from_bytes(image[0xFFFA:0xFFFC], "little")
@@ -1848,7 +1935,8 @@ def main():
             )
             print(f"J5V05L19: {ROM_SIZE} bytes match. SHA-256 {STOCK_SHA256}")
             print("Vectors and interpolation addresses match. Checksums: 7602, D3B2, 0780.")
-            print(f"C section sizes match: {sum(C_SECTIONS.values())} bytes.")
+            c_size = sum(C_SECTIONS.values()) + sum(C_ABSOLUTE_DATA.values())
+            print(f"C section sizes match: {c_size} bytes.")
     except (OSError, ValueError) as error:
         parser.exit(1, f"{error}\n")
 

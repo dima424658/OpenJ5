@@ -301,11 +301,7 @@
 
 ; CODE [0x5a25, 0x5abd) comes from src/c/5a25.c.
 
-; Zero-filled gap between UART0 and the calibration region.
-        .org 0x5abd
-        .rept 0x0493
-        .db 0
-        .endm
+; CODE [0x5abd, 0x5f50) comes from src/c/rom_layout.c.
 
 ; CODE [0x5f50, 0x5f55) comes from src/c/5f50.c.
 
@@ -345,9 +341,7 @@
 
 ; CODE [0x5f67, 0x5f68) comes from src/c/5f67.c.
 
-; CODE [0x5f68, 0x5f6a)
-        .org 0x5f68
-        .db 0x40,0x20
+; CODE [0x5f68, 0x5f6a) comes from src/c/rom_layout.c.
 
 ; CODE [0x5f6a, 0x5f6b) comes from src/c/5f6a.c.
 
@@ -377,9 +371,7 @@
 
 ; CODE [0x5f77, 0x5f78) comes from src/c/5f77.c.
 
-; CODE [0x5f78, 0x5f7d)
-        .org 0x5f78
-        .db 0x78,0x50,0x05,0x05,0x01
+; CODE [0x5f78, 0x5f7d) comes from src/c/rom_layout.c.
 
 ; CODE [0x5f7d, 0x5f7e) comes from src/c/5f7d.c.
 
@@ -457,9 +449,7 @@
 
 ; CODE [0x5faa, 0x5fab) comes from src/c/5faa.c.
 
-; CODE [0x5fab, 0x5fac)
-        .org 0x5fab
-        .db 0x27
+; CODE [0x5fab, 0x5fac) comes from src/c/rom_layout.c.
 
 ; CODE [0x5fac, 0x5fad) comes from src/c/5fac.c.
 
@@ -501,9 +491,7 @@
 
 ; CODE [0x5fc2, 0x5fc4) comes from src/c/5fc2.c.
 
-; CODE [0x5fc4, 0x5fc6)
-        .org 0x5fc4
-        .db 0x90,0xf9
+; CODE [0x5fc4, 0x5fc6) comes from src/c/rom_layout.c.
 
 ; CODE [0x5fc6, 0x5fc8) comes from src/c/5fc6.c.
 
@@ -511,9 +499,7 @@
 
 ; CODE [0x5fd2, 0x5fd4) comes from src/c/5fd2.c.
 
-; CODE [0x5fd4, 0x5fd5)
-        .org 0x5fd4
-        .db 0x00
+; CODE [0x5fd4, 0x5fd5) comes from src/c/rom_layout.c.
 
 ; CODE [0x5fd5, 0x5fd8) comes from src/c/5fd5.c.
 
@@ -543,15 +529,11 @@
 
 ; CODE [0x5fe8, 0x5fec) comes from src/c/5fe8.c.
 
-; CODE [0x5fec, 0x5fed)
-        .org 0x5fec
-        .db 0x3c
+; CODE [0x5fec, 0x5fed) comes from src/c/rom_layout.c.
 
 ; CODE [0x5fed, 0x5fef) comes from src/c/5fed.c.
 
-; CODE [0x5fef, 0x5ff0)
-        .org 0x5fef
-        .db 0x06
+; CODE [0x5fef, 0x5ff0) comes from src/c/rom_layout.c.
 
 ; CODE [0x5ff0, 0x5ff2) comes from src/c/5ff0.c.
 
@@ -561,17 +543,13 @@
 
 ; CODE [0x5ff6, 0x5ff7) comes from src/c/5ff6.c.
 
-; CODE [0x5ff7, 0x6000)
-        .org 0x5ff7
-        .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+; CODE [0x5ff7, 0x6000) comes from src/c/rom_layout.c.
 
 ; CODE [0x6000, 0x6051) comes from src/c/6000.c.
 
 ; CODE [0x6051, 0x6053) comes from src/c/6051.c.
 
-; CODE [0x6053, 0x6054)
-        .org 0x6053
-        .db 0x2d
+; CODE [0x6053, 0x6054) comes from src/c/rom_layout.c.
 
 ; CODE [0x6054, 0x6055) comes from src/c/6054.c.
 
@@ -585,9 +563,7 @@
 
 ; CODE [0x605a, 0x605b) comes from src/c/605a.c.
 
-; CODE [0x605b, 0x605c)
-        .org 0x605b
-        .db 0x64
+; CODE [0x605b, 0x605c) comes from src/c/rom_layout.c.
 
 ; CODE [0x605c, 0x605d) comes from src/c/605c.c.
 
@@ -655,17 +631,13 @@
 
 ; CODE [0x6086, 0x6088) comes from src/c/6086.c.
 
-; CODE [0x6088, 0x608a)
-        .org 0x6088
-        .db 0x71,0xfd
+; CODE [0x6088, 0x608a) comes from src/c/rom_layout.c.
 
 ; CODE [0x608a, 0x608b) comes from src/c/608a.c.
 
 ; CODE [0x608b, 0x608c) comes from src/c/608b.c.
 
-; CODE [0x608c, 0x608d)
-        .org 0x608c
-        .db 0x02
+; CODE [0x608c, 0x608d) comes from src/c/rom_layout.c.
 
 ; CODE [0x608d, 0x608f) comes from src/c/608d.c.
 
@@ -675,15 +647,11 @@
 
 ; CODE [0x6093, 0x6096) comes from src/c/6093.c.
 
-; CODE [0x6096, 0x6098)
-        .org 0x6096
-        .db 0xec,0x18
+; CODE [0x6096, 0x6098) comes from src/c/rom_layout.c.
 
 ; CODE [0x6098, 0x609c) comes from src/c/6098.c.
 
-; CODE [0x609c, 0x609d)
-        .org 0x609c
-        .db 0x04
+; CODE [0x609c, 0x609d) comes from src/c/rom_layout.c.
 
 ; CODE [0x609d, 0x609e) comes from src/c/609d.c.
 
@@ -693,9 +661,7 @@
 
 ; CODE [0x60a4, 0x60a5) comes from src/c/60a4.c.
 
-; CODE [0x60a5, 0x60a6)
-        .org 0x60a5
-        .db 0x0f
+; CODE [0x60a5, 0x60a6) comes from src/c/rom_layout.c.
 
 ; CODE [0x60a6, 0x60a7) comes from src/c/60a6.c.
 
@@ -703,61 +669,43 @@
 
 ; CODE [0x60a8, 0x60a9) comes from src/c/60a8.c.
 
-; CODE [0x60a9, 0x60aa)
-        .org 0x60a9
-        .db 0x02
+; CODE [0x60a9, 0x60aa) comes from src/c/rom_layout.c.
 
 ; CODE [0x60aa, 0x60ab) comes from src/c/60aa.c.
 
-; CODE [0x60ab, 0x60ad)
-        .org 0x60ab
-        .db 0x41
-        .db 0x00
+; CODE [0x60ab, 0x60ad) comes from src/c/rom_layout.c.
 
 ; CODE [0x60ad, 0x60ae) comes from src/c/60ad.c.
 
 ; CODE [0x60ae, 0x60af) comes from src/c/60ae.c.
 
-; CODE [0x60af, 0x60b1)
-        .org 0x60af
-        .db 0x0a
-        .db 0xf8
+; CODE [0x60af, 0x60b1) comes from src/c/rom_layout.c.
 
 ; CODE [0x60b1, 0x60b3) comes from src/c/60b1.c.
 
-; CODE [0x60b3, 0x60b5)
-        .org 0x60b3
-        .db 0x50,0x5a
+; CODE [0x60b3, 0x60b5) comes from src/c/rom_layout.c.
 
 ; CODE [0x60b5, 0x60b6) comes from src/c/60b5.c.
 
-; CODE [0x60b6, 0x60ba)
-        .org 0x60b6
-        .db 0x10,0xf0,0xf0,0x50
+; CODE [0x60b6, 0x60ba) comes from src/c/rom_layout.c.
 
 ; CODE [0x60ba, 0x60c0) comes from src/c/60ba.c.
 
 ; CODE [0x60c0, 0x60c1) comes from src/c/60c0.c.
 
-; CODE [0x60c1, 0x60c7)
-        .org 0x60c1
-        .db 0x32,0xeb,0x00,0x33,0x66,0x99
+; CODE [0x60c1, 0x60c7) comes from src/c/rom_layout.c.
 
 ; CODE at 0x60c7 comes from src/c/60c7.c.
 
 ; CODE [0x60c9, 0x60cb) comes from src/c/60c9.c.
 
-; CODE [0x60cb, 0x60cc)
-        .org 0x60cb
-        .db 0x22
+; CODE [0x60cb, 0x60cc) comes from src/c/rom_layout.c.
 
 ; CODE [0x60cc, 0x60ce) comes from src/c/60cc.c.
 
 ; CODE [0x60ce, 0x60d2) comes from src/c/60ce.c.
 
-; CODE [0x60d2, 0x60d5)
-        .org 0x60d2
-        .db 0x02,0x14,0x0c
+; CODE [0x60d2, 0x60d5) comes from src/c/rom_layout.c.
 
 ; CODE [0x60d5, 0x60d7) comes from src/c/60d5.c.
 
@@ -765,9 +713,7 @@
 
 ; CODE [0x60d8, 0x60d9) comes from src/c/60d8.c.
 
-; CODE [0x60d9, 0x60da)
-        .org 0x60d9
-        .db 0x14
+; CODE [0x60d9, 0x60da) comes from src/c/rom_layout.c.
 
 ; CODE [0x60da, 0x60db) comes from src/c/60da.c.
 
@@ -785,9 +731,7 @@
 
 ; CODE [0x60e1, 0x60e2) comes from src/c/60e1.c.
 
-; CODE [0x60e2, 0x60e3)
-        .org 0x60e2
-        .db 0x4d
+; CODE [0x60e2, 0x60e3) comes from src/c/rom_layout.c.
 
 ; CODE [0x60e3, 0x60e4) comes from src/c/60e3.c.
 
@@ -797,9 +741,7 @@
 
 ; CODE [0x60e6, 0x60e7) comes from src/c/60e6.c.
 
-; CODE [0x60e7, 0x60e9)
-        .org 0x60e7
-        .db 0x38,0x04
+; CODE [0x60e7, 0x60e9) comes from src/c/rom_layout.c.
 
 ; CODE [0x60e9, 0x60ea) comes from src/c/60e9.c.
 
@@ -807,9 +749,7 @@
 
 ; CODE [0x60eb, 0x60ec) comes from src/c/60eb.c.
 
-; CODE [0x60ec, 0x60ed)
-        .org 0x60ec
-        .db 0x0f
+; CODE [0x60ec, 0x60ed) comes from src/c/rom_layout.c.
 
 ; CODE [0x60ed, 0x60ef) comes from src/c/60ed.c.
 
@@ -829,9 +769,7 @@
 
 ; CODE [0x60f8, 0x60fb) comes from src/c/60f8.c.
 
-; CODE [0x60fb, 0x6100)
-        .org 0x60fb
-        .db 0x00,0x00,0x00,0x00,0x00
+; CODE [0x60fb, 0x6100) comes from src/c/rom_layout.c.
 
 ; CODE [0x6100, 0x6104) comes from src/c/6100.c.
 
@@ -1169,12 +1107,7 @@
 
 ; CODE [0xbe7f, 0xbfff) comes from src/c/be7f.c.
 
-        .org 0xbfff
-        .db 0x00
-
-; Stock zero fill [0xc000, 0xc010)
-        .org 0xc000
-        .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+; CODE [0xbfff, 0xc010) comes from src/c/rom_layout.c.
 
 ; CODE [0xc010, 0xc11c) comes from src/c/c010.c.
 
