@@ -19,6 +19,11 @@ parser.add_argument(
     type=Path,
     help="compare the embedded loader against the captured 147 bootstrap frames",
 )
+parser.add_argument(
+    "--starter-relay-template",
+    type=Path,
+    help="extract the 222-byte starter relay template from this executable",
+)
 args = parser.parse_args()
 source = args.source.read_bytes()
 if sha256(source).hexdigest() != "c1c0f2695ed217ddb4d9894ed34ad96ee7af8f428e28b0822809bb27b92c59aa":
@@ -112,6 +117,28 @@ for name, rva, virtual_size, flags, data in sections:
     section_offset += 40
     output.extend(data)
     output.extend(bytes(aligned_size - len(data)))
+def decode_embedded(start, size):
+    # The transform takes a synthetic return address in scratch memory.
+    scratch, stack, stop = 0x10002000, 0x10008000, 0x10001000
+
+    def run_routine(address, *parameters):
+        stack_values = struct.pack(f"<{len(parameters) + 1}I", stop, *parameters)
+        emulator.mem_write(stack, stack_values)
+        emulator.reg_write(UC_X86_REG_ESP, stack)
+        emulator.emu_start(address, stop, count=100_000)
+        if emulator.reg_read(UC_X86_REG_EIP) != stop:
+            raise RuntimeError(f"routine at {address:#x} did not return")
+
+    run_routine(0x401a54, 0x4ec6a4)
+    decoded = bytearray()
+    block_end = size - size % 16
+    for offset in range(0, block_end, 16):
+        run_routine(0x401d4c, start + offset, scratch)
+        decoded.extend(emulator.mem_read(scratch, 16))
+    decoded.extend(emulator.mem_read(start + block_end, size - block_end))
+    return decoded
+
+
 if args.bootstrap_frames:
     frames = args.bootstrap_frames.read_bytes()
     if (
@@ -125,28 +152,16 @@ if args.bootstrap_frames:
         parser.error("unexpected bootstrap data frame type")
     captured = b"".join(block[1:17] for block in blocks) + frames[2603:2605]
 
-    # The embedded buffer and transform are already mapped by decompression.
-    # Run the isolated routines with a synthetic return address in scratch memory.
-    scratch, stack, stop = 0x10002000, 0x10008000, 0x10001000
-
-    def run_routine(address, *parameters):
-        stack_values = struct.pack(f"<{len(parameters) + 1}I", stop, *parameters)
-        emulator.mem_write(stack, stack_values)
-        emulator.reg_write(UC_X86_REG_ESP, stack)
-        emulator.emu_start(address, stop, count=100_000)
-        if emulator.reg_read(UC_X86_REG_EIP) != stop:
-            raise RuntimeError(f"routine at {address:#x} did not return")
-
-    run_routine(0x401a54, 0x4ec6a4)
-    embedded_start = 0x4e0bac
-    decoded = bytearray()
-    for offset in range(0, 144 * 16, 16):
-        run_routine(0x401d4c, embedded_start + offset, scratch)
-        decoded.extend(emulator.mem_read(scratch, 16))
-    decoded.extend(emulator.mem_read(embedded_start + 144 * 16, 2))
+    decoded = decode_embedded(0x4e0bac, 2306)
     if decoded != captured:
         raise RuntimeError("decrypted bootstrap does not match the capture")
     print(f"Matched {len(decoded)} captured loader bytes, SHA-256 {sha256(decoded).hexdigest()}")
+
+if args.starter_relay_template:
+    template = decode_embedded(0x4e1918, 222)
+    with args.starter_relay_template.open("xb") as template_file:
+        template_file.write(template)
+    print(f"Starter relay template SHA-256: {sha256(template).hexdigest()}")
 
 with args.output.open("xb") as output_file:
     output_file.write(output)

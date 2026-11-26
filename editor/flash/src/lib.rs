@@ -1,5 +1,7 @@
 //! Image validation and Flash frames for the Janvar 5.1 loader.
 
+pub mod advanced;
+pub mod programmer;
 pub mod read;
 pub mod session;
 pub mod write;

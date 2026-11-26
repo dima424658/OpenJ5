@@ -7,43 +7,47 @@ use std::time::{Duration, Instant};
 use janvar_editor::firmware::IMAGE_SIZE;
 use sha2::{Digest, Sha256};
 
-use crate::{BLOCK_SIZE, EEPROM_SIZE, WriteImage, frame_sum, read, write};
+use crate::{BLOCK_SIZE, EEPROM_SIZE, WriteImage, read, write};
+
+mod protocol;
+use protocol::{Command, Echo, Request};
 
 const BLOCK_TIMEOUT: Duration = Duration::from_secs(2);
-const CONTROL_TIMEOUT: Duration = Duration::from_secs(10);
 const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 const PROBE_INTERVAL: Duration = Duration::from_millis(250);
-const BOOT_FRAME_COUNT: usize = 145;
+const BOOT_HEADER_END: usize = 9;
+const BOOT_FOOTER_SIZE: usize = 8;
 const BOOT_FRAME_SIZE: usize = 18;
-const BOOT_DATA_END: usize = 9 + BOOT_FRAME_COUNT * BOOT_FRAME_SIZE;
-const BOOT_FILE_SIZE: usize = BOOT_DATA_END + 8;
+const BOOT_FILE_SIZE: usize = BOOT_HEADER_END + 177 * BOOT_FRAME_SIZE + BOOT_FOOTER_SIZE;
+const EMBEDDED_BOOTSTRAP: &[u8; BOOT_FILE_SIZE] = include_bytes!(env!("JANVAR_BOOTSTRAP_FRAMES"));
 const BOOT_SHA256: [u8; 32] = [
-    0xeb, 0x5c, 0x50, 0xf7, 0xe6, 0x56, 0x62, 0xda, 0x75, 0x62, 0x88, 0x4e, 0x0e, 0x9c, 0x61, 0xbd,
-    0xc4, 0xe5, 0x00, 0xa4, 0x25, 0x7b, 0x09, 0x6f, 0xaf, 0x4d, 0x27, 0xff, 0xf6, 0x0a, 0x8c, 0xbc,
+    0xa0, 0x43, 0xab, 0x3c, 0x22, 0x27, 0xe8, 0x4c, 0xa6, 0xc3, 0xf8, 0x75, 0x09, 0x1a, 0xb4, 0x74,
+    0x7b, 0xe8, 0x15, 0x34, 0x53, 0x3b, 0xf8, 0xd8, 0x1d, 0xc4, 0x08, 0xf4, 0xb2, 0x5a, 0xd7, 0x89,
 ];
 
-/// The bootstrap byte stream verified against the three successful captures.
-pub struct Bootstrap<'a>(&'a [u8]);
+/// The verified embedded C509-L bootstrap byte stream.
+pub struct Bootstrap(&'static [u8; BOOT_FILE_SIZE]);
 
-impl<'a> Bootstrap<'a> {
-    pub fn new(bytes: &'a [u8]) -> io::Result<Self> {
-        if bytes.len() != BOOT_FILE_SIZE || Sha256::digest(bytes)[..] != BOOT_SHA256 {
-            return Err(invalid("unexpected bootstrap file size or SHA-256"));
+impl Bootstrap {
+    pub fn embedded() -> io::Result<Self> {
+        if Sha256::digest(EMBEDDED_BOOTSTRAP)[..] != BOOT_SHA256 {
+            return Err(invalid("unexpected embedded bootstrap SHA-256"));
         }
-        Ok(Self(bytes))
+        Ok(Self(EMBEDDED_BOOTSTRAP))
     }
 
     fn frames(&self) -> impl Iterator<Item = &[u8]> {
-        [&self.0[1..9]]
-            .into_iter()
+        let data_end = self.0.len() - BOOT_FOOTER_SIZE;
+        let (header, data) = self.0[..data_end].split_at(BOOT_HEADER_END);
+        let footer = &self.0[data_end..];
+        std::iter::once(&header[1..])
             .chain(
-                self.0[9..BOOT_DATA_END]
-                    .as_chunks::<BOOT_FRAME_SIZE>()
+                data.as_chunks::<BOOT_FRAME_SIZE>()
                     .0
                     .iter()
-                    .map(<[u8; BOOT_FRAME_SIZE]>::as_slice),
+                    .map(<[_; BOOT_FRAME_SIZE]>::as_slice),
             )
-            .chain([&self.0[BOOT_DATA_END..]])
+            .chain(std::iter::once(footer))
     }
 }
 
@@ -56,7 +60,12 @@ pub trait Link: Read + Write {
 }
 
 #[cfg(windows)]
-impl Link for serialport::COMPort {
+pub use serialport::COMPort as NativePort;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub use serialport::TTYPort as NativePort;
+
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+impl Link for NativePort {
     fn set_read_timeout(&mut self, timeout: Duration) -> io::Result<()> {
         serialport::SerialPort::set_timeout(self, timeout.max(Duration::from_millis(1)))
             .map_err(io::Error::other)
@@ -90,14 +99,16 @@ pub struct Progress {
 /// An identified, active programming session on the captured hardware profile.
 pub struct Session<T> {
     link: T,
+    controller_flags: u8,
     flash_probe: Option<[u8; 2]>,
     progress: Option<Box<dyn FnMut(Progress)>>,
 }
 
 impl<T: Link> Session<T> {
-    pub fn start(link: T, bootstrap: &Bootstrap<'_>) -> io::Result<Self> {
+    pub fn start(link: T, bootstrap: &Bootstrap) -> io::Result<Self> {
         let mut session = Self {
             link,
+            controller_flags: 0,
             flash_probe: None,
             progress: None,
         };
@@ -109,12 +120,13 @@ impl<T: Link> Session<T> {
 
     pub fn start_waiting(
         link: T,
-        bootstrap: &Bootstrap<'_>,
+        bootstrap: &Bootstrap,
         timeout: Duration,
         progress: impl FnMut(Progress) + 'static,
     ) -> io::Result<Self> {
         let mut session = Self {
             link,
+            controller_flags: 0,
             flash_probe: None,
             progress: Some(Box::new(progress)),
         };
@@ -122,8 +134,8 @@ impl<T: Link> Session<T> {
         session.finish_start(bootstrap)
     }
 
-    fn finish_start(mut self, bootstrap: &Bootstrap<'_>) -> io::Result<Self> {
-        let total = BOOT_FRAME_COUNT + 2;
+    fn finish_start(mut self, bootstrap: &Bootstrap) -> io::Result<Self> {
+        let total = bootstrap.frames().count();
         self.report(Stage::Bootstrap, 0, total);
         for (index, frame) in bootstrap.frames().enumerate() {
             let completed = index + 1;
@@ -131,35 +143,32 @@ impl<T: Link> Session<T> {
                 .map_err(|error| at(&format!("bootstrap frame {completed}"), error))?;
             self.report(Stage::Bootstrap, completed, total);
         }
-        self.identify_flash()
-            .map_err(|error| at("identify Flash", error))?;
+        // Let the uploaded code complete its board and Flash probes.
+        thread::sleep(Duration::from_millis(100));
+        self.identify_controller()
+            .map_err(|error| at("identify controller", error))?;
         Ok(self)
     }
 
-    fn identify_flash(&mut self) -> io::Result<()> {
-        let flags = self.control_reply::<5>(0x13)?;
+    fn identify_controller(&mut self) -> io::Result<()> {
+        let [status, flags] = self.control(Command::ControllerFlags)?;
+        require_ack(Command::ControllerFlags, status)?;
         match flags {
-            [0x05, 0x93, 0x55, 0x04, 0xf1] => Ok(()),
-            [0x05, 0x93, 0x55, 0x00, 0xed] => {
-                let probe = self.control_reply::<5>(0x11)?;
-                let [0x05, 0x91, first, second, checksum] = probe else {
-                    return Err(invalid(format!(
-                        "unexpected Flash probe response {probe:02x?}"
-                    )));
-                };
-                if checksum != frame_sum(&probe[..4]) {
-                    return Err(invalid("invalid Flash probe response checksum"));
-                }
-                self.flash_probe = Some([first, second]);
+            0x00 | 0x04 => {
+                self.controller_flags = flags;
                 Ok(())
             }
             _ => Err(invalid(format!(
-                "unsupported Flash flag response {flags:02x?}"
+                "unsupported controller flags {flags:#04x}"
             ))),
         }
     }
 
-    /// Returns the raw probe bytes captured for Flash flag 00.
+    pub fn controller_flags(&self) -> u8 {
+        self.controller_flags
+    }
+
+    /// Returns the two bytes reported by the last probe before a Flash erase.
     pub fn flash_probe(&self) -> Option<[u8; 2]> {
         self.flash_probe
     }
@@ -216,65 +225,73 @@ impl<T: Link> Session<T> {
     }
 
     pub fn read_flash(&mut self) -> io::Result<Vec<u8>> {
-        self.control(0x19, &[0x04, 0x99, 0x55, 0xf2])
-            .map_err(|error| at("prepare Flash read", error))?;
+        let [layout] = self
+            .control(Command::FlashLayout)
+            .map_err(|error| at("identify Flash layout", error))?;
+        if layout != 0x55 {
+            return Err(invalid(format!(
+                "Flash layout {layout:#04x} requires a 128 KiB read; only the captured 64 KiB mode is supported"
+            )));
+        }
+
         let mut image = Vec::with_capacity(IMAGE_SIZE);
         let total = IMAGE_SIZE / BLOCK_SIZE;
         self.report(Stage::ReadFlash, 0, total);
         for offset in (0..IMAGE_SIZE).step_by(BLOCK_SIZE) {
             let request = read::request(offset).map_err(io::Error::other)?;
-            let mut response = [0; read::RESPONSE_SIZE];
-            self.send(&request)
-                .and_then(|()| {
-                    let deadline = Instant::now() + BLOCK_TIMEOUT;
-                    self.receive(&mut response[..1], deadline)?;
-                    if response[0] == request[0] {
-                        self.expect(&request[1..], deadline)?;
-                        self.receive(&mut response, deadline)
-                    } else {
-                        self.receive(&mut response[1..], deadline)
-                    }
-                })
+            let data: [u8; BLOCK_SIZE] = self
+                .exchange(Command::ReadFlash, &request, Echo::Optional)
                 .map_err(|error| block_at("read Flash", offset, error))?;
-            let data = read::payload(&response)
-                .map_err(|error| block_at("read Flash", offset, io::Error::other(error)))?;
-            image.extend_from_slice(data);
+            image.extend_from_slice(&data);
             self.report(Stage::ReadFlash, image.len() / BLOCK_SIZE, total);
         }
         Ok(image)
     }
 
     pub fn clear_flash(&mut self) -> io::Result<()> {
+        // CombiLoader probes immediately before erase, regardless of controller flags.
+        self.flash_probe = None;
+        let probe = self
+            .control(Command::FlashProbe)
+            .map_err(|error| at("probe Flash before erase", error))?;
+        self.flash_probe = Some(probe);
         self.report(Stage::EraseFlash, 0, 1);
-        // The flag 00 identification path already completed command 11.
-        if self.flash_probe.is_none() {
-            self.control(0x11, &[0x05, 0x91, 0x00, 0x80, 0x16])
-                .map_err(|error| at("prepare Flash erase", error))?;
-        }
-        self.control(0x12, &[0x04, 0x92, 0x55, 0xeb])
-            .map_err(|error| at("erase Flash", error))?;
+        self.control_ack(Command::EraseFlash).map_err(|error| {
+            at(
+                &format!("erase Flash (probe {:02X} {:02X})", probe[0], probe[1]),
+                error,
+            )
+        })?;
         self.report(Stage::EraseFlash, 1, 1);
         Ok(())
     }
 
     pub fn write_flash(&mut self, image: &WriteImage) -> io::Result<()> {
+        // This check precedes any erase in the CombiLoader flag-04 write branch.
+        const PROTECTION_MARKER: [u8; 4] = [0x23, 0x03, 0x33, 0x13];
+        if self.controller_flags == 0x04
+            && [0x6000, 0xc000]
+                .into_iter()
+                .any(|offset| image.bytes()[offset..].starts_with(&PROTECTION_MARKER))
+        {
+            return Err(invalid(
+                "controller flags 0x04 do not support this protected Flash image",
+            ));
+        }
+
         self.clear_flash()?;
         let (blocks, _) = image.bytes().as_chunks::<BLOCK_SIZE>();
         self.report(Stage::WriteFlash, 0, blocks.len());
         for (block, data) in blocks.iter().enumerate() {
             let offset = block * BLOCK_SIZE;
             let request = write::request(offset, data).map_err(io::Error::other)?;
-            let mut response = [0; write::RESPONSE_SIZE];
-            self.send(&request)
-                .and_then(|()| self.receive(&mut response, Instant::now() + BLOCK_TIMEOUT))
+            self.exchange_ack(Command::WriteFlash, &request)
                 .map_err(|error| block_at("write Flash", offset, error))?;
-            write::acknowledge(&request, &response)
-                .map_err(|error| block_at("write Flash", offset, io::Error::other(error)))?;
             self.report(Stage::WriteFlash, block + 1, blocks.len());
         }
         self.report(Stage::FinishFlash, 0, 1);
-        self.control(0x1a, &[0x04, 0x9a, 0x55, 0xf3])
-            .map_err(|error| at("finish Flash write", error))?;
+        self.control_ack(Command::FinalizeFlash)
+            .map_err(|error| at("copy Flash banks", error))?;
         self.report(Stage::FinishFlash, 1, 1);
         Ok(())
     }
@@ -287,53 +304,43 @@ impl<T: Link> Session<T> {
         for (block, data) in blocks.iter_mut().enumerate() {
             let offset = block * BLOCK_SIZE;
             let [high, low] = (offset as u16).to_be_bytes();
-            let mut request = [0x06, 0x16, high, low, BLOCK_SIZE as u8, 0];
-            request[5] = frame_sum(&request[..5]);
-            self.read_eeprom_block(&request, data)
+            let request = Request::new(Command::ReadEeprom, &[high, low, BLOCK_SIZE as u8], &[]);
+            let response: [u8; BLOCK_SIZE + 1] = self
+                .exchange(Command::ReadEeprom, request.bytes(), Echo::Required)
                 .map_err(|error| block_at("read EEPROM", offset, error))?;
+            let [status, payload @ ..] = response;
+            require_ack(Command::ReadEeprom, status)
+                .map_err(|error| block_at("read EEPROM", offset, error))?;
+            *data = payload;
             self.report(Stage::ReadEeprom, block + 1, total);
         }
         Ok(image)
     }
 
     pub fn write_eeprom(&mut self, image: &[u8; EEPROM_SIZE]) -> io::Result<()> {
-        self.transfer_eeprom(image, Stage::WriteEeprom)
+        self.transfer_eeprom(image, Stage::WriteEeprom, "write EEPROM")
     }
 
     pub fn clear_eeprom(&mut self) -> io::Result<()> {
-        self.transfer_eeprom(&[0xff; EEPROM_SIZE], Stage::ClearEeprom)
-            .map_err(|error| at("clear EEPROM", error))
+        self.transfer_eeprom(&[0xff; EEPROM_SIZE], Stage::ClearEeprom, "clear EEPROM")
     }
 
-    fn transfer_eeprom(&mut self, image: &[u8; EEPROM_SIZE], stage: Stage) -> io::Result<()> {
+    fn transfer_eeprom(
+        &mut self,
+        image: &[u8; EEPROM_SIZE],
+        stage: Stage,
+        label: &str,
+    ) -> io::Result<()> {
         let (blocks, _) = image.as_chunks::<BLOCK_SIZE>();
         self.report(stage, 0, blocks.len());
         for (block, data) in blocks.iter().enumerate() {
             let offset = block * BLOCK_SIZE;
             let [high, low] = (offset as u16).to_be_bytes();
-            let mut request = [0; BLOCK_SIZE + 6];
-            request[..5].copy_from_slice(&[0x86, 0x17, high, low, BLOCK_SIZE as u8]);
-            request[5..5 + BLOCK_SIZE].copy_from_slice(data);
-            request[5 + BLOCK_SIZE] = frame_sum(&request[..5 + BLOCK_SIZE]);
-            self.echoed(&request, &[0x04, 0x97, 0x55, 0xf0], BLOCK_TIMEOUT)
-                .map_err(|error| block_at("write EEPROM", offset, error))?;
+            let request = Request::new(Command::WriteEeprom, &[high, low, BLOCK_SIZE as u8], data);
+            self.exchange_ack(Command::WriteEeprom, request.bytes())
+                .map_err(|error| block_at(label, offset, error))?;
             self.report(stage, block + 1, blocks.len());
         }
-        Ok(())
-    }
-
-    fn read_eeprom_block(&mut self, request: &[u8], data: &mut [u8]) -> io::Result<()> {
-        self.send(request)?;
-        let deadline = Instant::now() + BLOCK_TIMEOUT;
-        self.expect(request, deadline)?;
-        let mut frame = [0; BLOCK_SIZE + 4];
-        self.receive(&mut frame, deadline)?;
-        if frame[..3] != [0x84, 0x96, 0x55]
-            || frame_sum(&frame[..frame.len() - 1]) != frame[frame.len() - 1]
-        {
-            return Err(invalid("unexpected EEPROM response header or checksum"));
-        }
-        data.copy_from_slice(&frame[3..frame.len() - 1]);
         Ok(())
     }
 
@@ -345,25 +352,64 @@ impl<T: Link> Session<T> {
         self.expect(&[0x55], Instant::now() + BLOCK_TIMEOUT)
     }
 
-    fn control(&mut self, command: u8, response: &[u8]) -> io::Result<()> {
-        self.echoed(&control_request(command), response, CONTROL_TIMEOUT)
+    fn control<const N: usize>(&mut self, command: Command) -> io::Result<[u8; N]> {
+        let request = Request::new(command, &[0], &[]);
+        self.exchange(command, request.bytes(), Echo::Required)
     }
 
-    fn control_reply<const N: usize>(&mut self, command: u8) -> io::Result<[u8; N]> {
-        let request = control_request(command);
-        self.send(&request)?;
-        let deadline = Instant::now() + CONTROL_TIMEOUT;
-        self.expect(&request, deadline)?;
-        let mut response = [0; N];
-        self.receive(&mut response, deadline)?;
-        Ok(response)
+    fn control_ack(&mut self, command: Command) -> io::Result<()> {
+        let [status] = self.control(command)?;
+        require_ack(command, status)
     }
 
-    fn echoed(&mut self, request: &[u8], response: &[u8], timeout: Duration) -> io::Result<()> {
-        self.send(request)?;
-        let deadline = Instant::now() + timeout;
-        self.expect(request, deadline)?;
-        self.expect(response, deadline)
+    fn exchange_ack(&mut self, command: Command, request: &[u8]) -> io::Result<()> {
+        let [status] = self.exchange(command, request, Echo::Required)?;
+        require_ack(command, status)
+    }
+
+    fn exchange<const N: usize>(
+        &mut self,
+        command: Command,
+        request: &[u8],
+        echo: Echo,
+    ) -> io::Result<[u8; N]> {
+        for attempt in 1..=command.attempts() {
+            self.send(request)?;
+            let deadline = Instant::now() + command.timeout();
+            let reply = self.receive_reply(request, echo, deadline)?;
+            match protocol::payload(command, reply.bytes()) {
+                Ok(data) => return Ok(data),
+                // A complete, bounded frame has been consumed. It is safe to
+                // retry a read without flushing a partial response.
+                Err(_) if attempt < command.attempts() => {}
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!("each command has at least one attempt")
+    }
+
+    fn receive_reply(
+        &mut self,
+        request: &[u8],
+        echo: Echo,
+        deadline: Instant,
+    ) -> io::Result<protocol::Reply> {
+        let mut first = [0];
+        if echo == Echo::Required {
+            self.expect(request, deadline)
+                .map_err(|error| at("command echo", error))?;
+            self.receive(&mut first, deadline)
+                .map_err(|error| at("reply header", error))?;
+        } else {
+            self.receive(&mut first, deadline)?;
+            if first[0] == request[0] {
+                self.expect(&request[1..], deadline)?;
+                self.receive(&mut first, deadline)?;
+            }
+        }
+        let mut reply = protocol::Reply::new(first[0])?;
+        self.receive(reply.remaining(), deadline)?;
+        Ok(reply)
     }
 
     fn send(&mut self, bytes: &[u8]) -> io::Result<()> {
@@ -409,8 +455,14 @@ impl<T: Link> Session<T> {
     }
 }
 
-fn control_request(command: u8) -> [u8; 4] {
-    [4, command, 0, 4u8.wrapping_add(command)]
+fn require_ack(command: Command, status: u8) -> io::Result<()> {
+    if status != 0x55 {
+        return Err(invalid(format!(
+            "ECU rejected command {:02X} with status {status:02X}",
+            command as u8
+        )));
+    }
+    Ok(())
 }
 
 fn invalid(message: impl Into<String>) -> io::Error {
@@ -472,15 +524,21 @@ mod tests {
     }
 
     #[test]
+    fn embedded_bootstrap_matches_the_verified_stream() {
+        let bootstrap = Bootstrap::embedded().unwrap();
+        assert_eq!(bootstrap.frames().count(), 179);
+    }
+
+    #[test]
     fn retries_only_until_the_initial_bootstrap_acknowledgement() {
         let mut trace = Trace {
             input: [Some(0), None, Some(0), Some(0x55), None].into(),
             ..Trace::default()
         };
-        let boot = [0; BOOT_FILE_SIZE];
+        let bootstrap = Bootstrap::embedded().unwrap();
         let error = Session::start_waiting(
             TestLink(&mut trace),
-            &Bootstrap(&boot),
+            &bootstrap,
             Duration::from_secs(2),
             |_| {},
         )
@@ -504,6 +562,7 @@ mod tests {
             let captured = Rc::clone(&progress);
             let mut session = Session {
                 link: TestLink(&mut trace),
+                controller_flags: 0,
                 flash_probe: None,
                 progress: Some(Box::new(move |event| captured.borrow_mut().push(event))),
             };
@@ -512,11 +571,12 @@ mod tests {
             assert_eq!(progress.len(), if confirmed { 2 } else { 1 });
             assert_eq!(progress.last().unwrap().stage, Stage::EraseFlash);
             assert_eq!(progress.last().unwrap().completed, usize::from(confirmed));
+            assert_eq!(trace.sent, [4, 0x11, 0, 0x15, 4, 0x12, 0, 0x16]);
         }
     }
 
     #[test]
-    fn reuses_the_verified_flag_zero_probe_before_erasing_flash() {
+    fn probes_flag_zero_only_when_erasing_flash() {
         let mut trace = Trace::default();
         trace.input.extend(
             [
@@ -528,15 +588,91 @@ mod tests {
         );
         let mut session = Session {
             link: TestLink(&mut trace),
+            controller_flags: 0,
             flash_probe: None,
             progress: None,
         };
-        session.identify_flash().unwrap();
-        assert_eq!(session.flash_probe(), Some([0, 2]));
+        session.identify_controller().unwrap();
+        assert_eq!(session.controller_flags(), 0);
+        assert_eq!(session.flash_probe(), None);
         session.clear_flash().unwrap();
+        assert_eq!(session.flash_probe(), Some([0, 2]));
         assert_eq!(
             trace.sent,
             [4, 0x13, 0, 0x17, 4, 0x11, 0, 0x15, 4, 0x12, 0, 0x16]
         );
+    }
+
+    #[test]
+    fn retries_a_complete_corrupt_read_reply() {
+        let mut trace = Trace::default();
+        let request = [4, 0x13, 0, 0x17];
+        trace.input.extend(
+            [
+                request.as_slice(),
+                &[5, 0x93, 0x55, 4, 0],
+                &request,
+                &[5, 0x93, 0x55, 4, 0xf1],
+            ]
+            .into_iter()
+            .flat_map(|bytes| bytes.iter().copied().map(Some)),
+        );
+        let mut session = Session {
+            link: TestLink(&mut trace),
+            controller_flags: 0,
+            flash_probe: None,
+            progress: None,
+        };
+        session.identify_controller().unwrap();
+        assert_eq!(session.controller_flags(), 4);
+        assert_eq!(trace.sent, request.repeat(2));
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[test]
+    fn native_tty_transfers_raw_bytes_and_times_out_when_idle() {
+        use serialport::SerialPort;
+
+        let (mut peer, mut port) = NativePort::pair().unwrap();
+        peer.set_timeout(Duration::from_secs(1)).unwrap();
+        port.set_read_timeout(Duration::from_secs(1)).unwrap();
+        port.discard_input().unwrap();
+
+        let frame = [4, 0x13, 0, 0x17];
+        port.write_all(&frame).unwrap();
+        let mut received = [0; 4];
+        peer.read_exact(&mut received).unwrap();
+        assert_eq!(received, frame);
+
+        let response = [5, 0x93, 0x55, 4, 0xf1];
+        peer.write_all(&response).unwrap();
+        let mut received = [0; 5];
+        port.read_exact(&mut received).unwrap();
+        assert_eq!(received, response);
+
+        port.set_read_timeout(Duration::from_millis(10)).unwrap();
+        assert_eq!(
+            port.read(&mut received).unwrap_err().kind(),
+            io::ErrorKind::TimedOut
+        );
+    }
+
+    #[test]
+    fn rejects_a_protected_image_before_sending_an_erase() {
+        use janvar_editor::firmware::Image;
+
+        let mut bytes = include_bytes!("../../../bins/J5v05l19.bin").to_vec();
+        bytes[0xc000..0xc004].copy_from_slice(&[0x23, 0x03, 0x33, 0x13]);
+        let image = WriteImage::new(Image::new(bytes).unwrap().to_bin()).unwrap();
+        let mut trace = Trace::default();
+        let mut session = Session {
+            link: TestLink(&mut trace),
+            controller_flags: 4,
+            flash_probe: None,
+            progress: None,
+        };
+        let error = session.write_flash(&image).unwrap_err();
+        assert!(error.to_string().contains("protected Flash image"));
+        assert!(trace.sent.is_empty());
     }
 }

@@ -4,7 +4,7 @@ mod native;
 #[cfg(target_os = "macos")]
 pub(super) use native::NativeMenu;
 
-use super::{Editor, FileAction, View, theme};
+use super::{Editor, FileAction, View, programming, theme};
 use eframe::egui::{self, Key, KeyboardShortcut, Margin, Modifiers};
 use janvar_editor::firmware::CalibrationKind;
 
@@ -24,6 +24,7 @@ enum Command {
     Passport,
     Changes,
     Rom,
+    Ecu(programming::Action),
 }
 
 const FILE: &[Command] = &[
@@ -42,7 +43,21 @@ const VIEW: &[Command] = &[
     Command::Changes,
     Command::Rom,
 ];
-const GROUPS: &[(&str, &[Command])] = &[("Файл", FILE), ("Правка", EDIT), ("Вид", VIEW)];
+const ECU: &[Command] = &[
+    Command::Ecu(programming::Action::ReadFlash),
+    Command::Ecu(programming::Action::WriteFlash),
+    Command::Ecu(programming::Action::ClearFlash),
+    Command::Ecu(programming::Action::ReadEeprom),
+    Command::Ecu(programming::Action::WriteEeprom),
+    Command::Ecu(programming::Action::ClearEeprom),
+    Command::Ecu(programming::Action::PrepareFlash),
+];
+const GROUPS: &[(&str, &[Command])] = &[
+    ("Файл", FILE),
+    ("Правка", EDIT),
+    ("Вид", VIEW),
+    ("ЭБУ", ECU),
+];
 
 impl Command {
     fn label(self) -> &'static str {
@@ -61,6 +76,7 @@ impl Command {
             Self::Passport => "Паспорт",
             Self::Changes => "Изменения",
             Self::Rom => "Защита калибровок",
+            Self::Ecu(action) => action.label(),
         }
     }
 
@@ -79,7 +95,7 @@ impl Command {
     }
 
     fn enabled(self, editor: &Editor) -> bool {
-        if editor.confirm.is_some() || editor.error.is_some() {
+        if editor.confirm.is_some() || editor.error.is_some() || editor.programming.active() {
             return false;
         }
         match self {
@@ -116,6 +132,7 @@ impl Command {
             Self::Passport => editor.view = View::Passport,
             Self::Changes => editor.view = View::Changes,
             Self::Rom => editor.view = View::Rom,
+            Self::Ecu(action) => editor.programming.open(action),
         }
     }
 }
@@ -261,6 +278,20 @@ mod tests {
             ..Default::default()
         };
         let _ = context.run(input, |ctx| editor.input_events(ctx));
+    }
+
+    #[test]
+    fn ecu_menu_opens_the_workflow_before_starting_an_operation() {
+        let context = egui::Context::default();
+        let mut editor = Editor::new(&context, None);
+        assert_eq!(ECU.len(), 7);
+        let command = Command::Ecu(programming::Action::PrepareFlash);
+        assert!(command.enabled(&editor));
+        command.run(&mut editor);
+        assert!(editor.programming.active());
+        assert!(!editor.programming.running());
+        assert!(!Command::Ecu(programming::Action::ClearFlash).enabled(&editor));
+        let _ = context.run(egui::RawInput::default(), |ctx| editor.draw(ctx));
     }
 
     #[test]

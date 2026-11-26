@@ -499,9 +499,12 @@ impl Image {
             put_word(&mut output, 0x5A23, first);
             put_word(&mut output, 0xB6FD, second);
         }
-        let total = flash_sum(&output);
-        put_word(&mut output, FLASH_COMPLEMENT, !total);
-        put_word(&mut output, FLASH_SUM, total);
+        update_flash_checksum(
+            output
+                .as_mut_slice()
+                .try_into()
+                .expect("validated Flash size"),
+        );
         output
     }
 }
@@ -532,6 +535,13 @@ fn flash_sum(bytes: &[u8]) -> u16 {
     sum(&bytes[..FLASH_COMPLEMENT])
         .wrapping_add(sum(&bytes[0xFFFC..FLASH_SUM]))
         .wrapping_add(0x01FE)
+}
+
+/// Updates the complementary Flash checksum words without changing calibrations.
+pub fn update_flash_checksum(bytes: &mut [u8; IMAGE_SIZE]) {
+    let total = flash_sum(bytes);
+    put_word(bytes, FLASH_COMPLEMENT, !total);
+    put_word(bytes, FLASH_SUM, total);
 }
 
 fn checksums(profile: Profile, bytes: &[u8]) -> Vec<Checksum> {

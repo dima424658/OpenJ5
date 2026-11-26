@@ -12,6 +12,7 @@ mod menu;
 mod navigation;
 mod passport;
 mod point_strip;
+mod programming;
 mod protection;
 mod scalar;
 mod surface;
@@ -84,6 +85,7 @@ pub struct Editor {
     allow_close: bool,
     notice: Option<String>,
     error: Option<String>,
+    programming: programming::Programming,
 }
 
 impl Editor {
@@ -117,6 +119,7 @@ impl Editor {
             allow_close: false,
             notice: None,
             error: None,
+            programming: programming::Programming::default(),
         };
         editor.select_parameter(Parameter::Ignition, 17);
         if let Some(path) = path {
@@ -308,14 +311,15 @@ impl Editor {
     }
 
     fn input_events(&mut self, context: &egui::Context) {
-        if context.input(|state| state.viewport().close_requested())
-            && self.dirty()
-            && !self.allow_close
-        {
-            context.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.request(FileAction::Close);
+        if context.input(|state| state.viewport().close_requested()) {
+            if self.programming.running() {
+                context.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            } else if self.dirty() && !self.allow_close {
+                context.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.request(FileAction::Close);
+            }
         }
-        if self.confirm.is_some() || self.error.is_some() {
+        if self.confirm.is_some() || self.error.is_some() || self.programming.active() {
             return;
         }
 
@@ -666,6 +670,7 @@ impl Editor {
             .frame(theme::panel(BG, Margin::same(15)))
             .show(context, |ui| self.workbench(ui));
         self.handle_actions(context);
+        programming::show(self, context);
         self.text_edit_was_focused = text_edit_focused(context);
         #[cfg(target_os = "macos")]
         if let Some(menu) = &self.native_menu {

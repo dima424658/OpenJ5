@@ -1401,6 +1401,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "janvar-editor",
+ "janvar-flash",
  "muda",
  "objc2 0.5.3",
  "objc2-app-kit 0.2.2",
@@ -1419,6 +1420,13 @@ dependencies = [
  "sha2",
  "tempfile",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "janvar-flash-cli"
+version = "0.1.0"
+dependencies = [
+ "janvar-flash",
 ]
 
 [[package]]
