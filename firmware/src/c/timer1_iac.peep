@@ -1,0 +1,465 @@
+// Keep the step scheduler on the Timer 1 register set and preserve its branches.
+replace {
+    jnb _inhibit_iac_steps,%1
+    ljmp %2
+    %1:
+    mov a,_iac_step_ticks
+    jnz %3
+    ljmp %4
+    %3:
+    mov a,_iac_step_ticks
+    dec a
+    mov r7,a
+    mov _iac_step_ticks,r7
+    mov a,r7
+    jz %5
+    ljmp %2
+    %5:
+    %4:
+    mov r7,_iac_target
+    mov r5,_iac_position
+    mov r6,#0x00
+    mov r4,#0x00
+    mov a,r7
+    clr c
+    subb a,r5
+    mov r5,a
+    mov a,r4
+    subb a,r6
+    mov r6,a
+    mov ar4,r5
+    mov ar7,r6
+    clr c
+    mov a,#0x7f
+    subb a,r4
+    mov a,#0x00
+    xrl a,#0x80
+    mov b,r7
+    xrl b,#0x80
+    subb a,b
+    jc %6
+    ljmp %7
+    %6:
+    mov r5,#0x7f
+    mov r6,#0x00
+    ljmp %8
+    %7:
+    clr c
+    mov a,r5
+    subb a,#0x80
+    mov a,r6
+    xrl a,#0x80
+    subb a,#0x7f
+    jc %9
+    ljmp %8
+    %9:
+    mov r5,#0x80
+    mov r6,#0xff
+    %8:
+    mov a,r5
+    orl a,r6
+    jz %10
+    ljmp %11
+    %10:
+    clr c
+    mov a,_iac_acceleration
+    xrl a,#0x80
+    subb a,#0x7f
+    jnc %12
+    ljmp %11
+    %12:
+    clr c
+    mov a,#0x01
+    xrl a,#0x80
+    mov b,_iac_acceleration
+    xrl b,#0x80
+    subb a,b
+    jnc %13
+    ljmp %11
+    %13:
+    mov _iac_acceleration,#0x00
+    ljmp %2
+    %11:
+    mov r4,_iac_acceleration
+    mov a,_iac_acceleration
+    rlc a
+    subb a,acc
+    mov r7,a
+    clr c
+    mov a,r4
+    subb a,r5
+    mov a,r7
+    xrl a,#0x80
+    mov b,r6
+    xrl b,#0x80
+    subb a,b
+    jc %14
+    ljmp %15
+    %14:
+    mov dptr,#_iac_acceleration_steps
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    cjne a,_iac_acceleration,%16
+    ljmp %15
+    %16:
+    mov a,_iac_acceleration
+    inc a
+    mov r7,a
+    mov _iac_acceleration,r7
+    mov a,r7
+    jz %17
+    ljmp %18
+    %17:
+    mov _iac_acceleration,#0x01
+    ljmp %18
+    %15:
+    mov r4,_iac_acceleration
+    mov a,_iac_acceleration
+    rlc a
+    subb a,acc
+    mov r7,a
+    clr c
+    mov a,r5
+    subb a,r4
+    mov a,r6
+    xrl a,#0x80
+    mov b,r7
+    xrl b,#0x80
+    subb a,b
+    jc %19
+    ljmp %18
+    %19:
+    mov dptr,#_iac_acceleration_steps
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    rlc a
+    subb a,acc
+    mov r6,a
+    clr c
+    clr a
+    subb a,r7
+    mov r7,a
+    clr a
+    subb a,r6
+    mov r6,a
+    mov r4,_iac_acceleration
+    mov a,_iac_acceleration
+    rlc a
+    subb a,acc
+    mov r5,a
+    mov a,r4
+    cjne a,ar7,%20
+    mov a,r5
+    cjne a,ar6,%20
+    ljmp %18
+    %20:
+    mov a,_iac_acceleration
+    dec a
+    mov r7,a
+    mov _iac_acceleration,r7
+    mov a,r7
+    jz %21
+    ljmp %18
+    %21:
+    mov _iac_acceleration,#0xff
+    %18:
+    mov r7,#0x00
+    mov a,_iac_acceleration
+    jb acc.7,%22
+    ljmp %23
+    %22:
+    mov r6,_iac_acceleration
+    clr c
+    clr a
+    subb a,r6
+    mov r6,a
+    mov a,r6
+    rlc a
+    subb a,acc
+    mov r5,a
+    mov a,r6
+    add a, #_iac_acceleration_intervals
+    mov dpl,a
+    mov a,r5
+    addc a, #(_iac_acceleration_intervals >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _iac_step_ticks,a
+    dec _iac_position
+    mov r7,#0x02
+    ljmp %24
+    %23:
+    mov r5,_iac_acceleration
+    mov a,_iac_acceleration
+    rlc a
+    subb a,acc
+    mov r6,a
+    mov a,r5
+    add a, #_iac_acceleration_intervals
+    mov dpl,a
+    mov a,r6
+    addc a, #(_iac_acceleration_intervals >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _iac_step_ticks,a
+    inc _iac_position
+    %24:
+    mov r6,_stepper_output
+    mov a,#0x08
+    anl a,r6
+    mov r5,a
+    mov a,r6
+    rl a
+    rl a
+    anl a,#0x03
+    mov r6,a
+    mov a,r6
+    orl a,r5
+    add a, r7
+    mov r7,a
+    mov dptr,#_iac_phase_direction_offset
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov a,r6
+    add a, r7
+    mov r6,a
+    mov a,r6
+    jb acc.1,%25
+    ljmp %26
+    %25:
+    mov r7,#0x80
+    ljmp %27
+    %26:
+    mov r7,#0x40
+    %27:
+    mov r6,_stepper_output
+    mov a,r7
+    xrl a,r6
+    mov _stepper_output,a
+    %2:
+    lcall _sample_timer1_airflow
+    %28:
+    ret
+} by {
+    jnb _inhibit_iac_steps,00970$
+    ljmp _sample_timer1_airflow
+    00970$:
+    mov a,_iac_step_ticks
+    jz 00971$
+    djnz _iac_step_ticks,00972$
+    00971$:
+    mov a,_iac_target
+    clr c
+    subb a,_iac_position
+    jc 00973$
+    jnb acc.7,00974$
+    mov a,#0x7f
+    sjmp 00974$
+    00972$:
+    ljmp _sample_timer1_airflow
+    00973$:
+    jb acc.7,00974$
+    mov a,#0x80
+    00974$:
+    jnz 00975$
+    mov a,_iac_acceleration
+    jz 00972$
+    cjne a,#0xff,00976$
+    sjmp 00977$
+    00976$:
+    cjne a,#0x01,00978$
+    00977$:
+    mov _iac_acceleration,#0x00
+    ljmp _sample_timer1_airflow
+    00978$:
+    clr a
+    00975$:
+    add a,#0x80
+    mov b,a
+    mov a,_iac_acceleration
+    add a,#0x80
+    cjne a,b,00979$
+    sjmp 00980$
+    00979$:
+    jnc 00981$
+    mov dptr,#_iac_acceleration_steps
+    clr a
+    movc a,@a+dptr
+    mov b,a
+    mov a,_iac_acceleration
+    cjne a,b,00982$
+    sjmp 00980$
+    00982$:
+    inc a
+    mov _iac_acceleration,a
+    jnz 00980$
+    mov _iac_acceleration,#0x01
+    sjmp 00980$
+    00981$:
+    mov dptr,#_iac_acceleration_steps
+    clr a
+    movc a,@a+dptr
+    cpl a
+    inc a
+    mov b,a
+    mov a,_iac_acceleration
+    cjne a,b,00983$
+    sjmp 00980$
+    00983$:
+    dec a
+    mov _iac_acceleration,a
+    jnz 00980$
+    mov _iac_acceleration,#0xff
+    00980$:
+    mov a,_iac_acceleration
+    jb acc.7,00984$
+    mov dptr,#_iac_acceleration_intervals
+    mov a,_iac_acceleration
+    movc a,@a+dptr
+    mov _iac_step_ticks,a
+    inc _iac_position
+    mov b,#0x00
+    sjmp 00985$
+    00984$:
+    cpl a
+    inc a
+    mov dptr,#_iac_acceleration_intervals
+    movc a,@a+dptr
+    mov _iac_step_ticks,a
+    dec _iac_position
+    mov b,#0x02
+    00985$:
+    mov dptr,#_iac_phase_direction_offset
+    clr a
+    movc a,@a+dptr
+    add a,b
+    mov b,a
+    mov a,_stepper_output
+    mov c,acc.7
+    mov acc.0,c
+    mov c,acc.6
+    mov acc.1,c
+    anl a,#0x0b
+    add a,b
+    jb acc.1,00986$
+    xrl _stepper_output,#0x40
+    sjmp _sample_timer1_airflow
+    00986$:
+    xrl _stepper_output,#0x80
+}
+
+// Pair the ADC retry with the stock two-page lookup and atomic sum update.
+replace {
+    clr _adc_interrupted_by_iac
+    %1:
+    mov _adc_channel,#0x00
+    mov _adc_start,#0x00
+    %2:
+    jnb _adc_busy,%3
+    ljmp %2
+    %3:
+    mov r7,_adc_result_high
+    jb _adc_interrupted_by_iac,%4
+    ljmp %5
+    %4:
+    clr _adc_interrupted_by_iac
+    ljmp %1
+    %5:
+    setb _adc_interrupted_by_iac
+    mov dptr,#_maf_adc_sample
+    mov a,r7
+    movx @dptr,a
+    mov a,r7
+    add a, #_maf_transfer_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_maf_transfer_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    clr _interrupts_enabled
+    mov a,r7
+    add a, #_maf_transfer_high
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_maf_transfer_high >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov r5,#0x00
+    mov ar5,r7
+    mov r7,#0x00
+    mov r4,#0x00
+    mov a,r6
+    orl ar7,a
+    mov a,r4
+    orl ar5,a
+    mov a,r7
+    add a, _airflow_sample_sum
+    mov r4,a
+    mov a,r5
+    addc a, (_airflow_sample_sum + 1)
+    mov r6,a
+    clr c
+    mov a,r4
+    subb a,r7
+    mov a,r6
+    subb a,r5
+    jnc %6
+    ljmp %7
+    %6:
+    mov _airflow_sample_sum,r4
+    mov (_airflow_sample_sum + 1),r6
+    mov a,#0xff
+    cjne a,_airflow_sample_count,%8
+    ljmp %7
+    %8:
+    inc _airflow_sample_count
+    %7:
+    setb _interrupts_enabled
+    lcall _service_multispark_and_speed
+    %9:
+    ret
+} by {
+    clr _adc_interrupted_by_iac
+    00988$:
+    mov _adc_channel,#0x00
+    mov _adc_start,#0x00
+    00987$:
+    jb _adc_busy,00987$
+    mov a,_adc_result_high
+    jbc _adc_interrupted_by_iac,00988$
+    setb _adc_interrupted_by_iac
+    mov dptr,#_maf_adc_sample
+    movx @dptr,a
+    mov b,a
+    mov dptr,#_maf_transfer_raw
+    movc a,@a+dptr
+    clr c
+    clr _interrupts_enabled
+    add a,_airflow_sample_sum
+    xch a,b
+    inc dph
+    movc a,@a+dptr
+    addc a,0x31
+    jnc 00989$
+    sjmp 00990$
+    00989$:
+    mov _airflow_sample_sum,b
+    mov 0x31,a
+    mov a,_airflow_sample_count
+    inc a
+    jz 00990$
+    mov _airflow_sample_count,a
+    00990$:
+    setb _interrupts_enabled
+}

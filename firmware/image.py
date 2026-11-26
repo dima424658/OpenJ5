@@ -886,6 +886,9 @@ SYMBOLS = {
     "_idle_airflow_rpm_gain_q8": 0x98F2,
     "_maf_transfer_raw": 0x99B9,
     **{f"_irq_unused_{address:04x}": address for address in UNUSED_VECTORS},
+    "_service_timer1_iac": 0x060A,
+    "_sample_timer1_airflow": 0x06C4,
+    "_maf_transfer_high": 0x9AB9,
     "_service_multispark_and_speed": 0x06FE,
     "_additional_spark_interval_raw": 0x6055,
     "_additional_spark_count": 0x6056,
@@ -904,6 +907,7 @@ SYMBOLS = {
     "_alternate_throttle_breakpoints": 0x8DFA,
 }
 C_SECTIONS = {
+    "code_060a": 244,
     "code_06fe": 142,
     "code_2041": 12,
     "code_280e": 10,
@@ -1408,7 +1412,7 @@ C_SECTIONS = {
     "const_98a4": 39,
     "const_98cb": 39,
     "const_98f2": 32,
-    "const_99b9": 256,
+    "const_99b9": 512,
     **{f"code_{address:04x}": 1 for address in UNUSED_VECTORS},
 }
 
