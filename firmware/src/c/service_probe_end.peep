@@ -1,0 +1,149 @@
+// End the probe and restore the serial receiver in stock register order.
+replace {
+    clr _serial_receive_enabled
+    anl _sfr_be,#0xf7
+    clr _service_probe_active
+    clr _service_serial_restart_done
+    lcall _capture_service_probe_options
+    mov _serial_state_flags,#0x01
+    jnb _service_mode_29,%1
+    ljmp %2
+    %1:
+    mov dptr,#_probe_state_f4eb
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_probe_state_f52b
+    movx @dptr,a
+    mov dptr,#_pending_io_faults
+    movx a,@dptr
+    anl acc,#0xfd
+    movx @dptr,a
+    %2:
+    mov _service_event_timer,#0x00
+    mov dptr,#_service_probe_timer
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_service_probe_requested
+    movx @dptr,a
+    mov dptr,#_shutdown_mode
+    movx a,@dptr
+    add a, #0x01
+    movx @dptr,a
+    lcall _restart_serial_receive
+    %3:
+    ret
+} by {
+    clr _serial_receive_enabled
+    anl _sfr_be,#0xf7
+    clr _service_probe_active
+    clr _service_serial_restart_done
+    lcall _capture_service_probe_options
+    mov _serial_state_flags,#0x01
+    jb _service_mode_29,00970$
+    clr a
+    mov dptr,#_probe_state_f4eb
+    movx @dptr,a
+    mov dptr,#_probe_state_f52b
+    movx @dptr,a
+    mov dptr,#_pending_io_faults
+    movx a,@dptr
+    anl a,#0xfd
+    movx @dptr,a
+    00970$:
+    clr a
+    mov _service_event_timer,a
+    mov dptr,#_service_probe_timer
+    movx @dptr,a
+    mov dptr,#_service_probe_requested
+    movx @dptr,a
+    mov dptr,#_shutdown_mode
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    lcall _restart_serial_receive
+    ret
+}
+
+// Keep the two response lengths and dispatch paths.
+replace {
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0xa0,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov r7,#0x06
+    ljmp %4
+    %3:
+    mov r7,#0x0e
+    %4:
+    mov _serial_tx_count,r7
+    setb _service_dispatch_7c
+    %5:
+    ret
+} by {
+    mov dptr,#(_serial_tx_buffer + 3)
+    movx a,@dptr
+    xrl a,#0xa0
+    jnz 00971$
+    mov _serial_tx_count,#0x06
+    setb _service_dispatch_7c
+    sjmp 00972$
+    00971$:
+    mov _serial_tx_count,#0x0e
+    setb _service_dispatch_7c
+    00972$:
+    ret
+}
+
+// Pack the attempt counter and inverted options into the retained byte.
+replace {
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    mov r7,a
+    dec r7
+    mov a,#0x07
+    anl a,r7
+    mov _ACC,a
+    orl _ACC,#0xf0
+    mov c,_extra_state_enabled
+    cpl c
+    mov _ACC_BIT7,c
+    mov c,_shutdown_option_6c
+    cpl c
+    mov _ACC_BIT6,c
+    mov c,_service_link_ready_6b
+    cpl c
+    mov _ACC_BIT5,c
+    mov c,_service_mode_29
+    cpl c
+    mov _ACC_BIT4,c
+    mov dptr,#_shutdown_options
+    mov a,_ACC
+    movx @dptr,a
+    %1:
+    ret
+} by {
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    dec a
+    anl a,#0x07
+    orl a,#0xf0
+    mov dptr,#_shutdown_options
+    mov c,_extra_state_enabled
+    cpl c
+    mov acc.7,c
+    mov c,_shutdown_option_6c
+    cpl c
+    mov acc.6,c
+    mov c,_service_link_ready_6b
+    cpl c
+    mov acc.5,c
+    mov c,_service_mode_29
+    cpl c
+    mov acc.4,c
+    movx @dptr,a
+    ret
+}
