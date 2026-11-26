@@ -1,0 +1,97 @@
+// Check the original high byte in A and keep it live through the zero test.
+replace {
+    mov _ACC,_stock_r1
+    jnb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    mov a,_ACC
+    jz %3
+    ljmp %4
+    %3:
+} by {
+    mov a,r1
+    jb _ACC_SIGN,%2
+    jnz %4
+}
+
+// The low byte can return directly if its sign agrees with the high byte.
+replace {
+    mov _ACC,_stock_r0
+    jnb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    ljmp %3
+} by {
+    mov a,r0
+    jnb _ACC_SIGN,%3
+}
+
+replace {
+    mov _ACC,#0x7f
+    ljmp %1
+} by {
+    mov a,#0x7f
+    ret
+}
+
+// The negative branch checks the complement of the high byte for zero.
+replace {
+    xrl _ACC,#0xff
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    cpl a
+    jnz %2
+}
+
+replace {
+    mov _ACC,_stock_r0
+    jb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    ljmp %3
+} by {
+    mov a,r0
+    jb _ACC_SIGN,%3
+}
+
+replace {
+    mov _ACC,#0x80
+} by {
+    mov a,#0x80
+}
+
+// Skip negation for nonnegative words and preserve their input carry.
+replace {
+    mov _ACC,_stock_r1
+    jb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,r1
+    jnb _ACC_SIGN,%2
+}
+
+// Negate the word as its bitwise complement plus one. The low byte's
+// ADD propagates its carry into the high byte and leaves that byte in A.
+replace {
+    clr c
+    clr a
+    subb a,_stock_r01
+    mov _stock_r01,a
+    clr a
+    subb a,(_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    mov _ACC,_stock_r1
+} by {
+    mov a,r0
+    cpl a
+    add a,#0x01
+    mov r0,a
+    mov a,r1
+    cpl a
+    addc a,#0x00
+    mov r1,a
+}

@@ -1,0 +1,233 @@
+// Tick the countdown for mask bit 1 and copy the primary status after borrow.
+replace {
+    jb _ACC_BIT1,%1
+    ljmp %2
+    %1:
+    mov dptr,#_period_bin_countdown
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jz %3
+    ljmp %4
+    %3:
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_ACC_BIT0
+    mov _ACC_BIT1,c
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %5
+    %4:
+    dec _stock_r01
+    mov a,#0xff
+    cjne a,_stock_r01,%6
+    dec (_stock_r01 + 1)
+    %6:
+    %5:
+    mov dptr,#_period_bin_countdown
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _skip_misfire_period_update
+    ljmp %7
+    %2:
+    lcall _tick_misfire_period_bin3
+    %7:
+    ret
+} by {
+    jb _ACC_BIT1,00950$
+    ljmp _tick_misfire_period_bin3
+    00950$:
+    mov dptr,#_period_bin_countdown
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov a,r0
+    clr c
+    subb a,#0x01
+    mov r0,a
+    mov a,r1
+    subb a,#0x00
+    jnc 00951$
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov c,_ACC_BIT0
+    mov _ACC_BIT1,c
+    mov dptr,#_misfire_status
+    movx @dptr,a
+    clr a
+    mov r0,a
+    00951$:
+    mov r1,a
+    mov dptr,#_period_bin_countdown
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    ljmp _skip_misfire_period_update
+}
+
+// Tick the countdown for mask bit 2 and copy the primary status after borrow.
+replace {
+    jb _ACC_BIT2,%1
+    ljmp %2
+    %1:
+    mov dptr,#(_period_bin_countdown + 0x0002)
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jz %3
+    ljmp %4
+    %3:
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_ACC_BIT0
+    mov _ACC_BIT2,c
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %5
+    %4:
+    dec _stock_r01
+    mov a,#0xff
+    cjne a,_stock_r01,%6
+    dec (_stock_r01 + 1)
+    %6:
+    %5:
+    mov dptr,#(_period_bin_countdown + 0x0002)
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _skip_misfire_period_update
+    ljmp %7
+    %2:
+    lcall _tick_misfire_period_bin4
+    %7:
+    ret
+} by {
+    jb _ACC_BIT2,00952$
+    ljmp _tick_misfire_period_bin4
+    00952$:
+    mov dptr,#(_period_bin_countdown + 2)
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov a,r0
+    clr c
+    subb a,#0x01
+    mov r0,a
+    mov a,r1
+    subb a,#0x00
+    jnc 00953$
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov c,_ACC_BIT0
+    mov _ACC_BIT2,c
+    mov dptr,#_misfire_status
+    movx @dptr,a
+    clr a
+    mov r0,a
+    00953$:
+    mov r1,a
+    mov dptr,#(_period_bin_countdown + 2)
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    ljmp _skip_misfire_period_update
+}
+
+// Tick the countdown for mask bit 3 and continue to the common exit.
+replace {
+    jb _ACC_BIT3,%1
+    ljmp %2
+    %1:
+    mov dptr,#(_period_bin_countdown + 0x0004)
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jz %3
+    ljmp %4
+    %3:
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_ACC_BIT0
+    mov _ACC_BIT3,c
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %5
+    %4:
+    dec _stock_r01
+    mov a,#0xff
+    cjne a,_stock_r01,%6
+    dec (_stock_r01 + 1)
+    %6:
+    %5:
+    mov dptr,#(_period_bin_countdown + 0x0004)
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    %2:
+    lcall _skip_misfire_period_update
+    %7:
+    ret
+} by {
+    jb _ACC_BIT3,00954$
+    ljmp _skip_misfire_period_update
+    00954$:
+    mov dptr,#(_period_bin_countdown + 4)
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov a,r0
+    clr c
+    subb a,#0x01
+    mov r0,a
+    mov a,r1
+    subb a,#0x00
+    jnc 00955$
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov c,_ACC_BIT0
+    mov _ACC_BIT3,c
+    mov dptr,#_misfire_status
+    movx @dptr,a
+    clr a
+    mov r0,a
+    00955$:
+    mov r1,a
+    mov dptr,#(_period_bin_countdown + 4)
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}

@@ -1,0 +1,262 @@
+// Load the 24-bit product and 9-bit mixture divisor into the MDU.
+replace {
+    %1:
+    clr _mdu_interrupted
+    mov dptr,#_air_charge
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov _B,_rpm_eighth
+    lcall _multiply_stock_u16_u8
+    mov r6,_applied_mixture
+    mov r7,#0x00
+    mov a,#0x80
+    add a, r6
+    mov r6,a
+    mov a,#0x00
+    addc a, r7
+    mov r7,a
+    mov _stock_r2,r6
+    mov _mdu_0,_B
+    mov _mdu_1,_stock_r0
+    mov _mdu_2,_stock_r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,_stock_r2
+    mov _mdu_5,r7
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _ACC,_mdu_2
+    mov _ACC,_mdu_3
+    mov _ACC,_mdu_4
+    mov _ACC,_mdu_5
+    jnb _mdu_interrupted,%2
+    ljmp %1
+    %2:
+} by {
+    %1:
+    clr _mdu_interrupted
+    mov dptr,#_air_charge
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov _B,_rpm_eighth
+    lcall _multiply_stock_u16_u8
+    mov a,_applied_mixture
+    add a,#0x80
+    mov r2,a
+    clr a
+    addc a,#0x00
+    mov _mdu_0,_B
+    mov _mdu_1,r0
+    mov _mdu_2,r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,r2
+    mov _mdu_5,a
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jb _mdu_interrupted,%1
+}
+
+// Apply the encoded injection correction and publish whole units of fuel rate.
+replace {
+    mov _B,_injection_time_correction
+    mov _stock_r2,_bank_zero_r0
+    mov _stock_r3,_bank_zero_r1
+    cpl _B_SIGN
+    lcall _multiply_stock_u16_u8
+    mov _ACC,_injection_time_correction
+    jb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    lcall _add_u16_register_pairs
+    %2:
+    mov _B,#0xe9
+    lcall _multiply_stock_u16_u8
+    mov _stock_r4,_B
+    jb _deceleration_fuel_cut,%3
+    ljmp %4
+    %3:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    mov _stock_r4,a
+    %4:
+    mov dptr,#_reported_fuel_rate
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _calculate_fuel_per_distance
+    %5:
+    ret
+} by {
+    mov _B,_injection_time_correction
+    mov r2,_bank_zero_r0
+    mov r3,_bank_zero_r1
+    cpl _B_SIGN
+    lcall _multiply_stock_u16_u8
+    mov a,_injection_time_correction
+    jnb _ACC_SIGN,%2
+    lcall _add_u16_register_pairs
+    %2:
+    mov _B,#0xe9
+    lcall _multiply_stock_u16_u8
+    mov r4,_B
+    jnb _deceleration_fuel_cut,%4
+    mov r0,#0x00
+    mov r1,#0x00
+    mov r4,#0x00
+    %4:
+    mov dptr,#_reported_fuel_rate
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Divide the full fixed-point fuel rate by speed and check for overflow.
+replace {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov _ACC,a
+    mov _B,_ACC
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+    lcall _mark_fuel_distance_unavailable
+    ljmp %3
+    %2:
+    clr _mdu_interrupted
+    mov dptr,#_reported_fuel_rate
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov _mdu_0,_stock_r4
+    mov _mdu_1,_stock_r0
+    mov _mdu_2,_stock_r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,_B
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov _ACC,_mdu_4
+    mov _ACC,_mdu_5
+    jnb _mdu_interrupted,%4
+    ljmp %2
+    %4:
+    mov a,_stock_r2
+    jz %5
+    ljmp %6
+    %5:
+    mov a,_stock_r3
+    jnz %7
+    ljmp %8
+    %7:
+    %6:
+    lcall _mark_fuel_distance_unavailable
+    ljmp %3
+    %8:
+    lcall _publish_fuel_per_distance
+    %3:
+    ret
+} by {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov _B,a
+    jz _mark_fuel_distance_unavailable
+    %2:
+    clr _mdu_interrupted
+    mov dptr,#_reported_fuel_rate
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov _mdu_0,r4
+    mov _mdu_1,r0
+    mov _mdu_2,r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,_B
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jb _mdu_interrupted,%2
+    mov a,r2
+    orl a,r3
+    jz _publish_fuel_per_distance
+}
+
+// Publish the sentinel or the 16-bit quotient without disturbing register placement.
+replace {
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    lcall _publish_fuel_per_distance
+    %1:
+    ret
+} by {
+    mov r0,#0xff
+    mov r1,#0xff
+}
+
+// Write the distance rate as low byte then high byte and enter the speed update.
+replace {
+    mov dptr,#_reported_fuel_per_distance
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _update_vehicle_speed
+    %1:
+    ret
+} by {
+    mov dptr,#_reported_fuel_per_distance
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}

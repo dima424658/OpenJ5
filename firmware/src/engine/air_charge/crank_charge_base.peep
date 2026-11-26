@@ -1,0 +1,318 @@
+// Test the airflow threshold and choose the mapped charge or calibrated airflow on sensor faults.
+replace {
+    mov dptr,#_mass_airflow
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_maf_max_diagnostic_flow
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_stock_r1
+    cjne a,#0x01,%1
+    %1:
+    mov _continue_airflow_calculation_sloc0_1_0,c
+    jnb _continue_airflow_calculation_sloc0_1_0,%2
+    ljmp %3
+    %2:
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %4
+    ljmp %5
+    %4:
+    %3:
+    clr _continue_airflow_calculation_sloc0_1_0
+    ljmp %6
+    %5:
+    setb _continue_airflow_calculation_sloc0_1_0
+    %6:
+    mov c,_continue_airflow_calculation_sloc0_1_0
+    mov _maf_adc_high,c
+    jnb _maf_adc_low,%7
+    ljmp %8
+    %7:
+    jb _maf_adc_high,%9
+    ljmp %10
+    %9:
+    %8:
+    jnb _throttle_adc_low,%11
+    ljmp %12
+    %11:
+    jnb _throttle_adc_high,%13
+    ljmp %12
+    %13:
+    mov a,_throttle_position
+    add a, #_throttle_quantization_q4
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_throttle_quantization_q4 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    mov r6,#_fallback_cylinder_charge
+    mov r7,#(_fallback_cylinder_charge >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    lcall _interp_bilinear_u8
+    mov _B,_ACC
+    mov a,_coolant_nearest_index
+    add a, #_reverse_flow_coolant_gain
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_reverse_flow_coolant_gain >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r01,r7
+    mov (_stock_r01 + 1),r5
+    lcall _shift_right_u16_3
+    lcall _process_cylinder_charge
+    ljmp %14
+    %12:
+    mov dptr,#_airflow_sensor_fallback
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_nearest_index
+    add a, #_reverse_flow_coolant_gain
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_reverse_flow_coolant_gain >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r01,r7
+    mov (_stock_r01 + 1),r5
+    lcall _shift_right_u16_3
+    lcall _shift_right_u16_3
+    mov dptr,#_mass_airflow
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    %10:
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    clr c
+    mov a,r7
+    subb a,#0x02
+    jc %15
+    ljmp %16
+    %15:
+    mov r6,_stock_r01
+    mov a,(_stock_r01 + 1)
+    clr c
+    rrc a
+    xch a,r6
+    rrc a
+    xch a,r6
+    mov r7,a
+    ljmp %17
+    %16:
+    mov r6,#0xff
+    mov r7,#0x00
+    %17:
+    mov _measured_airflow,r6
+    lcall _calculate_airflow_period_charge
+    %14:
+    ret
+} by {
+    mov dptr,#_mass_airflow
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_maf_max_diagnostic_flow
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r1
+    jz 00950$
+    clr c
+    subb a,_B
+    cpl c
+    mov _maf_adc_high,c
+    sjmp 00951$
+    00950$:
+    clr _maf_adc_high
+    00951$:
+    mov c,_maf_adc_low
+    orl c,_maf_adc_high
+    jnc 00952$
+    mov c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    jc 00953$
+    mov dptr,#_throttle_quantization_q4
+    mov a,_throttle_position
+    movc a,@a+dptr
+    mov r3,a
+    mov dptr,#_fallback_cylinder_charge
+    mov r2,_rpm_q4
+    lcall _interp_bilinear_u8
+    mov _B,a
+    mov dptr,#_reverse_flow_coolant_gain
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mul ab
+    mov r0,a
+    mov r1,_B
+    lcall _shift_right_u16_3
+    ljmp _process_cylinder_charge
+    00953$:
+    mov dptr,#_airflow_sensor_fallback
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_reverse_flow_coolant_gain
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mul ab
+    mov r0,a
+    mov r1,_B
+    lcall _shift_right_u16_3
+    lcall _shift_right_u16_3
+    mov dptr,#_mass_airflow
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    00952$:
+    mov a,r1
+    anl a,#0xfe
+    jz 00954$
+    mov _measured_airflow,#0xff
+    sjmp _calculate_airflow_period_charge
+    00954$:
+    mov a,r1
+    rrc a
+    mov a,r0
+    rrc a
+    mov _measured_airflow,a
+}
+
+// Copy the crank period with interrupts masked and perform the 16 by 16 multiply.
+replace {
+    mov dptr,#_mass_airflow
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    clr _EA
+    mov _ACC,_crank_period
+    mov _B,(_crank_period + 0x0001)
+    setb _EA
+    mov _mdu_0,_ACC
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_B
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+} by {
+    mov dptr,#_mass_airflow
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    clr _EA
+    mov a,_crank_period
+    mov _B,(_crank_period + 1)
+    setb _EA
+    mov _mdu_0,a
+    mov _mdu_4,r0
+    mov _mdu_1,_B
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+}
+
+// Divide the full product by 1000 and publish the low word.
+replace {
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_2,_stock_r2
+    mov _mdu_3,_stock_r3
+    mov _mdu_4,#0xe8
+    mov _mdu_5,#0x03
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_airflow_period_charge
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _continue_charge_after_base
+    %1:
+    ret
+} by {
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_2,r2
+    mov _mdu_3,r3
+    mov _mdu_4,#0xe8
+    mov _mdu_5,#0x03
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_airflow_period_charge
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}

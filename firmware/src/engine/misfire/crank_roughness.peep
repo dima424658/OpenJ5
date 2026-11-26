@@ -1,0 +1,641 @@
+// Accumulate the first two period terms through the MDU and the bank-one scratch pair.
+replace {
+    lcall _combine_filtered_misfire_scores
+    mov _mdu_0,_stock_r67
+    mov _mdu_4,#0x03
+    mov _mdu_1,(_stock_r67 + 1)
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r6,_mdu_1
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_mdu_0
+    mov r5,#0x00
+    mov a,r4
+    orl a,r6
+    mov _stock_r67,a
+    mov a,r5
+    orl a,r7
+    mov (_stock_r67 + 1),a
+    mov _B,_mdu_2
+    mov a,_mdu_3
+    mov r7,_stock_r5
+    mov a,r7
+    add a,#0xfb
+    mov r7,a
+    clr c
+    mov a,_stock_r5
+    subb a,#0x05
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x07
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0x19
+    add a, r7
+    mov r7,a
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov _bank_one_r01,_stock_r67
+    mov (_bank_one_r01 + 1),(_stock_r67 + 1)
+    lcall _add_u16_register_pairs
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov r6,_B
+    mov a,r7
+    add a, r6
+    mov _stock_r4,a
+    mov _bank_one_r67,_stock_r01
+    mov (_bank_one_r67 + 1),(_stock_r01 + 1)
+} by {
+    lcall _combine_filtered_misfire_scores
+    mov _mdu_0,r6
+    mov _mdu_4,#0x03
+    mov _mdu_1,r7
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r6,_mdu_0
+    mov r7,_mdu_1
+    mov _B,_mdu_2
+    mov a,_mdu_3
+    mov a,r5
+    clr c
+    subb a,#0x05
+    jnc 00950$
+    add a,#0x07
+    clr c
+    00950$:
+    rlc a
+    add a,#0x19
+    mov dpl,a
+    mov dph,#0xfa
+    movx a,@dptr
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    mov _bank_one_r01,r6
+    mov (_bank_one_r01 + 1),r7
+    lcall _add_u16_register_pairs
+    mov a,_B
+    addc a,#0x00
+    mov r4,a
+    mov _bank_one_r67,r0
+    mov (_bank_one_r67 + 1),r1
+}
+
+// Accumulate the other terms, subtract the full 24-bit quantities, and saturate the magnitude.
+replace {
+    mov r7,_stock_r5
+    dec r7
+    dec r7
+    dec r7
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x04
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x07
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0x19
+    add a, r7
+    mov r7,a
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov _mdu_0,_stock_r23
+    mov _mdu_4,#0x03
+    mov _mdu_1,(_stock_r23 + 1)
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r6,_mdu_1
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_mdu_0
+    mov r5,#0x00
+    mov a,r4
+    orl a,r6
+    mov _stock_r23,a
+    mov a,r5
+    orl a,r7
+    mov (_stock_r23 + 1),a
+    mov _B,_mdu_2
+    mov a,_mdu_3
+    mov r7,_stock_r5
+    dec r7
+    dec r7
+    clr c
+    mov a,_stock_r5
+    subb a,#0x02
+    jc %4
+    ljmp %5
+    %4:
+    mov r6,#0x07
+    ljmp %6
+    %5:
+    mov r6,#0x00
+    %6:
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0x19
+    add a, r7
+    mov r7,a
+    mov r6,#0x00
+    orl ar6,#0xfa
+    mov dpl,r7
+    mov dph,r6
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _add_u16_register_pairs
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov r6,_B
+    mov a,r7
+    add a, r6
+    mov _B,a
+    mov _stock_r23,_stock_r01
+    mov (_stock_r23 + 1),(_stock_r01 + 1)
+    mov _stock_r01,_bank_one_r67
+    mov (_stock_r01 + 1),(_bank_one_r67 + 1)
+    lcall _subtract_u16_register_pairs
+    mov r7,_B
+    mov c,_CY
+    clr a
+    rlc a
+    mov r6,a
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov r4,_stock_r4
+    mov r6,#0x00
+    clr c
+    mov a,r4
+    subb a,r7
+    mov a,r6
+    subb a,r5
+    clr a
+    rlc a
+    mov _update_misfire_period_terms_negative_10001_13,a
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov r6,_B
+    mov a,r7
+    add a, r6
+    mov r7,a
+    mov r6,_stock_r4
+    mov a,r6
+    clr c
+    subb a,r7
+    mov _stock_r4,a
+    mov a,_update_misfire_period_terms_negative_10001_13
+    jnz %7
+    ljmp %8
+    %7:
+    clr c
+    clr a
+    subb a,_stock_r4
+    mov r7,a
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    cjne a,#0x01,%9
+    %9:
+    mov _update_misfire_period_terms_sloc0_1_0,c
+    cpl _update_misfire_period_terms_sloc0_1_0
+    mov c,_update_misfire_period_terms_sloc0_1_0
+    clr a
+    rlc a
+    mov r6,a
+    mov a,r7
+    clr c
+    subb a,r6
+    mov r6,a
+    mov _stock_r4,r6
+    clr c
+    clr a
+    subb a,_stock_r01
+    mov _stock_r01,a
+    clr a
+    subb a,(_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    %8:
+    mov a,_stock_r4
+    jnz %10
+    ljmp %11
+    %10:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %11:
+    mov _bank_one_r23,_stock_r01
+    mov (_bank_one_r23 + 1),(_stock_r01 + 1)
+    lcall _filter_crank_roughness
+    %12:
+    ret
+} by {
+    mov a,r5
+    clr c
+    subb a,#0x04
+    jnc 00951$
+    add a,#0x07
+    clr c
+    00951$:
+    rlc a
+    add a,#0x19
+    mov dpl,a
+    mov dph,#0xfa
+    movx a,@dptr
+    mov r2,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    mov _mdu_0,r2
+    mov _mdu_4,#0x03
+    mov _mdu_1,r3
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r2,_mdu_0
+    mov r3,_mdu_1
+    mov _B,_mdu_2
+    mov a,_mdu_3
+    mov a,r5
+    clr c
+    subb a,#0x02
+    jnc 00952$
+    add a,#0x07
+    clr c
+    00952$:
+    rlc a
+    add a,#0x19
+    mov dpl,a
+    mov dph,#0xfa
+    movx a,@dptr
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    mov r1,a
+    lcall _add_u16_register_pairs
+    mov a,_B
+    addc a,#0x00
+    mov _B,a
+    mov a,r0
+    mov r0,_bank_one_r67
+    mov r2,a
+    mov a,r1
+    mov r1,(_bank_one_r67 + 1)
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    mov a,r4
+    subb a,_B
+    mov r4,a
+    jnc 00953$
+    clr c
+    mov a,r0
+    cpl a
+    add a,#0x01
+    mov r0,a
+    mov a,r1
+    cpl a
+    addc a,#0x00
+    mov r1,a
+    mov a,r4
+    cpl a
+    addc a,#0x00
+    mov r4,a
+    00953$:
+    jz 00954$
+    mov r0,#0xff
+    mov r1,#0xff
+    00954$:
+    mov _bank_one_r23,r0
+    mov (_bank_one_r23 + 1),r1
+}
+
+// Normalize the magnitude and apply the sample weight and gain with separate truncations.
+replace {
+    mov dptr,#_misfire_period_factor
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _shift_right_u16_1
+    mov _mdu_0,_stock_r01
+    mov _mdu_4,_stock_r23
+    mov _mdu_1,(_stock_r01 + 1)
+    mov _mdu_5,(_stock_r23 + 1)
+    nop
+    nop
+    nop
+    nop
+    mov r6,_mdu_1
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_mdu_0
+    mov r5,#0x00
+    mov a,r4
+    orl a,r6
+    mov _stock_r01,a
+    mov a,r5
+    orl a,r7
+    mov (_stock_r01 + 1),a
+    mov a,_mdu_3
+    orl a,_mdu_2
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %2:
+    jb _idle_mode,%3
+    ljmp %4
+    %3:
+    mov dptr,#_roughness_idle_filter_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    ljmp %5
+    %4:
+    mov dptr,#_roughness_filter_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    %5:
+    mov _B,r7
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_roughness_sample_gain
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _shift_left_saturating_2
+    mov dptr,#_weighted_roughness_sample
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#_misfire_period_factor
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _shift_right_u16_1
+    mov _mdu_0,r0
+    mov _mdu_4,r2
+    mov _mdu_1,r1
+    mov _mdu_5,r3
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_2
+    mov _B,_mdu_3
+    orl a,_B
+    jz 00955$
+    mov r0,#0xff
+    mov r1,#0xff
+    00955$:
+    mov dptr,#_roughness_filter_weight
+    jnb _idle_mode,00956$
+    mov dptr,#_roughness_idle_filter_weight
+    00956$:
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_roughness_sample_gain
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _shift_left_saturating_2
+    mov dptr,#_weighted_roughness_sample
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Add the complementary term, publish the full sum, and gate the saturated result.
+replace {
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+    mov dptr,#_roughness_idle_filter_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    ljmp %3
+    %2:
+    mov dptr,#_roughness_filter_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    %3:
+    clr c
+    clr a
+    subb a,r7
+    mov _B,a
+    mov dptr,#_filtered_roughness
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_weighted_roughness_sample
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _add_u16_register_pairs
+    mov c,_CY
+    clr a
+    rlc a
+    mov _B,a
+    mov _stock_r23,_B
+    mov (_stock_r23 + 1),#0x00
+    mov r4,_stock_r23
+    mov r5,(_stock_r23 + 1)
+    mov r6,#0x00
+    mov r7,#0x00
+    mov ar7,r5
+    mov ar6,r4
+    mov r4,#0x00
+    mov r5,#0x00
+    mov r0,_stock_r01
+    mov r1,(_stock_r01 + 1)
+    mov r2,#0x00
+    mov r3,#0x00
+    mov dptr,#_roughness_sum
+    mov a,r0
+    orl a,r4
+    movx @dptr,a
+    mov a,r1
+    orl a,r5
+    inc dptr
+    movx @dptr,a
+    mov a,r2
+    orl a,r6
+    inc dptr
+    movx @dptr,a
+    mov a,r3
+    orl a,r7
+    inc dptr
+    movx @dptr,a
+    mov a,_B
+    jnz %4
+    ljmp %5
+    %4:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %5:
+    mov dptr,#_misfire_mode_flags
+    movx a,@dptr
+    jb acc.7,%6
+    ljmp %7
+    %6:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    %7:
+    mov dptr,#_filtered_roughness
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _check_misfire_fuel_cut
+    %8:
+    ret
+} by {
+    mov dptr,#_roughness_filter_weight
+    jnb _idle_mode,00957$
+    mov dptr,#_roughness_idle_filter_weight
+    00957$:
+    clr a
+    movc a,@a+dptr
+    cpl a
+    inc a
+    mov _B,a
+    mov dptr,#_filtered_roughness
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_weighted_roughness_sample
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _add_u16_register_pairs
+    clr a
+    addc a,#0x00
+    mov _B,a
+    mov dptr,#_roughness_sum
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov r2,_B
+    mov r3,#0x00
+    mov dptr,#(_roughness_sum + 2)
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov a,_B
+    jz 00958$
+    mov r0,#0xff
+    mov r1,#0xff
+    00958$:
+    mov dptr,#_misfire_mode_flags
+    movx a,@dptr
+    jnb acc.7,00959$
+    clr a
+    mov r0,a
+    mov r1,a
+    00959$:
+    mov dptr,#_filtered_roughness
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}

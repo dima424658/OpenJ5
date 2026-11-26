@@ -1,0 +1,222 @@
+// Initialize ports and stack on the full reset path and preserve the retained-state fast path.
+replace {
+    clr _EA
+    mov a,_sfr_a9
+    jb acc.6,%1
+    ljmp %2
+    %1:
+    lcall _restart_runtime_init
+    ljmp %3
+    %2:
+    mov _sfr_a9,#0x00
+    mov _sfr_86,#0x80
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov _sfr_b1,#0x00
+    mov _SP,#0xc2
+    mov _PSW,#0x00
+    mov _P1,#0x7f
+    mov _P3,#0xff
+    mov _P4,#0xef
+    mov _P5,#0xdf
+    mov _P6,#0xff
+    mov _P9,#0xff
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%4
+    sjmp %5
+    %4:
+    ljmp %6
+    %5:
+    mov dptr,#_immobilizer_state
+    movx a,@dptr
+    jnb acc.5,%7
+    ljmp %6
+    %7:
+    setb _retained_startup_ready
+    lcall _restart_runtime_init
+    ljmp %3
+    %6:
+    lcall _restore_startup_eeprom
+    %3:
+    ret
+} by {
+    clr _EA
+    mov a,_sfr_a9
+    jnb acc.6,00950$
+    ljmp _restart_runtime_init
+    00950$:
+    mov _sfr_a9,#0x00
+    mov _sfr_86,#0x80
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov _sfr_b1,#0x00
+    mov _SP,#0xc2
+    mov _PSW,#0x00
+    mov _P1,#0x7f
+    mov _P3,#0xff
+    mov _P4,#0xef
+    mov _P5,#0xdf
+    mov _P6,#0xff
+    mov _P9,#0xff
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    xrl a,#0x55
+    jnz _restore_startup_eeprom
+    mov dptr,#_immobilizer_state
+    movx a,@dptr
+    jb acc.5,_restore_startup_eeprom
+    setb _retained_startup_ready
+    ljmp _restart_runtime_init
+}
+
+// Load retained records and apply the startup relay state in the original call order.
+replace {
+    lcall _read_startup_fault_history
+    lcall _read_eeprom_shutdown_record
+    mov dptr,#_shutdown_eeprom_marker
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%1
+    ljmp %2
+    %1:
+    lcall _restore_eeprom_block_f4a6
+    lcall _restore_eeprom_block_f4a0
+    %2:
+    setb _startup_serial_mode
+    mov dptr,#_startup_state_f4b7
+    mov a,#0x00
+    movx @dptr,a
+    jb _extra_state_enabled,%3
+    ljmp %4
+    %3:
+    mov dptr,#_shutdown_eeprom_marker
+    movx a,@dptr
+    mov _B,a
+    mov a,#0x55
+    cjne a,_B,%5
+    ljmp %4
+    %5:
+    mov a,#0xaa
+    cjne a,_B,%6
+    sjmp %7
+    %6:
+    ljmp %8
+    %7:
+    mov a,_stock_r7
+    jb acc.3,%9
+    ljmp %10
+    %9:
+    %8:
+    lcall _service_extra_state_b73f
+    %10:
+    setb _startup_serial_mode
+    %4:
+    mov dptr,#_relay_outputs
+    mov a,#0x64
+    movx @dptr,a
+    lcall _update_relay_outputs
+    lcall _reset_startup_diagnostics
+    %11:
+    ret
+} by {
+    lcall _read_startup_fault_history
+    lcall _read_eeprom_shutdown_record
+    mov dptr,#_shutdown_eeprom_marker
+    movx a,@dptr
+    xrl a,#0x55
+    jz 00951$
+    lcall _restore_eeprom_block_f4a6
+    lcall _restore_eeprom_block_f4a0
+    00951$:
+    setb _startup_serial_mode
+    clr a
+    mov dptr,#_startup_state_f4b7
+    movx @dptr,a
+    jnb _extra_state_enabled,00952$
+    mov dptr,#_shutdown_eeprom_marker
+    movx a,@dptr
+    mov _B,a
+    xrl a,#0x55
+    jz 00952$
+    mov a,_B
+    xrl a,#0xaa
+    jnz 00953$
+    mov a,r7
+    jnb acc.3,00954$
+    00953$:
+    lcall _service_extra_state_b73f
+    00954$:
+    setb _startup_serial_mode
+    00952$:
+    mov a,#0x64
+    mov dptr,#_relay_outputs
+    movx @dptr,a
+    lcall _update_relay_outputs
+}
+
+// Clear diagnostics and select the retained-state reset before the sensor test.
+replace {
+    mov _diagnostic_flags,#0x00
+    mov (_diagnostic_flags + 0x0001),#0x00
+    mov (_diagnostic_flags + 0x0002),#0x00
+    mov (_diagnostic_flags + 0x0003),#0x00
+    mov dptr,#_shutdown_eeprom_marker
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_retained_status
+    movx @dptr,a
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x55,%1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0xa8
+    mov r0,#_powerdown_marker
+    cjne @r0,#0xa5,%3
+    ljmp %2
+    %3:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    orl acc,#0x02
+    movx @dptr,a
+    mov dptr,#_service_timeout_count
+    mov a,#0x00
+    movx @dptr,a
+    lcall _reset_saved_state_ac3c
+    %2:
+    lcall _continue_startup_sensor_test
+    %4:
+    ret
+} by {
+    clr a
+    mov _diagnostic_flags,a
+    mov (_diagnostic_flags + 1),a
+    mov (_diagnostic_flags + 2),a
+    mov (_diagnostic_flags + 3),a
+    mov dptr,#_shutdown_eeprom_marker
+    movx @dptr,a
+    clr a
+    mov dptr,#_retained_status
+    movx @dptr,a
+    mov dptr,#_startup_iac_state_marker
+    movx a,@dptr
+    xrl a,#0x55
+    jz 00955$
+    mov r0,#0xa8
+    mov a,@r0
+    cjne a,#0xa5,00956$
+    00955$:
+    ljmp _continue_startup_sensor_test
+    00956$:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    orl a,#0x02
+    movx @dptr,a
+    clr a
+    mov dptr,#_service_timeout_count
+    movx @dptr,a
+    lcall _reset_saved_state_ac3c
+}

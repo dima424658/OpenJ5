@@ -1,0 +1,341 @@
+// Keep the coil-order bit in carry and gate the rate limiter.
+replace {
+    mov dptr,#_ignition_coil_order_raw
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov c,_ACC_BIT0
+    mov _ignition_coil_order,c
+    mov dptr,#_ignition_min_raw
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#_ignition_max_raw
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    mov _ACC,_base_ignition
+    lcall _limit_stock_i8_by_sign
+    mov _base_ignition,_ACC
+    jb _sensor_batch_ready,%1
+    ljmp %2
+    %1:
+    jnb _idle_regulating,%3
+    ljmp %2
+    %3:
+    mov a,_ignition_control_7a
+    jnb acc.2,%4
+    ljmp %2
+    %4:
+} by {
+    mov dptr,#_ignition_coil_order_raw
+    clr a
+    movc a,@a+dptr
+    mov c,_ACC_BIT0
+    mov _ignition_coil_order,c
+    mov dptr,#_ignition_min_raw
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#_ignition_max_raw
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    mov a,_base_ignition
+    lcall _limit_stock_i8_by_sign
+    mov _base_ignition,a
+    jnb _sensor_batch_ready,%2
+    jb _idle_regulating,%2
+    mov a,_ignition_control_7a
+    anl a,#0x04
+    jnz %2
+}
+
+// Retain the updated counter in A and choose the permitted advance.
+replace {
+    mov dptr,#_ignition_advance_period
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ignition_advance_ticks
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_ignition_advance_ticks
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %3
+    ljmp %4
+    %3:
+    mov _B,#0x00
+    ljmp %5
+    %4:
+    mov dptr,#_ignition_advance_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_ignition_max_advance_step
+    movc a,@a+dptr
+    mov _B,a
+    %5:
+} by {
+    mov dptr,#_ignition_advance_period
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ignition_advance_ticks
+    movx a,@dptr
+    inc a
+    jz %2
+    mov dptr,#_ignition_advance_ticks
+    movx @dptr,a
+    %2:
+    cjne a,_B,.+3
+    jnc %4
+    mov _B,#0x00
+    sjmp %5
+    %4:
+    clr a
+    mov dptr,#_ignition_advance_ticks
+    movx @dptr,a
+    mov dptr,#_ignition_max_advance_step
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %5:
+}
+
+// Compare both signed angles in biased order and publish the limited advance.
+replace {
+    mov r7,_base_ignition
+    mov a,#0x80
+    add a, r7
+    mov _stock_r0,a
+    mov dptr,#_previous_ignition
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x80
+    add a, r7
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_stock_r0
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_previous_ignition
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x80
+    add a, r7
+    mov r7,a
+    mov r6,_B
+    mov a,r6
+    add a, r7
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_stock_r0
+    jc %3
+    ljmp %2
+    %3:
+    mov a,_ACC
+    clr c
+    subb a,_stock_r0
+    add a, _base_ignition
+    mov _base_ignition,a
+    %2:
+    lcall _calculate_ignition_dwell_slots
+    %4:
+    ret
+} by {
+    mov a,_base_ignition
+    add a,#0x80
+    mov r0,a
+    mov dptr,#_previous_ignition
+    movx a,@dptr
+    add a,#0x80
+    clr c
+    subb a,r0
+    jnc %2
+    movx a,@dptr
+    add a,#0x80
+    add a,_B
+    clr c
+    subb a,r0
+    jnc %2
+    add a,_base_ignition
+    mov _base_ignition,a
+    %2:
+}
+
+// Calculate the RPM compensation and look up the dwell at the measured voltage.
+replace {
+    mov dptr,#_previous_ignition
+    mov a,_base_ignition
+    movx @dptr,a
+    mov _B,_rpm_axis_code
+    mov dptr,#_ignition_delay_compensation
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _B,r5
+    mov a,_base_ignition
+    add a, _B
+    mov _stock_r2,a
+    mov dptr,#_voltage_quantized
+    movx a,@dptr
+    mov _ACC,a
+    mov r6,#_ignition_dwell_raw
+    mov r7,#(_ignition_dwell_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_descending_curve_q4
+    mov _B,_ACC
+} by {
+    mov a,_base_ignition
+    mov dptr,#_previous_ignition
+    movx @dptr,a
+    mov _B,_rpm_axis_code
+    mov dptr,#_ignition_delay_compensation
+    clr a
+    movc a,@a+dptr
+    mul ab
+    mov a,_B
+    add a,_base_ignition
+    mov r2,a
+    mov dptr,#_voltage_quantized
+    movx a,@dptr
+    mov dptr,#_ignition_dwell_raw
+    lcall _interp_descending_curve_q4
+    mov _B,a
+}
+
+// Shift the dwell product into angle units and saturate it before scaling.
+replace {
+    mov r7,_rpm_axis_code
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov a,r5
+    mov c,acc.7
+    xch a,r7
+    rlc a
+    xch a,r7
+    rlc a
+    mov c,acc.7
+    xch a,r7
+    rlc a
+    xch a,r7
+    rlc a
+    xch a,r7
+    anl a,#0x03
+    mov r6,a
+    mov ar4,r7
+    mov ar5,r6
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r5
+    jc %1
+    ljmp %2
+    %1:
+    mov r5,#0xff
+    ljmp %3
+    %2:
+    mov ar5,r7
+    %3:
+    mov _ACC,r5
+    mov _B,#0xb8
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _ACC,r5
+    mov _stock_r0,#0x0c
+    mov _stock_r1,#0xae
+    lcall _clamp_stock_u8
+} by {
+    mov a,_rpm_axis_code
+    mul ab
+    rlc a
+    xch a,_B
+    rlc a
+    jc %1
+    xch a,_B
+    rlc a
+    xch a,_B
+    rlc a
+    jnc %3
+    %1:
+    mov a,#0xff
+    %3:
+    mov _B,#0xb8
+    mul ab
+    mov a,_B
+    mov r0,#0x0c
+    mov r1,#0xae
+    lcall _clamp_stock_u8
+}
+
+// Use both results of DIV AB and enter the stock timing-slot writer.
+replace {
+    mov r7,_ACC
+    mov b,#0x06
+    mov a,r7
+    div ab
+    mov r7,b
+    mov _B,r7
+    mov r7,_ACC
+    mov b,#0x06
+    mov a,r7
+    div ab
+    mov r7,a
+    mov _ACC,r7
+    mov dptr,#_dwell_slots
+    mov a,_ACC
+    movx @dptr,a
+    mov r7,_B
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov dptr,#_dwell_remainder_half_degrees
+    mov a,r7
+    movx @dptr,a
+    lcall _write_ignition_timing_slots
+    %1:
+    ret
+} by {
+    mov _B,#0x06
+    div ab
+    mov dptr,#_dwell_slots
+    movx @dptr,a
+    mov a,_B
+    rl a
+    mov dptr,#_dwell_remainder_half_degrees
+    movx @dptr,a
+    sjmp _write_ignition_timing_slots
+}

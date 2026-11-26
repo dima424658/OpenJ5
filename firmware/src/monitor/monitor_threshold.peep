@@ -1,0 +1,207 @@
+// Keep the ADC scaling, threshold and register state at the P9 handoff.
+replace {
+    lcall _poll_monitor_exit_and_io
+    mov _stock_r1,#0x1f
+    mov _B,#0x01
+    lcall _read_monitor_adc_high
+    mov r7,_ACC
+    mov a,r7
+    mov b,#0x75
+    mul ab
+    mov r7,a
+    mov r6,b
+    mov a,r6
+    mov c,acc.7
+    xch a,r7
+    rlc a
+    xch a,r7
+    rlc a
+    xch a,r7
+    anl a,#0x01
+    mov r6,a
+    mov _ACC,r7
+    clr c
+    mov a,_ACC
+    subb a,_stock_r1
+    jc %1
+    ljmp %2
+    %1:
+} by {
+    lcall _poll_monitor_exit_and_io
+    mov a,#0x1f
+    mov r1,a
+    mov _B,#0x01
+    lcall _read_monitor_adc_high
+    clr c
+    subb a,#0x00
+    jnc 00970$
+    clr a
+    00970$:
+    mov _B,#0x75
+    mul ab
+    rlc a
+    mov a,_B
+    rlc a
+    jnc 00971$
+    mov a,#0xff
+    00971$:
+    cjne a,_stock_r1,00972$
+    00972$:
+    cpl c
+    jc _monitor_handler_e978
+}
+
+// Keep the final P9 transfer, interrupt setup and halt loop.
+replace {
+    clr _EA
+    mov r7,_stock_r0
+    mov _stock_r0,#_monitor_transfer_bytes
+    anl _P9,#0xfb
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov _B,#0x08
+    %1:
+    jb _CY,%2
+    ljmp %3
+    %2:
+    mov r6,#0x80
+    ljmp %4
+    %3:
+    mov r6,#0x00
+    %4:
+    mov a,_ACC
+    anl a,#0x01
+    mov r5,a
+    mov a,r5
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r5,a
+    mov a,r6
+    orl a,r5
+    mov _ACC,a
+    jb _CY,%5
+    ljmp %6
+    %5:
+    orl _P9,#0x08
+    ljmp %7
+    %6:
+    anl _P9,#0xf7
+    %7:
+    orl _P9,#0x01
+    mov r6,_P9
+    anl ar6,#0x40
+    mov a,r6
+    cjne a,#0x01,%8
+    %8:
+    mov _monitor_handler_e978_sloc0_1_0,c
+    mov c,_monitor_handler_e978_sloc0_1_0
+    cpl c
+    mov _CY,c
+    anl _P9,#0xfe
+    mov a,_B
+    dec a
+    mov r6,a
+    mov _B,r6
+    mov a,r6
+    jz %9
+    ljmp %1
+    %9:
+    jb _CY,%10
+    ljmp %11
+    %10:
+    mov r6,#0x80
+    ljmp %12
+    %11:
+    mov r6,#0x00
+    %12:
+    mov a,_ACC
+    anl a,#0x01
+    mov r5,a
+    mov a,r5
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r5,a
+    mov a,r6
+    orl a,r5
+    mov _ACC,a
+    inc _stock_r0
+    orl _P9,#0x04
+    mov _stock_r0,r7
+    mov _sfr_86,#0x80
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    setb _port1_bit7
+    %13:
+    ljmp %13
+    %14:
+    ret
+} by {
+    clr _EA
+    mov a,r0
+    push acc
+    mov r0,#_monitor_transfer_bytes
+    anl _P9,#0xfb
+    00976$:
+    mov a,@r0
+    inc r0
+    mov @r0,a
+    mov _B,#0x08
+    00975$:
+    rrc a
+    jnc 00973$
+    orl _P9,#0x08
+    sjmp 00974$
+    00973$:
+    anl _P9,#0xf7
+    00974$:
+    orl _P9,#0x01
+    push acc
+    mov a,_P9
+    mov c,acc.6
+    pop acc
+    anl _P9,#0xfe
+    djnz _B,00975$
+    rrc a
+    inc r0
+    cjne r0,#0x80,00976$
+    orl _P9,#0x04
+    pop acc
+    mov r0,a
+    mov _sfr_86,#0x80
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    setb _port1_bit7
+    00977$:
+    sjmp 00977$
+}
+
+// Preserve ADC selection, conversion wait and high-byte result.
+replace {
+    mov _adc_channel,_B
+    orl _adc_channel,#0x40
+    mov _adc_start,#0x00
+    %1:
+    jnb _adc_busy,%2
+    ljmp %1
+    %2:
+    mov _ACC,_adc_result_high
+    %3:
+    ret
+} by {
+    mov _adc_channel,_B
+    orl _adc_channel,#0x40
+    mov _adc_start,#0x00
+    00970$:
+    jb _adc_busy,00970$
+    mov a,_adc_result_high
+    ret
+}

@@ -1,0 +1,463 @@
+// Dispatch the start and stopped branches and update fuel pump priming.
+replace {
+    jb _shutdown_pending,%1
+    ljmp %2
+    %1:
+    lcall _prepare_cranking_state
+    ljmp %3
+    %2:
+    jb _fuel_mode_flag_56,%4
+    ljmp %5
+    %4:
+    jb _crank_stopped,%6
+    ljmp %7
+    %6:
+    lcall _prepare_cranking_state
+    ljmp %8
+    %7:
+    lcall _advance_cranking_exit
+    %8:
+    ljmp %3
+    %5:
+    jnb _crank_stopped,%9
+    ljmp %10
+    %9:
+    lcall _begin_asynchronous_cranking
+    ljmp %3
+    %10:
+    mov a,_output_mask_7c
+    anl a,#0x0f
+    mov _ACC,a
+    anl _sfr_f6,#0xf0
+    mov a,_ACC
+    jz %11
+    ljmp %12
+    %11:
+    orl _P4,#0x0f
+    %12:
+    setb _oxygen_heater_output_high
+    clr _oxygen_heater_active
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    anl acc,#0xfd
+    movx @dptr,a
+    mov a,_output_override_flags
+    jb acc.3,%13
+    ljmp %14
+    %13:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    anl a,#0xbf
+    mov r7,a
+    jb _service_pump_output,%15
+    ljmp %16
+    %15:
+    mov r6,#0x40
+    ljmp %17
+    %16:
+    mov r6,#0x00
+    %17:
+    mov dptr,#_relay_output_latch
+    mov a,r6
+    orl a,r7
+    movx @dptr,a
+    ljmp %18
+    %14:
+    jb _service_link_ready_6b,%19
+    ljmp %18
+    %19:
+    mov dptr,#_fuel_pump_prime_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_fuel_pump_prime_elapsed
+    movx a,@dptr
+    mov _ACC,a
+    jb _tick_1s,%20
+    ljmp %21
+    %20:
+    mov a,#0xff
+    cjne a,_ACC,%22
+    ljmp %21
+    %22:
+    inc _ACC
+    %21:
+    mov dptr,#_fuel_pump_prime_elapsed
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    anl a,#0xbf
+    mov r7,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %23
+    ljmp %24
+    %23:
+    mov r6,#0x40
+    ljmp %25
+    %24:
+    mov r6,#0x00
+    %25:
+    mov dptr,#_relay_output_latch
+    mov a,r6
+    orl a,r7
+    movx @dptr,a
+    %18:
+    lcall _prepare_cranking_ignition
+    %3:
+    ret
+} by {
+    jb _shutdown_pending,_prepare_cranking_state
+    jb _fuel_mode_flag_56,00970$
+    jnb _crank_stopped,00971$
+    mov a,_output_mask_7c
+    anl a,#0x0f
+    anl _sfr_f6,#0xf0
+    jnz 00972$
+    orl _P4,#0x0f
+    00972$:
+    setb _oxygen_heater_output_high
+    clr _oxygen_heater_active
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    anl a,#0xfd
+    movx @dptr,a
+    mov a,_output_override_flags
+    anl a,#0x08
+    jz 00973$
+    mov c,_service_pump_output
+    sjmp 00974$
+    00973$:
+    jb _service_link_ready_6b,00975$
+    ljmp _prepare_cranking_ignition
+    00975$:
+    mov dptr,#_fuel_pump_prime_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_fuel_pump_prime_elapsed
+    movx a,@dptr
+    jnb _tick_1s,00976$
+    inc a
+    jnz 00976$
+    dec a
+    00976$:
+    movx @dptr,a
+    clr c
+    subb a,_B
+    00974$:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov acc.6,c
+    movx @dptr,a
+    ljmp _prepare_cranking_ignition
+    00971$:
+    ljmp _begin_asynchronous_cranking
+    00970$:
+    jb _crank_stopped,_prepare_cranking_state
+    ljmp _advance_cranking_exit
+}
+
+// Initialize the cranking state and load the two-byte air charge seed.
+replace {
+    clr _fuel_mode_flag_56
+    clr _event_flag_31
+    setb _startup_flag_53
+    setb _poststart_iac_enabled
+    setb _startup_flag_51
+    mov a,_coolant_nearest_index
+    add a, #_poststart_iac_upper_offset_8c00
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_poststart_iac_upper_offset_8c00 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_poststart_iac_upper_offset
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#_oxygen_diagnostic_status
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_oxygen_ready_count
+    movx @dptr,a
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+    mov dptr,#_startup_injection_phase
+    clr a
+    movc a,@a+dptr
+    mov _injection_phase,a
+    %2:
+    mov dptr,#_startup_measured_charge_low
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_measured_air_charge
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#_startup_measured_charge_high
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#(_measured_air_charge + 0x0001)
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#_iac_max_position
+    clr a
+    movc a,@a+dptr
+    mov _iac_target,a
+    mov dptr,#_idle_feedback_rpm_target
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_cranking_events
+    movx @dptr,a
+    mov _engine_rpm_10,a
+    mov dptr,#_sensor_sum_state_f841
+    movx @dptr,a
+    mov dptr,#(_sensor_sum_state_f841 + 0x0001)
+    movx @dptr,a
+    mov dptr,#_cranking_fuel
+    movx @dptr,a
+    mov dptr,#(_cranking_fuel + 0x0001)
+    movx @dptr,a
+    mov dptr,#_poststart_fuel_floor
+    movx @dptr,a
+    mov dptr,#(_poststart_fuel_floor + 0x0001)
+    movx @dptr,a
+    mov dptr,#_cylinder_charge
+    movx @dptr,a
+    mov dptr,#(_cylinder_charge + 0x0001)
+    movx @dptr,a
+    mov dptr,#_mass_airflow
+    movx @dptr,a
+    mov dptr,#(_mass_airflow + 0x0001)
+    movx @dptr,a
+    mov dptr,#_fuel_film_events
+    movx @dptr,a
+    lcall _clear_fuel_history_f839
+    lcall _reset_start_mode_3edb
+    lcall _prepare_cranking_ignition
+    %3:
+    ret
+} by {
+    clr _fuel_mode_flag_56
+    clr _event_flag_31
+    setb _startup_flag_53
+    setb _poststart_iac_enabled
+    setb _startup_flag_51
+    mov dptr,#_poststart_iac_upper_offset_8c00
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov dptr,#_poststart_iac_upper_offset
+    movx @dptr,a
+    clr a
+    mov dptr,#_oxygen_diagnostic_status
+    movx @dptr,a
+    mov dptr,#_oxygen_ready_count
+    movx @dptr,a
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x02
+    jnz 00977$
+    mov dptr,#_startup_injection_phase
+    clr a
+    movc a,@a+dptr
+    mov _injection_phase,a
+    00977$:
+    mov dptr,#_startup_measured_charge_low
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_measured_air_charge
+    movx @dptr,a
+    mov dptr,#_startup_measured_charge_high
+    clr a
+    movc a,@a+dptr
+    mov dptr,#0xf82d
+    movx @dptr,a
+    mov dptr,#_iac_max_position
+    clr a
+    movc a,@a+dptr
+    mov _iac_target,a
+    clr a
+    mov dptr,#_idle_feedback_rpm_target
+    movx @dptr,a
+    mov dptr,#_cranking_events
+    movx @dptr,a
+    mov _engine_rpm_10,a
+    mov dptr,#_sensor_sum_state_f841
+    movx @dptr,a
+    mov dptr,#0xf842
+    movx @dptr,a
+    mov dptr,#_cranking_fuel
+    movx @dptr,a
+    mov dptr,#0xf838
+    movx @dptr,a
+    mov dptr,#_poststart_fuel_floor
+    movx @dptr,a
+    mov dptr,#0xf89c
+    movx @dptr,a
+    mov dptr,#_cylinder_charge
+    movx @dptr,a
+    mov dptr,#0xf82f
+    movx @dptr,a
+    mov dptr,#_mass_airflow
+    movx @dptr,a
+    mov dptr,#0xf809
+    movx @dptr,a
+    mov dptr,#_fuel_film_events
+    movx @dptr,a
+    lcall _clear_fuel_history_f839
+    lcall _reset_start_mode_3edb
+}
+
+// Seed the compare registers in the configured order and continue ignition.
+replace {
+    mov dptr,#_startup_coolant_temperature_raw
+    mov a,_coolant_temperature_raw
+    movx @dptr,a
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+    mov dptr,#_rpm_eighth_bin
+    movx a,@dptr
+    mov _B,a
+    mov a,_B
+    add a, #_cranking_ignition_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cranking_ignition_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _requested_ignition,a
+    %2:
+    mov _stock_r0,#0x80
+    jnb _ignition_coil_order,%3
+    ljmp %4
+    %3:
+    mov r7,#0x00
+    %5:
+    cjne r7,#0x04,%6
+    %6:
+    jc %7
+    ljmp %4
+    %7:
+    mov a,r7
+    add a, #_cranking_compare_bank
+    mov r1,a
+    mov r6,_stock_r0
+    mov a,r6
+    inc a
+    mov _stock_r0,a
+    mov ar0,r6
+    mov ar6,@r0
+    mov @r1,ar6
+    inc r7
+    ljmp %5
+    %4:
+    mov r7,#0x04
+    %8:
+    cjne r7,#0x08,%9
+    %9:
+    jc %10
+    ljmp %11
+    %10:
+    mov a,r7
+    add a, #_cranking_compare_bank
+    mov r1,a
+    mov r6,_stock_r0
+    mov a,r6
+    inc a
+    mov _stock_r0,a
+    mov ar0,r6
+    mov ar6,@r0
+    mov @r1,ar6
+    inc r7
+    ljmp %8
+    %11:
+    jb _ignition_coil_order,%12
+    ljmp %13
+    %12:
+    mov r7,#0x00
+    %14:
+    cjne r7,#0x04,%15
+    %15:
+    jc %16
+    ljmp %13
+    %16:
+    mov a,r7
+    add a, #_cranking_compare_bank
+    mov r1,a
+    mov r6,_stock_r0
+    mov a,r6
+    inc a
+    mov _stock_r0,a
+    mov ar0,r6
+    mov ar6,@r0
+    mov @r1,ar6
+    inc r7
+    ljmp %14
+    %13:
+    mov dptr,#_poststart_mixture_duration
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_poststart_mixture_seconds
+    movx @dptr,a
+    lcall _finish_ignition_corrections
+    %17:
+    ret
+} by {
+    mov a,_coolant_temperature_raw
+    mov dptr,#_startup_coolant_temperature_raw
+    movx @dptr,a
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x04
+    jnz 00978$
+    mov dptr,#_rpm_eighth_bin
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_cranking_ignition_raw
+    mov a,_B
+    movc a,@a+dptr
+    mov _requested_ignition,a
+    00978$:
+    mov r0,#0x80
+    jb _ignition_coil_order,00979$
+    mov _cranking_compare_bank,@r0
+    inc r0
+    mov 0x11,@r0
+    inc r0
+    mov 0x12,@r0
+    inc r0
+    mov 0x13,@r0
+    inc r0
+    00979$:
+    mov 0x14,@r0
+    inc r0
+    mov 0x15,@r0
+    inc r0
+    mov 0x16,@r0
+    inc r0
+    mov 0x17,@r0
+    jnb _ignition_coil_order,00980$
+    inc r0
+    mov _cranking_compare_bank,@r0
+    inc r0
+    mov 0x11,@r0
+    inc r0
+    mov 0x12,@r0
+    inc r0
+    mov 0x13,@r0
+    00980$:
+    mov dptr,#_poststart_mixture_duration
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_poststart_mixture_seconds
+    movx @dptr,a
+    ljmp _finish_ignition_corrections
+}

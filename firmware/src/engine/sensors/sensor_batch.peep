@@ -1,0 +1,158 @@
+// Keep the ADC reading in A and the sum address in DPTR.
+replace {
+    mov dptr,#_throttle_adc_raw
+    mov a,_ACC
+    movx @dptr,a
+    mov r6,#_throttle_sample_sum
+    mov r7,#(_throttle_sample_sum >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _accumulate_u8_xdata_u16
+    lcall _track_throttle_extrema
+    %1:
+    ret
+} by {
+    mov dptr,#_throttle_adc_raw
+    movx @dptr,a
+    mov dptr,#_throttle_sample_sum
+    lcall _accumulate_u8_xdata_u16
+}
+
+replace {
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_throttle_sample_minimum
+    mov a,_B
+    movx @dptr,a
+    mov dptr,#_throttle_sample_maximum
+    mov a,_B
+    movx @dptr,a
+    ljmp %3
+    %2:
+} by {
+    jnz %2
+    mov a,_B
+    mov dptr,#_throttle_sample_minimum
+    movx @dptr,a
+    mov dptr,#_throttle_sample_maximum
+    movx @dptr,a
+    sjmp %3
+    %2:
+}
+
+// SUBB selects the store path, with explicit carry reset for each bound.
+replace {
+    mov dptr,#_throttle_sample_minimum
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_throttle_sample_minimum
+    mov a,_B
+    movx @dptr,a
+    ljmp %3
+    %2:
+} by {
+    mov dptr,#_throttle_sample_minimum
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jc %2
+    mov a,_B
+    mov dptr,#_throttle_sample_minimum
+    movx @dptr,a
+    sjmp %3
+    %2:
+}
+
+replace {
+    mov dptr,#_throttle_sample_maximum
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_throttle_sample_maximum
+    mov a,_B
+    movx @dptr,a
+    %2:
+    lcall _finish_sensor_sample
+    %3:
+    ret
+} by {
+    mov dptr,#_throttle_sample_maximum
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc %2
+    mov a,_B
+    mov dptr,#_throttle_sample_maximum
+    movx @dptr,a
+    %2:
+}
+
+// Retain the sample counter address in DPTR until the batch decision.
+replace {
+    mov _ACC,_rpm_eighth
+    mov r6,#_rpm_sample_sum
+    mov r7,#(_rpm_sample_sum >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _accumulate_u8_xdata_u16
+    mov dptr,#_sensor_sample_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x20
+    cjne a,_ACC,%1
+    ljmp %2
+    %1:
+    lcall _continue_after_sample_batch
+    ljmp %3
+    %2:
+    mov dptr,#_sensor_sample_count
+    mov a,#0x00
+    movx @dptr,a
+    mov a,_sensor_mode_flags_7a
+    jb acc.7,%4
+    ljmp %5
+    %4:
+    lcall _update_coolant_axis
+    ljmp %3
+    %5:
+    lcall _update_coolant_from_samples
+    %3:
+    ret
+} by {
+    mov a,_rpm_eighth
+    mov dptr,#_rpm_sample_sum
+    lcall _accumulate_u8_xdata_u16
+    mov dptr,#_sensor_sample_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,#0x20,%1
+    clr a
+    movx @dptr,a
+    sjmp %2
+    %1:
+    ljmp _continue_after_sample_batch
+    %2:
+    mov a,_sensor_mode_flags_7a
+    anl a,#0x80
+    jz %5
+    ljmp _update_coolant_axis
+    %5:
+}

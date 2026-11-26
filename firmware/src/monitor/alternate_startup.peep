@@ -1,0 +1,518 @@
+// Initialize the alternate runtime with the stock order of SFR and port writes.
+replace {
+    mov _PSW,#0x00
+    mov _stock_r0,#0x29
+    mov _stock_r1,#0x07
+    mov _ACC,#0x00
+    %1:
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _PCON,_ACC
+    mov _sfr_b1,#0xa1
+    mov _sfr_b2,_ACC
+    mov _sfr_b4,#0xd5
+    orl _sfr_b1,#0x10
+    mov _sfr_f6,_ACC
+    anl _sfr_b1,#0xef
+    mov _sfr_c1,_ACC
+    mov _sfr_c9,_ACC
+    mov _sfr_f6,_ACC
+    mov _sfr_c0,_ACC
+    mov _sfr_d1,_ACC
+    mov _IE,_ACC
+    mov _IP,_ACC
+    mov _sfr_9a,_ACC
+    mov _TCON,_ACC
+    mov _TMOD,_ACC
+    mov _T2CON,_ACC
+    mov _sfr_e1,#0x40
+    mov _sfr_bc,#0x40
+    mov _sfr_be,_ACC
+    mov _sfr_bf,_ACC
+    mov _sfr_d8,_ACC
+    mov _DPSEL,_ACC
+    orl _sfr_b1,#0x40
+    orl _sfr_b9,#0x80
+    mov _P0,#0xff
+    orl _sfr_b9,#0x80
+    mov _P1,#0x24
+    orl _sfr_b9,#0x80
+    mov _P2,#0xff
+    orl _sfr_b9,#0x80
+    mov _P3,#0x35
+    orl _sfr_b9,#0x80
+    mov _P4,#0x00
+    orl _sfr_b9,#0x80
+    mov _P5,#0x90
+    orl _sfr_b9,#0x80
+    mov _P6,#0x26
+    orl _sfr_b9,#0x80
+    mov _P9,#0x40
+    anl _sfr_b1,#0xfc
+    orl _PCON,#0x80
+    setb _sfr_d8_bit7
+    mov _sfr_86,#0x80
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov _ACC,_P6
+    mov a,_ACC
+    anl a,#0x01
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%3
+    %3:
+    mov _CY,c
+    mov c,_CY
+    mov _monitor_flag_0f,c
+    mov _monitor_request_kind,#0x00
+    mov _monitor_flags,#0x00
+    mov _monitor_field_62,#0x00
+    mov _sfr_ba,#0xff
+    mov _sfr_aa,#0xcc
+    mov _SCON,#0x50
+    clr _monitor_response_pending
+    clr _monitor_transmitting
+    clr _port1_bit4
+    orl _P9,#0x20
+    anl _P9,#0xef
+    setb _sfr_d8_bit6
+    anl _sfr_b1,#0x7f
+} by {
+    mov psw,#0x00
+    mov r0,#0x29
+    mov r1,#0x07
+    clr a
+    00970$:
+    mov @r0,a
+    inc r0
+    djnz r1,00970$
+    mov _PCON,a
+    mov _sfr_b1,#0xa1
+    mov _sfr_b2,a
+    mov _sfr_b4,#0xd5
+    orl _sfr_b1,#0x10
+    mov _sfr_f6,a
+    anl _sfr_b1,#0xef
+    mov _sfr_c1,a
+    mov _sfr_c9,a
+    mov _sfr_f6,a
+    mov _sfr_c0,a
+    mov _sfr_d1,a
+    mov _IE,a
+    mov _IP,a
+    mov _sfr_9a,a
+    mov _TCON,a
+    mov _TMOD,a
+    mov _T2CON,a
+    mov _sfr_e1,#0x40
+    mov _sfr_bc,#0x40
+    mov _sfr_be,a
+    mov _sfr_bf,a
+    mov _sfr_d8,a
+    mov _DPSEL,a
+    orl _sfr_b1,#0x40
+    orl _sfr_b9,#0x80
+    mov _P0,#0xff
+    orl _sfr_b9,#0x80
+    mov _P1,#0x24
+    orl _sfr_b9,#0x80
+    mov _P2,#0xff
+    orl _sfr_b9,#0x80
+    mov _P3,#0x35
+    orl _sfr_b9,#0x80
+    mov _P4,#0x00
+    orl _sfr_b9,#0x80
+    mov _P5,#0x90
+    orl _sfr_b9,#0x80
+    mov _P6,#0x26
+    orl _sfr_b9,#0x80
+    mov _P9,#0x40
+    anl _sfr_b1,#0xfc
+    orl _PCON,#0x80
+    setb _sfr_d8_bit7
+    mov _sfr_86,#0x80
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov a,_P6
+    mov c,acc.0
+    cpl c
+    mov _monitor_flag_0f,c
+    mov _monitor_request_kind,#0x00
+    mov _monitor_flags,#0x00
+    mov _monitor_field_62,#0x00
+    mov _sfr_ba,#0xff
+    mov _sfr_aa,#0xcc
+    mov _SCON,#0x50
+    clr _monitor_response_pending
+    clr _monitor_transmitting
+    clr _port1_bit4
+    orl _P9,#0x20
+    anl _P9,#0xef
+    setb _sfr_d8_bit6
+    anl _sfr_b1,#0x7f
+}
+
+// Keep the clock transitions and carry rotation for the first P9 command.
+replace {
+    mov _ACC,#0x2c
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0x2c
+    anl a,#0x3f
+    orl a,#0x00
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00973$:
+    rlc a
+    jnc 00971$
+    orl _P9,#0x80
+    sjmp 00972$
+    00971$:
+    anl _P9,#0x7f
+    00972$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00973$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Keep the clock transitions and carry rotation for the second P9 command.
+replace {
+    mov _ACC,#0x6c
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0x2c
+    anl a,#0x3f
+    orl a,#0x40
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00976$:
+    rlc a
+    jnc 00974$
+    orl _P9,#0x80
+    sjmp 00975$
+    00974$:
+    anl _P9,#0x7f
+    00975$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00976$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Keep the clock transitions and carry rotation for the third P9 command.
+replace {
+    mov _ACC,#0x82
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0x02
+    anl a,#0x3f
+    orl a,#0x80
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00979$:
+    rlc a
+    jnc 00977$
+    orl _P9,#0x80
+    sjmp 00978$
+    00977$:
+    anl _P9,#0x7f
+    00978$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00979$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Keep the clock transitions and carry rotation for the fourth P9 command.
+replace {
+    mov _ACC,#0xdf
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0x1f
+    anl a,#0x1f
+    orl a,#0xc0
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00982$:
+    rlc a
+    jnc 00980$
+    orl _P9,#0x80
+    sjmp 00981$
+    00980$:
+    anl _P9,#0x7f
+    00981$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00982$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Keep the clock transitions and carry rotation for the final P9 command.
+replace {
+    mov _ACC,#0xe1
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0xe1
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00985$:
+    rlc a
+    jnc 00983$
+    orl _P9,#0x80
+    sjmp 00984$
+    00983$:
+    anl _P9,#0x7f
+    00984$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00985$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Fall through directly to the service monitor at E21E.
+replace {
+    lcall _resume_service_monitor
+    %1:
+    ret
+} by {
+}

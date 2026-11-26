@@ -1,0 +1,473 @@
+// Keep a CODE table's base in DPTR and its byte offset in A.
+replace {
+    mov a,%1
+    add a,#%2
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%2 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%2
+    mov a,%1
+    movc a,@a+dptr
+}
+
+// B holds the temperature correction and R1 holds the adjusted base angle.
+replace {
+    mov r7,a
+    mov dptr,#_idle_ignition_by_rpm
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov r6,a
+    mov a,r6
+    clr c
+    subb a,r7
+    mov r7,a
+} by {
+    mov b,a
+    mov dptr,#_idle_ignition_by_rpm
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    clr c
+    subb a,b
+    mov r1,a
+}
+
+// The curve routine takes its two byte arguments in the active bank.
+replace {
+    mov _stock_r2,a
+} by {
+    mov r2,a
+}
+
+replace {
+    mov _stock_r3,a
+} by {
+    mov r3,a
+}
+
+// Pass the packed RPM and charge coordinates directly to the active bank.
+replace {
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+} by {
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+}
+
+replace {
+    mov _stock_r2,_rpm_q4
+} by {
+    mov r2,_rpm_q4
+}
+
+replace {
+    mov _requested_mixture,_ACC
+} by {
+    mov _requested_mixture,a
+}
+
+replace {
+    mov _base_ignition,_ACC
+} by {
+    mov _base_ignition,a
+}
+
+// Invert the compiler's long conditional branches to nearby alternatives.
+replace {
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _idle_mode,%2
+    %1:
+}
+
+replace {
+    jb _egr_selected,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _egr_selected,%2
+    %1:
+}
+
+replace {
+    lcall _interp_curve_u8
+    ljmp %1
+} by {
+    lcall _interp_curve_u8
+    sjmp %1
+}
+
+// The hold flag is tested with the stock mask-and-branch sequence.
+replace {
+    mov a,_ignition_control_7a
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,_ignition_control_7a
+    anl a,#0x04
+    jnz %2
+    %1:
+}
+
+replace {
+    mov r6,#%1
+    mov r7,#(%1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#%1
+}
+
+// Subtract the fuel baseline, using the borrow to saturate at zero.
+replace {
+    mov r7,_ACC
+    cjne r7,#0x80,%1
+    %1:
+    jnc %2
+    ljmp %3
+    %2:
+    mov a,r7
+    add a,#0x80
+    mov r7,a
+    ljmp %4
+    %3:
+    mov r7,#0x00
+    %4:
+} by {
+    clr c
+    subb a,#0x80
+    jnc %4
+    clr a
+    %4:
+    mov b,a
+}
+
+// Add the rounded throttle row offset to the RPM column, then index CODE.
+replace {
+    mov r6,a
+    mov a,#0x08
+    add a,r6
+    mov r6,a
+    anl ar6,#0xf0
+    mov a,_rpm_nearest_bin
+    add a,r6
+    add a,#_fuel_weight_by_throttle_raw
+    mov dpl,a
+    mov a,#(_fuel_weight_by_throttle_raw >> 8)
+    addc a,#0x00
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    add a,#0x08
+    anl a,#0xf0
+    add a,_rpm_nearest_bin
+    mov r2,a
+    mov dptr,#_fuel_weight_by_throttle_raw
+    mov a,r2
+    movc a,@a+dptr
+}
+
+// Round the weighted increment and restore the baseline in the high byte.
+replace {
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov a,#0x80
+    add a,r7
+    mov r7,a
+    mov a,#0x00
+    addc a,r5
+    mov r5,a
+    mov ar7,r5
+    mov dptr,#_fuel_weighted_correction
+    mov a,#0x80
+    add a,r7
+} by {
+    mul ab
+    add a,#0x80
+    mov a,b
+    addc a,#0x80
+    mov dptr,#_fuel_weighted_correction
+}
+
+// Widen the biased knock correction directly into R1:R0.
+replace {
+    mov r6,_ACC
+    mov r7,#0x00
+    mov a,#0x80
+    add a,r6
+    mov r6,a
+    mov a,#0x00
+    addc a,r7
+    mov r7,a
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r7
+} by {
+    add a,#0x80
+    mov r0,a
+    clr a
+    addc a,#0x00
+    mov r1,a
+}
+
+// The high product byte signals that the middle byte must saturate.
+replace {
+    mov a,_stock_r1
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0xff
+    %2:
+} by {
+    mov a,r1
+    jz %2
+    %1:
+    mov r0,#0xff
+    %2:
+}
+
+// Compare the scaled byte in R0 with the wrapping headroom in B.
+replace {
+    mov r7,_knock_limit_offset_42
+    mov a,#0xfe
+    clr c
+    subb a,r7
+    mov r7,a
+    mov r6,_stock_r0
+    clr c
+    mov a,r6
+    subb a,r7
+    jc %1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov ar6,r7
+    %3:
+    mov dptr,#_knock_threshold_correction
+    mov a,r6
+} by {
+    mov a,#0xfe
+    clr c
+    subb a,_knock_limit_offset_42
+    mov b,a
+    mov a,r0
+    cjne a,b,%1
+    %1:
+    jc %3
+    mov a,b
+    %3:
+    mov dptr,#_knock_threshold_correction
+}
+
+// Only the borrow is needed from the unsigned time comparison.
+// CJNE to the next instruction preserves A and supplies that borrow in CY.
+replace {
+    mov dptr,#_warmup_duration
+    movx a,@dptr
+    mov %4,a
+    mov dptr,#_warmup_elapsed
+    movx a,@dptr
+    mov %5,a
+    clr c
+    mov a,%5
+    subb a,%4
+    jnc %1
+    ljmp %2
+    %1:
+    mov %4,#0x00
+    ljmp %3
+} by {
+    mov dptr,#_warmup_duration
+    movx a,@dptr
+    mov b,a
+    mov dptr,#_warmup_elapsed
+    movx a,@dptr
+    cjne a,b,%1
+    %1:
+    jc %2
+    clr a
+    sjmp %3
+}
+
+// Both branches leave the warmup correction in A for addition to R1.
+replace {
+    movc a,@a+dptr
+    mov r6,a
+    %1:
+    mov a,r6
+    add a,r7
+    mov _idle_ignition_target_raw,a
+} by {
+    movc a,@a+dptr
+    %1:
+    add a,r1
+    mov _idle_ignition_target_raw,a
+}
+
+// Store a table byte to XDATA directly from the accumulator.
+replace {
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#%1
+    mov a,r7
+    movx @dptr,a
+} by {
+    movc a,@a+dptr
+    mov dptr,#%1
+    movx @dptr,a
+}
+
+// The stock test masks the control byte before branching.
+replace {
+    mov a,_injection_control_7a
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+} by {
+    mov a,_injection_control_7a
+    anl a,#0x02
+    jnz %2
+    %1:
+}
+
+// Load the multiplicands into B and A, then form the product in B:A.
+replace {
+    mov r6,a
+    mov dptr,#_warmup_ignition_weight_raw
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    mov r5,a
+    mov b,r6
+    mov a,r5
+    mul ab
+} by {
+    mov b,a
+    mov dptr,#_warmup_ignition_weight_raw
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    mul ab
+}
+
+// Adding 128 rounds the product before discarding the low byte.
+replace {
+    mov r6,a
+    mov r4,b
+    mov a,#%1
+    add a,r6
+    mov r6,a
+    mov a,#0x00
+    addc a,r4
+    mov r4,a
+    mov ar7,r4
+    %2:
+    mov dptr,#_load_warmup_correction_raw
+    mov a,r7
+    movx @dptr,a
+} by {
+    add a,#%1
+    mov a,b
+    addc a,#0x00
+    %2:
+    mov dptr,#_load_warmup_correction_raw
+    movx @dptr,a
+}
+
+// The original routine continues immediately after the linked C block.
+replace {
+    lcall _update_base_ignition
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_injection_phase
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _finish_sensor_fault
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_idle_airflow
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _warmup_setup_continue
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_engine_torque
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_load_warmup_ignition
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _dispatch_sensor_fault
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_fuel_weighting
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_knock_threshold_scale
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_knock_rpm_parameters
+    %1:
+    ret
+} by {
+    %1:
+}

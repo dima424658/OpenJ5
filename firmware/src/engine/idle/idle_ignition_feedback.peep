@@ -1,0 +1,190 @@
+replace {
+    jb acc.2,%1
+    ljmp %2
+    %1:
+    lcall _prepare_idle_airflow_feedback
+    ljmp %3
+    %2:
+} by {
+    anl a,#0x04
+    jnz _prepare_idle_airflow_feedback
+}
+
+// Preserve the original signed error in R0 while testing its magnitude.
+replace {
+    mov _ACC,_idle_rpm_error
+    mov _stock_r0,_ACC
+    lcall _abs_accumulator_i8
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0x00
+    %2:
+} by {
+    mov a,_idle_rpm_error
+    mov r0,a
+    lcall _abs_accumulator_i8
+    clr c
+    subb a,_B
+    jnc %2
+    mov r0,#0x00
+    %2:
+}
+
+// Truncate R1:R0:B to R0:B and move it into R1:R0 for the second product.
+replace {
+    mov r6,_stock_r0
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_B
+    mov r5,#0x00
+    mov a,r4
+    orl a,r6
+    mov _stock_r01,a
+    mov a,r5
+    orl a,r7
+    mov (_stock_r01 + 1),a
+    mov _ACC,_stock_r1
+    jb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_ignition_gain_negative
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %3
+    %2:
+    mov dptr,#_idle_ignition_gain_nonnegative
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %3:
+} by {
+    mov a,r0
+    mov r0,_B
+    mov r1,a
+    mov a,r1
+    jb _ACC_SIGN,%1
+    mov dptr,#_idle_ignition_gain_nonnegative
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp %3
+    %1:
+    mov dptr,#_idle_ignition_gain_negative
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %3:
+}
+
+replace {
+    lcall _limit_and_store_idle_ignition
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    mov a,_ignition_rpm_index
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%1
+    mov a,_ignition_rpm_index
+    movc a,@a+dptr
+}
+
+replace {
+    mov r7,a
+    mov _stock_r0,r7
+} by {
+    mov r0,a
+}
+
+replace {
+    mov r7,a
+    mov _stock_r1,r7
+} by {
+    mov r1,a
+}
+
+replace {
+    mov _stock_r0,a
+} by {
+    mov r0,a
+}
+
+replace {
+    mov _stock_r1,a
+} by {
+    mov r1,a
+}
+
+replace {
+    mov _ACC,_B
+} by {
+    mov a,_B
+}
+
+replace {
+    mov _B,_ACC
+} by {
+    mov _B,a
+}
+
+// At the temperature boundary, stay with the idle correction. Use the
+// moving ignition value only when the comparison borrows and the car moves.
+replace {
+    jb _vehicle_moving,%1
+    ljmp %2
+    %1:
+    mov dptr,#_dynamic_ignition_temp_limit
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jc %3
+    ljmp %2
+    %3:
+    mov dptr,#_moving_ignition_f844
+    movx a,@dptr
+    mov _base_ignition,a
+    ljmp %4
+    %2:
+    mov a,_B
+    add a,_idle_ignition_target_raw
+    mov _base_ignition,a
+    %4:
+    lcall _prepare_idle_airflow_feedback
+    %5:
+    ret
+} by {
+    jnb _vehicle_moving,%2
+    mov dptr,#_dynamic_ignition_temp_limit
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,%3
+    %3:
+    jnc %2
+    mov dptr,#_moving_ignition_f844
+    movx a,@dptr
+    sjmp %4
+    %2:
+    mov a,_idle_ignition_target_raw
+    add a,_B
+    %4:
+    mov _base_ignition,a
+}

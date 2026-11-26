@@ -1,0 +1,483 @@
+// Read the marker and repair a disagreeing copy.
+replace {
+    mov _stock_r4,#0x9d
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%1
+    ljmp %2
+    %1:
+    setb _eeprom_io_failed
+    %2:
+    mov r0,#_scratch
+    mov _stock_r1,@r0
+    mov r0,#(_scratch + 0x0001)
+    mov _stock_r2,@r0
+    mov r0,#(_scratch + 0x0002)
+    mov _stock_r3,@r0
+    mov a,_stock_r3
+    cjne a,_stock_r1,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    mov a,_stock_r2
+    cjne a,_stock_r1,%6
+    ljmp %7
+    %6:
+    mov r0,#_scratch
+    mov @r0,_stock_r1
+    mov _stock_r4,#0x9e
+    mov _stock_r1,#0x01
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%8
+    ljmp %9
+    %8:
+    setb _eeprom_io_failed
+    %9:
+    lcall _wait_for_eeprom_write
+    ljmp %7
+    %5:
+    mov a,_stock_r3
+    cjne a,_stock_r2,%10
+    sjmp %11
+    %10:
+    ljmp %12
+    %11:
+    mov r0,#_scratch
+    mov @r0,_stock_r3
+    mov _stock_r4,#0x9d
+    mov _stock_r1,#0x01
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%13
+    ljmp %14
+    %13:
+    setb _eeprom_io_failed
+    %14:
+    lcall _wait_for_eeprom_write
+    ljmp %7
+    %12:
+    mov a,_stock_r2
+    cjne a,_stock_r1,%15
+    sjmp %16
+    %15:
+    ljmp %7
+    %16:
+    mov r0,#_scratch
+    mov @r0,_stock_r1
+    mov _stock_r4,#0x9f
+    mov _stock_r1,#0x01
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%17
+    ljmp %18
+    %17:
+    setb _eeprom_io_failed
+    %18:
+    lcall _wait_for_eeprom_write
+    %7:
+    mov r0,#_scratch
+    mov _ACC,@r0
+    mov _stock_r5,_ACC
+    mov dptr,#_saved_status_marker
+    mov a,_ACC
+    movx @dptr,a
+    %19:
+    ret
+} by {
+    mov r4,#0x9d
+    mov r1,#0x03
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00970$
+    setb _eeprom_io_failed
+    00970$:
+    mov r0,#0x94
+    mov a,@r0
+    mov r1,a
+    inc r0
+    mov a,@r0
+    mov r2,a
+    inc r0
+    mov a,@r0
+    mov r3,a
+    xrl a,r1
+    jnz 00971$
+    mov a,r1
+    xrl a,r2
+    jz 00972$
+    mov a,r1
+    mov r0,#0x94
+    mov @r0,a
+    mov r4,#0x9e
+    mov r1,#0x01
+    lcall _write_eeprom_bytes
+    jnc 00973$
+    setb _eeprom_io_failed
+    00973$:
+    lcall _wait_for_eeprom_write
+    sjmp 00972$
+    00971$:
+    mov a,r2
+    xrl a,r3
+    jnz 00974$
+    mov a,r3
+    mov r0,#0x94
+    mov @r0,a
+    mov r4,#0x9d
+    mov r1,#0x01
+    lcall _write_eeprom_bytes
+    jnc 00975$
+    setb _eeprom_io_failed
+    00975$:
+    lcall _wait_for_eeprom_write
+    sjmp 00972$
+    00974$:
+    mov a,r1
+    xrl a,r2
+    jnz 00972$
+    mov a,r1
+    mov r0,#0x94
+    mov @r0,a
+    mov r4,#0x9f
+    mov r1,#0x01
+    lcall _write_eeprom_bytes
+    jnc 00976$
+    setb _eeprom_io_failed
+    00976$:
+    lcall _wait_for_eeprom_write
+    00972$:
+    mov r0,#0x94
+    mov a,@r0
+    mov r5,a
+    mov dptr,#_saved_status_marker
+    movx @dptr,a
+    ret
+}
+
+// Write three copies of the status marker.
+replace {
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x03
+    %1:
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x9d
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+    lcall _wait_for_eeprom_write
+    %5:
+    ret
+} by {
+    mov r0,#0x94
+    mov r1,#0x03
+    00977$:
+    mov @r0,a
+    inc r0
+    djnz r1,00977$
+    mov r4,#0x9d
+    mov r1,#0x03
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc 00978$
+    setb _eeprom_io_failed
+    00978$:
+    lcall _wait_for_eeprom_write
+    ret
+}
+
+// Advance the probe or restart the serial interface on the fourth attempt.
+replace {
+    clr c
+    mov a,_service_event_timer
+    subb a,#0x0a
+    jc %1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    mov _stock_r3,a
+    mov a,#0x04
+    cjne a,_stock_r3,%4
+    ljmp %5
+    %4:
+    mov r7,_stock_r3
+    mov dptr,#_service_probe_count
+    mov a,r7
+    inc a
+    movx @dptr,a
+    lcall _start_serial_transmission
+    lcall _reset_serial_receive_buffer
+    ljmp %3
+    %5:
+    jnb _service_serial_restart_done,%6
+    ljmp %7
+    %6:
+    clr _serial_receive_enabled
+    anl _sfr_be,#0xf7
+    mov _serial_state_flags,#0x00
+    setb _startup_serial_mode
+    lcall _initialize_serial_interface
+    setb _service_serial_restart_done
+    ljmp %3
+    %7:
+    jb _extra_state_enabled,%8
+    ljmp %9
+    %8:
+    jb _service_mode_29,%10
+    ljmp %9
+    %10:
+    clr _service_link_ready_6b
+    jnb _shutdown_pending,%11
+    ljmp %9
+    %11:
+    mov dptr,#_service_timeout_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %12
+    ljmp %9
+    %12:
+    mov dptr,#_service_timeout_count
+    mov a,_ACC
+    movx @dptr,a
+    %9:
+    lcall _end_service_probe
+    %3:
+    ret
+} by {
+    mov a,_service_event_timer
+    clr c
+    subb a,#0x0a
+    jc 00979$
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    mov r3,a
+    xrl a,#0x04
+    jnz 00980$
+    jb _service_serial_restart_done,00981$
+    clr _serial_receive_enabled
+    anl _sfr_be,#0xf7
+    mov _serial_state_flags,#0x00
+    setb _startup_serial_mode
+    lcall _initialize_serial_interface
+    setb _service_serial_restart_done
+    sjmp 00979$
+    00981$:
+    jnb _extra_state_enabled,00982$
+    jnb _service_mode_29,00982$
+    clr _service_link_ready_6b
+    jb _shutdown_pending,00982$
+    mov dptr,#_service_timeout_count
+    movx a,@dptr
+    inc a
+    jz 00982$
+    movx @dptr,a
+    00982$:
+    lcall _end_service_probe
+    sjmp 00979$
+    00980$:
+    mov a,r3
+    inc a
+    mov dptr,#_service_probe_count
+    movx @dptr,a
+    lcall _start_serial_transmission
+    lcall _reset_serial_receive_buffer
+    00979$:
+    ret
+}
+
+// Advance the probe counter before preparing the status packet.
+replace {
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    add a, #0x01
+    movx @dptr,a
+    lcall _build_service_probe_status
+    %1:
+    ret
+} by {
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    lcall _build_service_probe_status
+    ret
+}
+
+// Populate the status buffer with the stock bits and append its checksum.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov r5,#_serial_tx_buffer
+    mov r6,#(_serial_tx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x82
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov a,#0xc0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0xa0
+    movx @dptr,a
+    jb _extra_state_enabled,%1
+    ljmp %2
+    %1:
+    mov r6,#0x01
+    ljmp %3
+    %2:
+    mov r6,#0x00
+    %3:
+    jb _shutdown_pending,%4
+    ljmp %5
+    %4:
+    mov r5,#0x00
+    ljmp %6
+    %5:
+    mov r5,#0x02
+    %6:
+    mov a,r5
+    orl ar6,a
+    jb _service_park_iac_56,%7
+    ljmp %8
+    %7:
+    mov r5,#0x04
+    ljmp %9
+    %8:
+    mov r5,#0x00
+    %9:
+    mov a,r5
+    orl ar6,a
+    jb _vehicle_moving,%10
+    ljmp %11
+    %10:
+    mov r5,#0x08
+    ljmp %12
+    %11:
+    mov r5,#0x00
+    %12:
+    mov a,r5
+    orl ar6,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,r6
+    movx @dptr,a
+    mov _serial_tx_count,#0x05
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    setb _service_dispatch_7c
+    %13:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x82
+    movx @dptr,a
+    inc dptr
+    mov a,#0xc0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0xa0
+    movx @dptr,a
+    inc dptr
+    clr a
+    mov c,_extra_state_enabled
+    mov acc.0,c
+    mov c,_shutdown_pending
+    cpl c
+    mov acc.1,c
+    mov c,_service_park_iac_56
+    mov acc.2,c
+    mov c,_vehicle_moving
+    mov acc.3,c
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x05
+    pop _DPSEL
+    lcall _append_serial_checksum
+    setb _service_dispatch_7c
+    ret
+}
+
+// Sum the transmit bytes in R4 and append the low byte.
+replace {
+    mov _stock_r4,#0x00
+    mov _stock_r3,_serial_tx_count
+    mov r6,#_serial_tx_buffer
+    mov r7,#(_serial_tx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov a,_stock_r4
+    add a, r7
+    mov _ACC,a
+    mov _stock_r4,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r3
+    dec a
+    mov r7,a
+    mov _stock_r3,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _serial_tx_count
+    %3:
+    ret
+} by {
+    mov r4,#0x00
+    mov r3,_serial_tx_count
+    mov dptr,#_serial_tx_buffer
+    00970$:
+    movx a,@dptr
+    add a,r4
+    mov r4,a
+    inc dptr
+    djnz r3,00970$
+    movx @dptr,a
+    inc _serial_tx_count
+    ret
+}

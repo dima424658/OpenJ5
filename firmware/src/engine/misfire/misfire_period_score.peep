@@ -1,0 +1,425 @@
+// Start the 32-bit division and retain only the low 24 bits of the first quotient.
+replace {
+    mov _mdu_0,#0x0e
+    mov _mdu_1,#0xe8
+    mov _mdu_2,#0xf5
+    mov _mdu_3,#0xce
+    mov _mdu_4,_stock_r6
+    mov _mdu_5,_stock_r7
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+} by {
+    mov _mdu_0,#0x0e
+    mov _mdu_1,#0xe8
+    mov _mdu_2,#0xf5
+    mov _mdu_3,#0xce
+    mov _mdu_4,r6
+    mov _mdu_5,r7
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+}
+
+// Reuse the quotient operands for hardware shifts and the two remaining divisions.
+replace {
+    mov _mdu_0,#0x00
+    mov _mdu_1,_stock_r0
+    mov _mdu_2,_stock_r1
+    mov _mdu_3,_stock_r2
+    mov _mdu_control,#0x01
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_2,_stock_r2
+    mov _mdu_3,_stock_r3
+    mov _mdu_4,_stock_r6
+    mov _mdu_5,_stock_r7
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_2,_stock_r2
+    mov _mdu_3,_stock_r3
+    mov _mdu_control,#0x01
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_2,_stock_r2
+    mov _mdu_3,_stock_r3
+    mov _mdu_4,_stock_r6
+    mov _mdu_5,_stock_r7
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+} by {
+    mov _mdu_0,#0x00
+    mov _mdu_1,r0
+    mov _mdu_2,r1
+    mov _mdu_3,r2
+    mov _mdu_control,#0x01
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_2,r2
+    mov _mdu_3,r3
+    mov _mdu_4,r6
+    mov _mdu_5,r7
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_2,r2
+    mov _mdu_3,r3
+    mov _mdu_control,#0x01
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_2,r2
+    mov _mdu_3,r3
+    mov _mdu_4,r6
+    mov _mdu_5,r7
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+}
+
+// Store the normalizer, multiply the corrected difference and saturate on a nonzero high word.
+replace {
+    mov dptr,#_misfire_period_normalizer
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_corrected_period_delta
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov a,_stock_r23
+    orl a,(_stock_r23 + 1)
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %2:
+    lcall _continue_misfire_period_checks
+    %3:
+    ret
+} by {
+    mov dptr,#_misfire_period_normalizer
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_corrected_period_delta
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov a,r2
+    orl a,r3
+    jz _continue_misfire_period_checks
+    mov r0,#0xff
+    mov r1,#0xff
+}
+
+// Gate the score and store the same word globally and in the current cylinder slot.
+replace {
+    mov dptr,#_primary_misfire_conditions
+    movx a,@dptr
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    mov dptr,#_secondary_misfire_conditions
+    movx a,@dptr
+    jnb acc.7,%3
+    ljmp %2
+    %3:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    %2:
+    mov dptr,#_misfire_score
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov a,_knock_mask_index
+    mov b,#0x02
+    mul ab
+    add a, #_cylinder_misfire_scores
+    mov dpl,a
+    mov a,#(_cylinder_misfire_scores >> 8)
+    addc a, b
+    mov dph,a
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#_primary_misfire_conditions
+    movx a,@dptr
+    jnb acc.7,00940$
+    mov dptr,#_secondary_misfire_conditions
+    movx a,@dptr
+    jb acc.7,00940$
+    clr a
+    mov r0,a
+    mov r1,a
+    00940$:
+    mov dptr,#_misfire_score
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_cylinder_misfire_scores
+    mov a,_knock_mask_index
+    rl a
+    anl a,#0xfe
+    add a,dpl
+    mov dpl,a
+    mov a,dph
+    addc a,#0x00
+    mov dph,a
+    mov a,r0
+    movx @dptr,a
+    inc dptr
+    mov a,r1
+    movx @dptr,a
+}
+
+// Publish the comparison bit and update the selected cylinder mask.
+replace {
+    mov dptr,#_misfire_score_threshold
+    movx a,@dptr
+    mov _B,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    clr _CY
+    ljmp %3
+    %2:
+    setb _CY
+    %3:
+    mov dptr,#_misfire_score_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_CY
+    mov _ACC_SCORE_CROSSED,c
+    mov a,_ACC
+    movx @dptr,a
+    jb _CY,%4
+    ljmp %5
+    %4:
+    mov r7,_knock_mask_index
+    mov a,#0x08
+    add a, r7
+    mov r7,a
+    mov a,r7
+    rlc a
+    subb a,acc
+    mov r6,a
+    mov a,r7
+    add a, #_knock_event_masks
+    mov dpl,a
+    mov a,r6
+    addc a, #(_knock_event_masks >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_misfire_score_flags
+    movx a,@dptr
+    orl a,_B
+    movx @dptr,a
+    ljmp %6
+    %5:
+    mov r7,_knock_mask_index
+    mov a,#0x08
+    add a, r7
+    mov r7,a
+    mov a,r7
+    rlc a
+    subb a,acc
+    mov r6,a
+    mov a,r7
+    add a, #_knock_event_masks
+    mov dpl,a
+    mov a,r6
+    addc a, #(_knock_event_masks >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,#0xff
+    xrl a,r7
+    mov _B,a
+    mov dptr,#_misfire_score_flags
+    movx a,@dptr
+    anl a,_B
+    movx @dptr,a
+    %6:
+    lcall _update_misfire_score_history
+    %7:
+    ret
+} by {
+    mov dptr,#_misfire_score_threshold
+    movx a,@dptr
+    mov _B,a
+    mov a,r1
+    cjne a,_B,00941$
+    00941$:
+    mov dptr,#_misfire_score_flags
+    movx a,@dptr
+    cpl c
+    mov _ACC_SCORE_CROSSED,c
+    movx @dptr,a
+    jnc 00942$
+    mov dptr,#(_knock_event_masks + 8)
+    mov a,_knock_mask_index
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_misfire_score_flags
+    movx a,@dptr
+    orl a,_B
+    sjmp 00943$
+    00942$:
+    mov dptr,#(_knock_event_masks + 8)
+    mov a,_knock_mask_index
+    movc a,@a+dptr
+    cpl a
+    mov _B,a
+    mov dptr,#_misfire_score_flags
+    movx a,@dptr
+    anl a,_B
+    00943$:
+    movx @dptr,a
+}

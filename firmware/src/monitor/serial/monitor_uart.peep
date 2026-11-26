@@ -1,0 +1,321 @@
+// Preserve UART polling, transmit priority, quoting, and restoration of the saved registers.
+replace {
+    mov r7,_PSW
+    mov r6,_ACC
+    mov r5,_DPSEL
+    mov r4,_SCON
+    mov a,r4
+    jb acc.1,%1
+    ljmp %2
+    %1:
+    anl _SCON,#0xfd
+    mov _DPSEL,#0x07
+    jb _monitor_escape_pending,%3
+    ljmp %4
+    %3:
+    clr _monitor_escape_pending
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r3,a
+    mov a,r3
+    add a,#0xc0
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _SBUF,_ACC
+    ljmp %5
+    %4:
+    mov r3,_monitor_reply_end_low
+    cjne r3,#0x82,%6
+    %6:
+    jc %7
+    ljmp %8
+    %7:
+    mov r1,#0x00
+    mov r2,#0xfb
+    ljmp %9
+    %8:
+    mov r1,#0x00
+    mov r2,#0xfa
+    %9:
+    mov ar0,r3
+    mov r3,#0x00
+    mov a,r0
+    orl ar1,a
+    mov a,r3
+    orl ar2,a
+    mov r0,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r3,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,r0
+    cjne a,ar1,%10
+    mov a,r3
+    cjne a,ar2,%10
+    sjmp %11
+    %10:
+    ljmp %12
+    %11:
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _SBUF,#0x0d
+    ljmp %5
+    %12:
+    mov r0,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r3,((_STOCK_DPTR >> 8) & 0xFF)
+    clr c
+    mov a,r0
+    subb a,r1
+    mov a,r3
+    subb a,r2
+    jc %13
+    ljmp %14
+    %13:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x40
+    cjne a,_ACC,%15
+    ljmp %16
+    %15:
+    mov a,#0x0d
+    cjne a,_ACC,%17
+    sjmp %18
+    %17:
+    ljmp %19
+    %18:
+    %16:
+    setb _monitor_escape_pending
+    mov _SBUF,#0x40
+    ljmp %5
+    %19:
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _SBUF,_ACC
+    ljmp %5
+    %14:
+    clr _monitor_transmitting
+    %5:
+    mov r3,_SCON
+    mov a,r3
+    jb acc.0,%20
+    ljmp %21
+    %20:
+    anl _SCON,#0xfe
+    mov a,r3
+    jb acc.2,%22
+    ljmp %23
+    %22:
+    ljmp %21
+    %2:
+    mov a,r4
+    jb acc.0,%24
+    ljmp %21
+    %24:
+    anl _SCON,#0xfe
+    mov a,r4
+    jb acc.2,%25
+    ljmp %23
+    %25:
+    jnb _monitor_frame_pending,%26
+    ljmp %21
+    %26:
+    jnb _monitor_transmitting,%27
+    ljmp %21
+    %27:
+    mov _DPSEL,#0x06
+    mov r4,((_STOCK_DPTR >> 0) & 0xFF)
+    cjne r4,#0x80,%28
+    sjmp %29
+    %28:
+    ljmp %30
+    %29:
+    mov r3,#_monitor_rx_buffer
+    mov r4,#(_monitor_rx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r3
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r4
+    ljmp %21
+    %30:
+    mov _ACC,_SBUF
+    jb _monitor_escape_pending,%31
+    ljmp %32
+    %31:
+    clr _monitor_escape_pending
+    mov a,_ACC
+    jz %33
+    ljmp %34
+    %33:
+    mov _ACC,#0x40
+    ljmp %35
+    %34:
+    mov a,#0xcd
+    cjne a,_ACC,%36
+    sjmp %37
+    %36:
+    ljmp %23
+    %37:
+    mov _ACC,#0x0d
+    ljmp %35
+    %32:
+    mov a,#0x40
+    cjne a,_ACC,%38
+    sjmp %39
+    %38:
+    ljmp %40
+    %39:
+    setb _monitor_escape_pending
+    ljmp %21
+    %40:
+    mov a,#0x0d
+    cjne a,_ACC,%41
+    sjmp %42
+    %41:
+    ljmp %35
+    %42:
+    mov r4,((_STOCK_DPTR >> 0) & 0xFF)
+    mov a,r4
+    jnz %43
+    ljmp %21
+    %43:
+    setb _monitor_frame_pending
+    ljmp %21
+    %35:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    ljmp %21
+    %23:
+    clr _monitor_flag_0b
+    clr _monitor_flag_0c
+    clr _monitor_frame_pending
+    clr _monitor_transmitting
+    mov _DPSEL,#0x06
+    mov r3,#_monitor_rx_buffer
+    mov r4,#(_monitor_rx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r3
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r4
+    clr _monitor_escape_pending
+    %21:
+    mov _DPSEL,r5
+    mov _ACC,r6
+    mov _PSW,r7
+    %44:
+    ret
+} by {
+    push _PSW
+    push _ACC
+    push _DPSEL
+    mov a,_SCON
+    jb acc.1,00970$
+    jnb acc.0,00971$
+    anl _SCON,#0xfe
+    jnb acc.2,00972$
+    jb _monitor_frame_pending,00971$
+    jb _monitor_transmitting,00971$
+    mov _DPSEL,#0x06
+    mov a,dpl
+    cjne a,#0x80,00973$
+    mov dptr,#_monitor_rx_buffer
+    00971$:
+    ljmp 00974$
+    00972$:
+    ljmp 00975$
+    00973$:
+    mov a,_SBUF
+    jbc _monitor_escape_pending,00976$
+    cjne a,#0x40,00977$
+    setb _monitor_escape_pending
+    ljmp 00974$
+    00977$:
+    cjne a,#0x0d,00978$
+    mov a,dpl
+    clr c
+    subb a,#0x00
+    jz 00974$
+    setb _monitor_frame_pending
+    sjmp 00974$
+    00976$:
+    cjne a,#0x00,00979$
+    mov a,#0x40
+    sjmp 00978$
+    00979$:
+    cjne a,#0xcd,00975$
+    mov a,#0x0d
+    00978$:
+    movx @dptr,a
+    inc dptr
+    sjmp 00974$
+    00970$:
+    anl _SCON,#0xfd
+    mov _DPSEL,#0x07
+    jbc _monitor_escape_pending,00980$
+    mov a,_monitor_reply_end_low
+    cjne a,#0x82,00981$
+    00981$:
+    mov a,#0xfa
+    addc a,#0x00
+    cjne a,dph,00982$
+    mov a,_monitor_reply_end_low
+    cjne a,dpl,00982$
+    mov a,#0x0d
+    sjmp 00983$
+    00982$:
+    jnc 00984$
+    clr _monitor_transmitting
+    sjmp 00985$
+    00984$:
+    movx a,@dptr
+    cjne a,#0x40,00986$
+    sjmp 00987$
+    00986$:
+    cjne a,#0x0d,00983$
+    00987$:
+    setb _monitor_escape_pending
+    mov a,#0x40
+    sjmp 00988$
+    00980$:
+    movx a,@dptr
+    clr c
+    subb a,#0x40
+    00983$:
+    inc dptr
+    00988$:
+    mov _SBUF,a
+    00985$:
+    mov a,_SCON
+    jnb acc.0,00974$
+    anl _SCON,#0xfe
+    jb acc.2,00974$
+    00975$:
+    clr _monitor_flag_0b
+    clr _monitor_flag_0c
+    clr _monitor_frame_pending
+    clr _monitor_transmitting
+    mov _DPSEL,#0x06
+    mov dptr,#_monitor_rx_buffer
+    clr _monitor_escape_pending
+    00974$:
+    pop _DPSEL
+    pop _ACC
+    pop _PSW
+    ret
+}

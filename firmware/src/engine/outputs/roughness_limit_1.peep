@@ -1,0 +1,259 @@
+// Select the stationary-idle curve or the mode-specific RPM and charge surface.
+replace {
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+    jnb _speed_sensor_fault,%3
+    ljmp %2
+    %3:
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jz %4
+    ljmp %2
+    %4:
+    mov r6,#_roughness_idle_limit_1
+    mov r7,#(_roughness_idle_limit_1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_charge_q4
+    lcall _interp_curve_q4
+    ljmp %5
+    %2:
+    mov dptr,#_roughness_map_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov r6,#_roughness_limit_1
+    mov r7,#(_roughness_limit_1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov a,_ACC
+    jb acc.0,%6
+    ljmp %7
+    %6:
+    mov r6,#_roughness_alt_limit_1
+    mov r7,#(_roughness_alt_limit_1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    %7:
+    mov _stock_r2,_rpm_index_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    %5:
+} by {
+    jnb _idle_mode,00970$
+    jb _speed_sensor_fault,00970$
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    jnz 00970$
+    mov dptr,#_roughness_idle_limit_1
+    mov r2,_charge_q4
+    lcall _interp_curve_q4
+    sjmp 00972$
+    00970$:
+    mov dptr,#_roughness_map_flags
+    movx a,@dptr
+    mov dptr,#_roughness_limit_1
+    jnb acc.0,00971$
+    mov dptr,#_roughness_alt_limit_1
+    00971$:
+    mov r2,_rpm_index_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    00972$:
+}
+
+// Apply the temperature correction using indexed MOVC and saturate on carry.
+replace {
+    mov _B,_ACC
+    mov a,_coolant_axis_index
+    add a, #_roughness_temp_offset_1
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_roughness_temp_offset_1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,_B
+    add a, r7
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0xff
+    %2:
+    mov _B,_ACC
+    mov r6,_ACC
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+} by {
+    mov _B,a
+    mov dptr,#_roughness_temp_offset_1
+    mov a,_coolant_axis_index
+    movc a,@a+dptr
+    add a,_B
+    jnc 00973$
+    mov a,#0xff
+    00973$:
+    mov _B,a
+    mov r1,a
+    mov r0,#0x00
+}
+
+// Restore the previous threshold through physical IRAM before applying the calibrated drop.
+replace {
+    mov dptr,#_roughness_threshold_1_q8
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%1
+    ljmp %2
+    %1:
+    mov _bank_zero_r01,_stock_r23
+    mov (_bank_zero_r01 + 1),(_stock_r23 + 1)
+    mov dptr,#_roughness_limit_1_drop
+    clr a
+    movc a,@a+dptr
+    mov _stock_r23,a
+    mov (_stock_r23 + 1),#0x00
+    lcall _subtract_u16_register_pairs
+    ljmp %3
+    %2:
+    mov r6,_B
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+    %3:
+    mov dptr,#_roughness_threshold_1_q8
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#_roughness_threshold_1_q8
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jnc 00974$
+    mov (_bank_zero_r01 + 1),r3
+    mov _bank_zero_r01,r2
+    mov dptr,#_roughness_limit_1_drop
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov r3,#0x00
+    lcall _subtract_u16_register_pairs
+    sjmp 00975$
+    00974$:
+    mov r1,_B
+    mov r0,#0x00
+    00975$:
+    mov dptr,#_roughness_threshold_1_q8
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Preserve the equality path when deciding whether to apply the reduction map.
+replace {
+    mov _B,_stock_r1
+    mov dptr,#_roughness_sample_f9e2
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,_B
+    subb a,r7
+    jnc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0xff
+    ljmp %3
+    %2:
+    mov r6,#_roughness_reduction_map
+    mov r7,#(_roughness_reduction_map >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_index_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    %3:
+    mov dptr,#_roughness_reduction_q8
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov _B,r1
+    mov dptr,#_roughness_sample_f9e2
+    movx a,@dptr
+    cjne a,_B,.+5
+    sjmp 00976$
+    jnc 00977$
+    00976$:
+    mov a,#0xff
+    sjmp 00978$
+    00977$:
+    mov dptr,#_roughness_reduction_map
+    mov r2,_rpm_index_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    00978$:
+    mov dptr,#_roughness_reduction_q8
+    movx @dptr,a
+}
+
+// Combine the two condition bits in carry and hand off the alternate threshold in R1:R0.
+replace {
+    mov dptr,#_secondary_misfire_conditions
+    movx a,@dptr
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    mov dptr,#_primary_misfire_conditions
+    movx a,@dptr
+    jb acc.7,%3
+    ljmp %2
+    %3:
+    mov r6,#_roughness_secondary_curve
+    mov r7,#(_roughness_secondary_curve >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_index_q4
+    lcall _interp_curve_q4
+    mov r6,_ACC
+    mov r7,#0x00
+    mov (_stock_r01 + 1),r6
+    mov _stock_r01,r7
+    lcall _apply_roughness_base_limit_2
+    ljmp %4
+    %2:
+    lcall _update_roughness_base_limit_2
+    %4:
+    ret
+} by {
+    mov dptr,#_secondary_misfire_conditions
+    movx a,@dptr
+    mov c,acc.7
+    mov dptr,#_primary_misfire_conditions
+    movx a,@dptr
+    anl c,acc.7
+    jnc 00979$
+    mov dptr,#_roughness_secondary_curve
+    mov r2,_rpm_index_q4
+    lcall _interp_curve_q4
+    mov r0,#0x00
+    mov r1,a
+    ljmp _apply_roughness_base_limit_2
+    00979$:
+}

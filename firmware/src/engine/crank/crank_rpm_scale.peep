@@ -1,0 +1,315 @@
+// Clamp the quotient using the current PSW register bank.
+replace {
+    mov a,_stock_r23
+    orl a,(_stock_r23 + 1)
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %2:
+} by {
+    mov a,r2
+    orl a,r3
+    jz %2
+    mov r0,#0xff
+    mov r1,#0xff
+    %2:
+}
+
+// Use the carry from the bias to detect wrap and from the high byte to round.
+replace {
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    mov ar4,r6
+    mov ar5,r7
+    clr c
+    mov a,r4
+    subb a,#0xff
+    mov a,r5
+    subb a,#0x01
+    jnc %1
+    ljmp %2
+    %1:
+    mov r3,#0xff
+    ljmp %3
+    %2:
+    mov a,#0x01
+    add a,r4
+    mov r1,a
+    mov a,#0x00
+    addc a,r5
+    mov r2,a
+    mov a,r2
+    clr c
+    rrc a
+    xch a,r1
+    rrc a
+    xch a,r1
+    mov r2,a
+    mov ar3,r1
+    %3:
+    mov _rpm_half,r3
+} by {
+    mov a,r0
+    add a,#0x01
+    mov _B,a
+    mov a,r1
+    addc a,#0x00
+    jc %1
+    rrc a
+    jz %2
+    %1:
+    mov _rpm_half,#0xff
+    sjmp %3
+    %2:
+    mov a,_B
+    rrc a
+    mov _rpm_half,a
+    %3:
+}
+
+// Round through B and CY. The saturation path retains the carry of the high rotate.
+replace {
+    mov a,#0x04
+    add a,r4
+    mov r4,a
+    mov a,#0x00
+    addc a,r5
+    mov r5,a
+    mov ar2,r4
+    mov a,r5
+    swap a
+    rl a
+    xch a,r2
+    swap a
+    rl a
+    anl a,#0x1f
+    xrl a,r2
+    xch a,r2
+    anl a,#0x1f
+    xch a,r2
+    xrl a,r2
+    xch a,r2
+    mov r3,a
+    mov ar1,r2
+    mov a,r4
+    rr a
+    rr a
+    anl a,#0x01
+    mov r0,a
+    clr c
+    mov a,r4
+    subb a,r6
+    mov a,r5
+    subb a,r7
+    jc %1
+    ljmp %2
+    %1:
+    mov r1,#0xff
+    mov r0,#0x01
+    ljmp %3
+    %2:
+    clr c
+    mov a,#0xff
+    subb a,r2
+    mov a,#0x00
+    subb a,r3
+    jc %4
+    ljmp %3
+    %4:
+    mov r1,#0xff
+    mov a,r5
+    rr a
+    rr a
+    anl a,#0x01
+    mov r0,a
+    %3:
+} by {
+    mov a,r0
+    add a,#0x04
+    mov _B,a
+    mov a,r1
+    addc a,#0x00
+    jc %1
+    rrc a
+    xch a,_B
+    rrc a
+    xch a,_B
+    clr c
+    rrc a
+    xch a,_B
+    rrc a
+    xch a,_B
+    clr c
+    rrc a
+    jz %2
+    %1:
+    mov a,#0xff
+    sjmp %3
+    %2:
+    mov a,_B
+    rrc a
+    %3:
+}
+
+// Consume the rounding carry directly and preserve the stock fallthrough.
+replace {
+    mov ar7,r1
+    mov r5,_rpm_eighth
+    mov r6,#0x00
+    mov r4,#0x00
+    mov a,r7
+    clr c
+    subb a,r5
+    mov r5,a
+    mov a,r4
+    subb a,r6
+    mov r6,a
+    mov r7,#0x00
+    mov a,r5
+    clr c
+    subb a,r0
+    mov r5,a
+    mov a,r6
+    subb a,r7
+    mov r6,a
+    mov ar4,r5
+    mov ar7,r6
+    mov a,r7
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    mov r7,#0x00
+    ljmp %3
+    %2:
+    mov ar7,r5
+    %3:
+    mov dptr,#_rpm_eighth_increase
+    mov a,r7
+    movx @dptr,a
+    mov _rpm_eighth,r1
+    clr c
+    mov a,_rpm_eighth
+    subb a,#0x1f
+    jnc %4
+    ljmp %5
+    %4:
+    mov r7,#0x1f
+    ljmp %6
+    %5:
+    mov r6,_rpm_eighth
+    mov ar7,r6
+    %6:
+    mov dptr,#_rpm_eighth_bin
+    mov a,r7
+    movx @dptr,a
+    lcall _publish_crank_rpm_axis_code
+    %7:
+    ret
+} by {
+    mov _B,a
+    subb a,_rpm_eighth
+    jnc %1
+    clr a
+    %1:
+    mov dptr,#_rpm_eighth_increase
+    movx @dptr,a
+    mov _rpm_eighth,_B
+    mov a,_rpm_eighth
+    cjne a,#0x1f,.+3
+    jc %2
+    mov a,#0x1f
+    %2:
+    mov dptr,#_rpm_eighth_bin
+    movx @dptr,a
+}
+
+// Update the input pair in place. An overflow skips the second MDU transaction.
+replace {
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    mov ar4,r6
+    mov ar5,r7
+    mov a,#0x03
+    add a,r4
+    mov r4,a
+    mov a,#0x00
+    addc a,r5
+    mov r5,a
+    mov _stock_r01,r4
+    mov (_stock_r01 + 1),r5
+    clr c
+    mov a,#0xfc
+    subb a,r6
+    mov a,#0xff
+    subb a,r7
+    jnc %1
+    ljmp %2
+    %1:
+    %3:
+} by {
+    mov a,r0
+    add a,#0x03
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    jc %2
+    %3:
+}
+
+// Read the MDU registers in order, retry on the interrupt flag, then publish the axis code.
+replace {
+    clr _mdu_interrupted
+    mov _mdu_0,_stock_r0
+    mov _mdu_1,_stock_r1
+    mov _mdu_4,#0x06
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r2,_mdu_0
+    mov _stock_r3,_mdu_1
+    mov _ACC,_mdu_4
+    mov _ACC,_mdu_5
+    jnb _mdu_interrupted,%1
+    ljmp %2
+    %1:
+    mov a,_stock_r3
+    jz %3
+    ljmp %4
+    %3:
+    mov _rpm_axis_code,_stock_r2
+    ljmp %5
+    %4:
+    mov _rpm_axis_code,#0xff
+    %5:
+    lcall _update_rpm_axis
+    %6:
+    ret
+} by {
+    clr _mdu_interrupted
+    mov _mdu_0,r0
+    mov _mdu_1,r1
+    mov _mdu_4,#0x06
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r2,_mdu_0
+    mov r3,_mdu_1
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jb _mdu_interrupted,%2
+    mov a,r3
+    jz %3
+    %4:
+    mov _rpm_axis_code,#0xff
+    sjmp %5
+    %3:
+    mov _rpm_axis_code,r2
+    %5:
+}

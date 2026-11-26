@@ -1,0 +1,169 @@
+// Preserve the second CODE read following the write through R0.
+replace {
+    mov @r0,#0xb0
+    clr a
+    movc a,@a+dptr
+} by {
+    mov @r0,#0xb0
+    mov dptr,#_maf_min_diagnostic_flow
+    clr a
+    movc a,@a+dptr
+}
+
+replace {
+    mov dptr,#_startup_state_f866
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_startup_state_f867
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#_startup_state_f866
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_startup_state_f830
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_startup_state_f831
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#_startup_state_f830
+    movx @dptr,a
+    inc dpl
+    movx @dptr,a
+}
+
+replace {
+    mov _ACC,#0x00
+    mov dptr,#_state_f806
+} by {
+    mov a,#0x00
+    mov dptr,#_state_f806
+}
+
+replace {
+    lcall _configure_startup_output_bits
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    mov _ACC_SIGN,c
+    mov a,_ACC
+    anl a,#0xc0
+} by {
+    mov _ACC_SIGN,c
+    anl a,#0xc0
+}
+
+// Preserve the carry-bit predicate and the short skip over the writes.
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    jnb _startup_mode_15,%1
+    ljmp %2
+    %1:
+    jb _ACC_BIT1,%3
+    ljmp %2
+    %3:
+    jb _retained_ram_checksum_failed,%4
+    ljmp %2
+    %4:
+    setb _idle_transition_hold
+    mov dptr,#_retained_flags
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    movx a,@dptr
+    mov c,_startup_mode_15
+    orl c,/_ACC_BIT1
+    orl c,/_retained_ram_checksum_failed
+    jc %2
+    setb _idle_transition_hold
+    clr a
+    mov dptr,#_retained_flags
+    movx @dptr,a
+}
+
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    jnb _startup_mode_15,%1
+    ljmp %2
+    %1:
+    jnb _ACC_BIT1,%3
+    ljmp %2
+    %3:
+    jb _retained_ram_checksum_failed,%4
+    ljmp %5
+    %4:
+    %2:
+    lcall _reset_fuel_correction_map
+} by {
+    movx a,@dptr
+    mov c,_startup_mode_15
+    orl c,_ACC_BIT1
+    orl c,_retained_ram_checksum_failed
+    jnc %5
+    lcall _reset_fuel_correction_map
+}
+
+replace {
+    lcall _continue_startup_fuel_trim
+    %1:
+    ret
+} by {
+    %1:
+}
+
+// Consecutive stores keep the current initialization byte in A.
+replace {
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    movx @dptr,a
+}
+
+replace {
+    mov _ACC,#0x00
+} by {
+    clr a
+}
+
+replace {
+    mov _ACC,#%1
+} by {
+    mov a,#%1
+}
+
+replace {
+    mov _ACC,a
+} by {
+}
+
+replace {
+    mov %1,_ACC
+} by {
+    mov %1,a
+}
+
+replace {
+    orl acc,#0x20
+} by {
+    orl a,#0x20
+}
+
+replace {
+    lcall _init_startup_control_state
+    %1:
+    ret
+} by {
+    %1:
+}

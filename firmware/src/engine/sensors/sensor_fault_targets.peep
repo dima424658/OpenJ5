@@ -1,0 +1,149 @@
+// Use one carry branch for both throttle faults.
+replace {
+    jnb _throttle_adc_low,%1
+    ljmp %2
+    %1:
+    jb _throttle_adc_high,%3
+    ljmp %4
+    %3:
+    %2:
+} by {
+    mov c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    jnc %4
+}
+
+// The stock control-byte test leaves the mask result in A.
+replace restart {
+    mov a,_ignition_control_7a
+    jnb acc.%1,%2
+    ljmp %3
+    %2:
+} by {
+    mov a,_ignition_control_7a
+    anl a,#(1 << %1)
+    jnz %3
+}
+
+replace {
+    mov _iac_target,a
+    ljmp %1
+} by {
+    mov _iac_target,a
+    sjmp %1
+}
+
+// Use the runtime index in A with the constant CODE address in DPTR.
+replace restart {
+    mov a,%1
+    add a,#%2
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%2 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%2
+    mov a,%1
+    movc a,@a+dptr
+}
+
+replace {
+    jb _poststart_iac_enabled,%1
+    ljmp %2
+    %1:
+    mov dptr,#_startup_exit_rpm_by_coolant
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_engine_rpm_10
+    subb a,_B
+    jnc %3
+    ljmp %2
+    %3:
+    clr _poststart_iac_enabled
+    %2:
+    jnb _idle_regulating,%4
+    ljmp %5
+    %4:
+    lcall _check_fault_idle_entry
+    ljmp %6
+    %5:
+} by {
+    jnb _poststart_iac_enabled,%2
+    mov dptr,#_startup_exit_rpm_by_coolant
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jc %2
+    clr _poststart_iac_enabled
+    %2:
+    jnb _idle_regulating,_check_fault_idle_entry
+}
+
+replace restart {
+    mov _B,a
+    clr c
+    mov a,_throttle_position
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    lcall _apply_fault_idle_ignition
+    ljmp %3
+    %2:
+    lcall _leave_fault_idle
+    %3:
+    ret
+} by {
+    mov _B,a
+    mov a,_throttle_position
+    clr c
+    subb a,_B
+    jc _apply_fault_idle_ignition
+    sjmp _leave_fault_idle
+}
+
+replace {
+    lcall _check_exhaust_dew_point
+    %1:
+    ret
+} by {
+    ljmp _check_exhaust_dew_point
+}
+
+replace {
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,_ACC
+    clr c
+    subb a,_B
+    mov _base_ignition,a
+    %1:
+    lcall _continue_fuel_mixture_checks
+    %2:
+    ret
+} by {
+    movc a,@a+dptr
+    clr c
+    subb a,_B
+    mov _base_ignition,a
+    %1:
+    sjmp fault_fuel_checks
+}
+
+replace {
+    clr _idle_regulating
+    lcall _continue_fuel_mixture_checks
+    %1:
+    ret
+} by {
+    clr _idle_regulating
+    fault_fuel_checks:
+    ljmp _continue_fuel_mixture_checks
+}

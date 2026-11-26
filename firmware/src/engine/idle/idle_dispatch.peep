@@ -1,0 +1,259 @@
+// Read the threshold at the current RPM index directly from CODE.
+replace {
+    mov a,_rpm_nearest_half_bin
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%1
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+}
+
+replace {
+    mov _B,a
+    clr c
+    mov a,%1
+    subb a,_B
+} by {
+    mov _B,a
+    mov a,%1
+    clr c
+    subb a,_B
+}
+
+// Two nearby entry points share the dispatcher's successors.
+replace {
+    jnb _idle_regulating,%1
+    ljmp %2
+    %1:
+    lcall _update_idle_or_cut_from_coast
+    ljmp %3
+    %2:
+} by {
+    jnb _idle_regulating,_update_idle_or_cut_from_coast
+}
+
+replace {
+    mov a,_fuel_cut_phase
+    jz %1
+    ljmp %2
+    %1:
+    lcall _try_enter_regulated_idle
+    ljmp %3
+    %2:
+} by {
+    mov a,_fuel_cut_phase
+    jz _try_enter_regulated_idle
+}
+
+// Keep the long exit for the first throttle test. From the second test
+// the same load handler is within the range of a relative jump.
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _leave_idle_for_load
+    ljmp %3
+    %2:
+    jnb _idle_transition_hold_62,%4
+} by {
+    jc %2
+    ljmp _leave_idle_for_load
+    %2:
+    jnb _idle_transition_hold_62,%4
+}
+
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _leave_idle_for_load
+    ljmp %3
+    %2:
+    mov dptr,#_idle_transition_rpm_1
+} by {
+    jnc _leave_idle_for_load
+    mov dptr,#_idle_transition_rpm_1
+}
+
+replace {
+    jnb _idle_transition_hold_62,%1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jc %3
+    ljmp %4
+    %3:
+    %2:
+    lcall _keep_idle_feedback
+    ljmp %5
+    %4:
+} by {
+    jb _idle_transition_hold_62,%2
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jnc %4
+    %2:
+    ljmp _keep_idle_feedback
+    %4:
+}
+
+// Keep the two exits adjacent. Missing or invalid speed data takes
+// the same exit as a measured speed at or above the threshold.
+replace {
+    jnb _fuel_always_enabled,%1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_cut_coolant_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_temperature_raw
+    clr c
+    subb a,_B
+    jnc %3
+    ljmp %2
+    %3:
+    jb _speed_sensor_fitted,%4
+    ljmp %5
+    %4:
+    jnb _speed_sensor_fault,%6
+    ljmp %5
+    %6:
+    mov dptr,#_fuel_cut_speed_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %7
+    ljmp %5
+    %7:
+    %2:
+    lcall _arm_coast_fuel_cut
+    ljmp %8
+    %5:
+    lcall _begin_coast_fuel_cut
+    %8:
+    ret
+} by {
+    jb _fuel_always_enabled,%2
+    mov dptr,#_fuel_cut_coolant_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_temperature_raw
+    clr c
+    subb a,_B
+    jc %2
+    jnb _speed_sensor_fitted,%5
+    jb _speed_sensor_fault,%5
+    mov dptr,#_fuel_cut_speed_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc %5
+    %2:
+    ljmp _arm_coast_fuel_cut
+    %5:
+    ljmp _begin_coast_fuel_cut
+}
+
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    lcall _enter_regulated_idle
+    ljmp %3
+    %2:
+    clr c
+    mov a,_fuel_cut_phase
+    subb a,#0x02
+} by {
+    jc _enter_regulated_idle
+    mov a,_fuel_cut_phase
+    clr c
+    subb a,#0x02
+}
+
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    lcall _check_coast_fuel_cut_delay
+    ljmp %3
+    %2:
+    lcall _update_coast_fuel_cut
+    %3:
+    ret
+} by {
+    jnc %2
+    ljmp _check_coast_fuel_cut_delay
+    %2:
+    ljmp _update_coast_fuel_cut
+}
+
+// Both entry conditions for idle share a near branch to its handler.
+// Start a new SDAS text record before the external JB, which needs its
+// bit-test opcode at the start of the record for correct PC relocation.
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _run_airflow_control
+    ljmp %3
+    %2:
+    jnb _idle_transition_hold_62,%4
+    ljmp %5
+    %4:
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jc %6
+    ljmp %7
+    %6:
+    %5:
+    lcall _enter_regulated_idle
+    ljmp %3
+    %7:
+    lcall _arm_coast_fuel_cut
+    %3:
+    ret
+} by {
+    jnc _run_airflow_control
+    .area code_4383 (CODE)
+    jb _idle_transition_hold_62,_enter_regulated_idle
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jc _enter_regulated_idle
+    ljmp _arm_coast_fuel_cut
+}

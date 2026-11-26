@@ -1,0 +1,343 @@
+// Resolve the primary channel and the paired channel when split injection is active.
+replace {
+    mov _stock_r3,_crank_slot
+    jb _split_injection_dose,%1
+    ljmp %2
+    %1:
+    mov a,#0x02
+    xrl a,_stock_r3
+    add a, #_injector_channels_by_slot
+    mov dpl,a
+    mov a,#(_injector_channels_by_slot >> 8)
+    addc a, #0x00
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %2:
+    mov a,_stock_r3
+    add a, #_injector_channels_by_slot
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_injector_channels_by_slot >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+} by {
+    mov r3,_crank_slot
+    jnb _split_injection_dose,00950$
+    mov a,r3
+    cpl acc.1
+    mov _B,a
+    mov dptr,#_injector_channels_by_slot
+    mov a,_B
+    movc a,@a+dptr
+    mov _B,a
+    00950$:
+    mov dptr,#_injector_channels_by_slot
+    mov a,r3
+    movc a,@a+dptr
+    mov r3,a
+}
+
+// Apply the mask and update P4.0 and the compare registers in stock order.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.0,%1
+    ljmp %2
+    %1:
+    mov a,_bank_one_r3
+    jnz %3
+    ljmp %4
+    %3:
+    jb _split_injection_dose,%5
+    ljmp %2
+    %5:
+    mov a,_B
+    jz %6
+    ljmp %2
+    %6:
+    %4:
+    anl _CMEN,#0xfe
+    clr _EA
+    clr _injector_output_0
+    mov _CCL1,#0x00
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH0,a
+    mov _CML0,_stock_r2
+    orl _CMEN,#0x01
+    setb _injector_output_0
+    %2:
+} by {
+    mov a,_output_flags_7c
+    anl a,#0x01
+    jnz 00951$
+    mov a,#0x00
+    cjne a,_bank_one_r3,00952$
+    sjmp 00953$
+    00952$:
+    jnb _split_injection_dose,00951$
+    cjne a,_B,00951$
+    00953$:
+    anl _CMEN,#0xfe
+    clr _EA
+    clr _injector_output_0
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH0,a
+    mov _CML0,r2
+    orl _CMEN,#0x01
+    setb _injector_output_0
+}
+
+// Apply the mask and update P4.1 and the compare registers in stock order.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+    mov a,#0x01
+    cjne a,_bank_one_r3,%3
+    ljmp %4
+    %3:
+    jb _split_injection_dose,%5
+    ljmp %2
+    %5:
+    mov a,#0x01
+    cjne a,_B,%6
+    sjmp %7
+    %6:
+    ljmp %2
+    %7:
+    %4:
+    anl _CMEN,#0xfd
+    clr _EA
+    clr _injector_output_1
+    mov _CCL1,#0x01
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH1,a
+    mov _CML1,_stock_r2
+    orl _CMEN,#0x02
+    setb _injector_output_1
+    %2:
+} by {
+    00951$:
+    mov a,_output_flags_7c
+    anl a,#0x02
+    jnz 00954$
+    mov a,#0x01
+    cjne a,_bank_one_r3,00955$
+    sjmp 00956$
+    00955$:
+    jnb _split_injection_dose,00954$
+    cjne a,_B,00954$
+    00956$:
+    anl _CMEN,#0xfd
+    clr _EA
+    clr _injector_output_1
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH1,a
+    mov _CML1,r2
+    orl _CMEN,#0x02
+    setb _injector_output_1
+}
+
+// Apply the mask and update P4.2 and the compare registers in stock order.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+    mov a,#0x02
+    cjne a,_bank_one_r3,%3
+    ljmp %4
+    %3:
+    jb _split_injection_dose,%5
+    ljmp %2
+    %5:
+    mov a,#0x02
+    cjne a,_B,%6
+    sjmp %7
+    %6:
+    ljmp %2
+    %7:
+    %4:
+    anl _CMEN,#0xfb
+    clr _EA
+    clr _injector_output_2
+    mov _CCL1,#0x02
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH2,a
+    mov _CML2,_stock_r2
+    orl _CMEN,#0x04
+    setb _injector_output_2
+    %2:
+} by {
+    00954$:
+    mov a,_output_flags_7c
+    anl a,#0x04
+    jnz 00957$
+    mov a,#0x02
+    cjne a,_bank_one_r3,00958$
+    sjmp 00959$
+    00958$:
+    jnb _split_injection_dose,00957$
+    cjne a,_B,00957$
+    00959$:
+    anl _CMEN,#0xfb
+    clr _EA
+    clr _injector_output_2
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH2,a
+    mov _CML2,r2
+    orl _CMEN,#0x04
+    setb _injector_output_2
+}
+
+// Apply the mask and update P4.3 and the compare registers in stock order.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.3,%1
+    ljmp %2
+    %1:
+    mov a,#0x03
+    cjne a,_bank_one_r3,%3
+    ljmp %4
+    %3:
+    jb _split_injection_dose,%5
+    ljmp %2
+    %5:
+    mov a,#0x03
+    cjne a,_B,%6
+    sjmp %7
+    %6:
+    ljmp %2
+    %7:
+    %4:
+    anl _CMEN,#0xf7
+    clr _EA
+    clr _injector_output_3
+    mov _CCL1,#0x03
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH3,a
+    mov _CML3,_stock_r2
+    orl _CMEN,#0x08
+    setb _injector_output_3
+    %2:
+    lcall _continue_after_injection
+    %8:
+    ret
+} by {
+    00957$:
+    mov a,_output_flags_7c
+    anl a,#0x08
+    jnz 00962$
+    mov a,#0x03
+    cjne a,_bank_one_r3,00960$
+    sjmp 00961$
+    00960$:
+    jnb _split_injection_dose,00962$
+    cjne a,_B,00962$
+    00961$:
+    anl _CMEN,#0xf7
+    clr _EA
+    clr _injector_output_3
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH3,a
+    mov _CML3,r2
+    orl _CMEN,#0x08
+    setb _injector_output_3
+    00962$:
+}

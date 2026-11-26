@@ -1,0 +1,144 @@
+replace {
+    jb acc.5,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    lcall _calculate_idle_rpm_delta
+    %3:
+    ret
+} by {
+    anl a,#0x20
+    jz _calculate_idle_rpm_delta
+    ret
+}
+
+// Keep the raw difference in B while CY checks the two same-sign cases.
+// Subtractions between different signs may need to saturate.
+replace {
+    mov dptr,#_previous_idle_rpm_error
+    movx a,@dptr
+    mov r7,a
+    mov a,_idle_rpm_error
+    clr c
+    subb a,r7
+    mov r7,a
+    mov _B,r7
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    mov a,_idle_rpm_error
+    jnb acc.7,%3
+    ljmp %4
+    %3:
+    %2:
+    mov dptr,#_previous_idle_rpm_error
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    jnb acc.7,%5
+    ljmp %6
+    %5:
+    mov a,_idle_rpm_error
+    jb acc.7,%7
+    ljmp %4
+    %7:
+    %6:
+    mov a,_idle_rpm_error
+    jnb acc.7,%8
+    ljmp %9
+    %8:
+    jb _B_SIGN,%10
+    ljmp %4
+    %10:
+    mov _B,#0x7f
+    ljmp %4
+    %9:
+    jnb _B_SIGN,%11
+    ljmp %4
+    %11:
+    mov _B,#0x80
+    %4:
+    mov dptr,#_previous_idle_rpm_error
+    mov a,_idle_rpm_error
+    movx @dptr,a
+    lcall _suppress_cold_iac_delta
+    %12:
+    ret
+} by {
+    mov dptr,#_previous_idle_rpm_error
+    movx a,@dptr
+    mov _B,a
+    mov a,_idle_rpm_error
+    clr c
+    subb a,_B
+    mov _B,a
+    mov dptr,#_previous_idle_rpm_error
+    movx a,@dptr
+    mov c,_ACC_SIGN
+    mov a,_idle_rpm_error
+    anl c,_ACC_SIGN
+    jc %4
+    mov dptr,#_previous_idle_rpm_error
+    movx a,@dptr
+    mov c,_ACC_SIGN
+    cpl c
+    mov a,_idle_rpm_error
+    anl c,/_ACC_SIGN
+    jc %4
+    mov a,_idle_rpm_error
+    jb _ACC_SIGN,%9
+    mov a,_B
+    jnb _ACC_SIGN,%4
+    mov _B,#0x7f
+    sjmp %4
+    %9:
+    mov a,_B
+    jb _ACC_SIGN,%4
+    mov _B,#0x80
+    %4:
+    mov a,_idle_rpm_error
+    mov dptr,#_previous_idle_rpm_error
+    movx @dptr,a
+}
+
+// Preserve the raw threshold in A while comparing against coolant.
+replace {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,_idle_rpm_error
+    jnb acc.7,%3
+    ljmp %2
+    %3:
+    jb _B_SIGN,%4
+    ljmp %2
+    %4:
+    mov _B,#0x00
+    %2:
+    lcall _apply_idle_airflow_feedback
+    %5:
+    ret
+} by {
+    mov dptr,#_idle_iac_cold_temp_limit
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,%1
+    %1:
+    jc %2
+    mov a,_idle_rpm_error
+    jb _ACC_SIGN,%2
+    jnb _B_SIGN,%2
+    mov _B,#0x00
+    %2:
+}

@@ -1,0 +1,252 @@
+replace {
+    mov dptr,#_startup_state_f8b0
+    mov a,#0x03
+    movx @dptr,a
+    mov _B,a
+} by {
+    mov a,#0x03
+    mov dptr,#_startup_state_f8b0
+    movx @dptr,a
+    mov _B,#0x03
+}
+
+// Use the subtraction result directly for the unsigned fractional product.
+replace {
+    mov dptr,#_throttle_zero_reference
+    movx a,@dptr
+    mov _B,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0x00
+    ljmp %3
+    %2:
+    mov a,_ACC
+    clr c
+    subb a,_B
+    mov _B,a
+    mov r7,_B
+    mov dptr,#_throttle_transfer_gain
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r0,r5
+    mov dptr,#_throttle_max_position
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_stock_r0
+    jc %4
+    ljmp %3
+    %4:
+    mov _stock_r0,_ACC
+    %3:
+    mov _ACC,_stock_r0
+    mov _throttle_position,_ACC
+    mov dptr,#_startup_throttle_position
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_previous_throttle_position
+    mov a,_ACC
+    movx @dptr,a
+    lcall _sample_startup_voltage
+    %5:
+    ret
+} by {
+    mov _B,a
+    mov dptr,#_throttle_zero_reference
+    movx a,@dptr
+    xch a,_B
+    clr c
+    subb a,_B
+    jc %1
+    mov _B,a
+    mov dptr,#_throttle_transfer_gain
+    clr a
+    movc a,@a+dptr
+    mul ab
+    mov r0,_B
+    mov dptr,#_throttle_max_position
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,_B
+    jnc %3
+    add a,_B
+    mov r0,a
+    sjmp %3
+    %1:
+    mov r0,#0x00
+    %3:
+    mov a,r0
+    mov _throttle_position,a
+    mov dptr,#_startup_throttle_position
+    movx @dptr,a
+    mov dptr,#_previous_throttle_position
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_ignition_supply_raw
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r1,_ACC
+    mov dptr,#_system_voltage_min_raw
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_system_voltage_max_raw
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    mov _ignition_voltage_raw,_stock_r1
+    lcall _init_injector_voltage_offset
+    ljmp %4
+    %2:
+    mov dptr,#_system_voltage_fallback_raw
+    clr a
+    movc a,@a+dptr
+    mov _ignition_voltage_raw,a
+    lcall _init_injector_voltage_offset
+    %4:
+    ret
+} by {
+    mov dptr,#_ignition_supply_raw
+    movx @dptr,a
+    mov r1,a
+    mov dptr,#_system_voltage_min_raw
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r1
+    cjne a,_B,%1
+    %1:
+    jc %2
+    mov dptr,#_system_voltage_max_raw
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r1
+    cjne a,_B,%3
+    %3:
+    jnc %2
+    mov _ignition_voltage_raw,r1
+    sjmp _init_injector_voltage_offset
+    %2:
+    mov dptr,#_system_voltage_fallback_raw
+    clr a
+    movc a,@a+dptr
+    mov _ignition_voltage_raw,a
+}
+
+// Keep the low and high product bytes in A and B through Q7 scaling.
+replace {
+    mov _ACC,_ignition_voltage_raw
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0x00
+    ljmp %3
+    %2:
+    mov a,_ACC
+    clr c
+    subb a,_B
+    mov _ACC,a
+    %3:
+    mov _B,_ACC
+    mov r7,_B
+    mov dptr,#_system_voltage_gain_q7
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov ar4,r7
+    mov ar6,r5
+    clr c
+    mov a,r6
+    subb a,#0x80
+    jnc %4
+    ljmp %5
+    %4:
+    mov r6,#0xff
+    ljmp %6
+    %5:
+    mov a,r5
+    mov c,acc.7
+    xch a,r7
+    rlc a
+    xch a,r7
+    rlc a
+    xch a,r7
+    anl a,#0x01
+    mov r5,a
+    mov ar6,r7
+    %6:
+    mov _ACC,r6
+    mov dptr,#_voltage_quantized
+    mov a,_ACC
+    movx @dptr,a
+    mov r6,#_injector_dynamic_offset_raw
+    mov r7,#(_injector_dynamic_offset_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_descending_curve_q4
+    mov _injector_voltage_offset,_ACC
+    lcall _continue_startup_sensor_setup
+    %7:
+    ret
+} by {
+    mov a,_ignition_voltage_raw
+    clr c
+    subb a,_B
+    jnc %3
+    clr a
+    %3:
+    mov _B,a
+    mov dptr,#_system_voltage_gain_q7
+    clr a
+    movc a,@a+dptr
+    mul ab
+    jnb b.7,%5
+    mov a,#0xff
+    sjmp %6
+    %5:
+    rlc a
+    mov a,_B
+    rlc a
+    %6:
+    mov dptr,#_voltage_quantized
+    movx @dptr,a
+    mov dptr,#_injector_dynamic_offset_raw
+    lcall _interp_descending_curve_q4
+    mov _injector_voltage_offset,a
+}

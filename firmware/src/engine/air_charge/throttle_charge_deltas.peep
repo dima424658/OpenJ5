@@ -1,0 +1,672 @@
+// Store the base charge and dispatch by the throttle difference after interpolation.
+replace {
+    mov dptr,#_cylinder_charge
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    jnb _output_state_flag_45,%1
+    ljmp %2
+    %1:
+    jb _startup_flag_53,%3
+    ljmp %4
+    %3:
+    %2:
+    lcall _reset_throttle_charge_deltas
+    ljmp %5
+    %4:
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    mov _B,a
+    mov a,_B
+    add a, #_throttle_quantization_q4
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_throttle_quantization_q4 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    mov r6,#_base_cylinder_charge_raw
+    mov r7,#(_base_cylinder_charge_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    lcall _interp_bilinear_u8
+    mov _stock_r2,_ACC
+    mov dptr,#_previous_throttle_position
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    subb a,_B
+    mov _ACC,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %6
+    ljmp %7
+    %6:
+    lcall _update_charge_on_closing
+    ljmp %5
+    %7:
+    lcall _update_charge_on_opening
+    %5:
+    ret
+} by {
+    mov dptr,#_cylinder_charge
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    jnb _output_state_flag_45,00950$
+    ljmp _reset_throttle_charge_deltas
+    00950$:
+    jnb _startup_flag_53,00951$
+    ljmp _reset_throttle_charge_deltas
+    00951$:
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_throttle_quantization_q4
+    mov a,_B
+    movc a,@a+dptr
+    mov r3,a
+    mov dptr,#_base_cylinder_charge_raw
+    mov r2,_rpm_q4
+    lcall _interp_bilinear_u8
+    mov r2,a
+    mov dptr,#_previous_throttle_position
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jc _update_charge_on_closing
+    ljmp _update_charge_on_opening
+}
+
+// Use the mapped charge drop after the deadband or apply the first closing decay.
+replace {
+    jnb _output_state_flag_45,%1
+    ljmp %2
+    %1:
+    clr c
+    clr a
+    subb a,_ACC
+    mov _B,a
+    mov dptr,#_closing_throttle_deadband
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %3
+    ljmp %4
+    %3:
+    mov dptr,#_previous_mapped_charge
+    movx a,@dptr
+    mov _B,a
+    mov a,_stock_r2
+    movx @dptr,a
+    clr c
+    mov a,_stock_r2
+    subb a,_B
+    jc %5
+    ljmp %2
+    %5:
+    mov a,_B
+    clr c
+    subb a,_stock_r2
+    mov _B,a
+    mov dptr,#_closing_charge_gain
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r01,r7
+    mov (_stock_r01 + 1),r5
+    lcall _shift_right_u16_2
+    lcall _store_closing_charge_delta
+    ljmp %6
+    %4:
+    mov dptr,#_previous_mapped_charge
+    mov a,_stock_r2
+    movx @dptr,a
+    %2:
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_closing_fuel_decay_1
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _store_closing_charge_delta
+    %6:
+    ret
+} by {
+    jb _output_state_flag_45,00953$
+    cpl a
+    add a,#0x01
+    mov _B,a
+    mov dptr,#_closing_throttle_deadband
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,00954$
+    00954$:
+    jnc 00955$
+    mov _B,r2
+    mov dptr,#_previous_mapped_charge
+    movx a,@dptr
+    xch a,_B
+    mov dptr,#_previous_mapped_charge
+    movx @dptr,a
+    xch a,_B
+    clr c
+    subb a,_B
+    jz 00953$
+    jc 00953$
+    mov _B,a
+    mov dptr,#_closing_charge_gain
+    clr a
+    movc a,@a+dptr
+    mul ab
+    mov r0,a
+    mov r1,_B
+    lcall _shift_right_u16_2
+    sjmp _store_closing_charge_delta
+    00955$:
+    mov a,r2
+    mov dptr,#_previous_mapped_charge
+    movx @dptr,a
+    00953$:
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_closing_fuel_decay_1
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+}
+
+// Update the closing estimate and decay the opening estimate.
+replace {
+    mov dptr,#_closing_fuel_candidate
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%1
+    ljmp %2
+    %1:
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_closing_fuel_decay_2
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    ljmp %3
+    %2:
+    mov dptr,#_closing_fuel_candidate
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    %3:
+    mov dptr,#_closing_fuel_delta
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_opening_fuel_decay_1
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_opening_fuel_delta
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_opening_fuel_candidate
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _finish_throttle_charge_update
+    %4:
+    ret
+} by {
+    mov dptr,#_closing_fuel_candidate
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jc 00956$
+    mov dptr,#_closing_fuel_candidate
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    sjmp 00957$
+    00956$:
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_closing_fuel_decay_2
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    00957$:
+    mov dptr,#_closing_fuel_delta
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_opening_fuel_decay_1
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_opening_fuel_delta
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_opening_fuel_candidate
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    ljmp _finish_throttle_charge_update
+}
+
+// Accept a mapped charge increase or take the idle-event decay path.
+replace {
+    jnb _output_state_flag_45,%1
+    ljmp %2
+    %1:
+    mov _B,_ACC
+    mov dptr,#_opening_throttle_deadband
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %3
+    ljmp %4
+    %3:
+    mov dptr,#_previous_mapped_charge
+    movx a,@dptr
+    mov _B,a
+    mov a,_stock_r2
+    movx @dptr,a
+    clr c
+    mov a,_B
+    subb a,_stock_r2
+    jc %5
+    ljmp %2
+    %5:
+    mov a,_stock_r2
+    clr c
+    subb a,_B
+    mov _B,a
+    mov dptr,#_charge_opening_increment
+    mov a,_B
+    movx @dptr,a
+    mov a,_coolant_nearest_index
+    add a, #_opening_charge_gain
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_opening_charge_gain >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r01,r7
+    mov (_stock_r01 + 1),r5
+    lcall _shift_right_u16_2
+    lcall _store_opening_charge_delta
+    ljmp %6
+    %4:
+    mov dptr,#_previous_mapped_charge
+    mov a,_stock_r2
+    movx @dptr,a
+    %2:
+    mov a,_crank_state_41
+    jz %7
+    ljmp %8
+    %7:
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_opening_fuel_decay_1
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _write_opening_charge_delta
+    ljmp %6
+    %8:
+    lcall _decay_closing_charge_delta
+    %6:
+    ret
+} by {
+    jb _output_state_flag_45,00958$
+    mov _B,a
+    mov dptr,#_opening_throttle_deadband
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,00959$
+    00959$:
+    jnc 00960$
+    mov _B,r2
+    mov dptr,#_previous_mapped_charge
+    movx a,@dptr
+    xch a,_B
+    mov dptr,#_previous_mapped_charge
+    movx @dptr,a
+    clr c
+    subb a,_B
+    jz 00958$
+    jc 00958$
+    mov _B,a
+    mov dptr,#_charge_opening_increment
+    movx @dptr,a
+    mov dptr,#_opening_charge_gain
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mul ab
+    mov r0,a
+    mov r1,_B
+    lcall _shift_right_u16_2
+    sjmp _store_opening_charge_delta
+    00960$:
+    mov a,r2
+    mov dptr,#_previous_mapped_charge
+    movx @dptr,a
+    00958$:
+    mov a,_crank_state_41
+    jnz _decay_closing_charge_delta
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_opening_fuel_decay_1
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    sjmp _write_opening_charge_delta
+}
+
+// Store the opening candidate and choose it or the second opening decay.
+replace {
+    mov dptr,#_opening_fuel_candidate
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%1
+    ljmp %2
+    %1:
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_opening_fuel_decay_2
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    ljmp %3
+    %2:
+    mov dptr,#_opening_fuel_candidate
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    %3:
+    lcall _write_opening_charge_delta
+    %4:
+    ret
+} by {
+    mov dptr,#_opening_fuel_candidate
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jc 00961$
+    mov dptr,#_opening_fuel_candidate
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    sjmp _write_opening_charge_delta
+    00961$:
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_opening_fuel_decay_2
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+}
+
+// Write the opening estimate and fall through to closing decay.
+replace {
+    mov dptr,#_opening_fuel_delta
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _decay_closing_charge_delta
+    %1:
+    ret
+} by {
+    mov dptr,#_opening_fuel_delta
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Decay the closing estimate and publish it to both closing words.
+replace {
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_closing_fuel_decay_2
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_closing_fuel_delta
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_closing_fuel_candidate
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _finish_throttle_charge_update
+    %1:
+    ret
+} by {
+    mov dptr,#_closing_fuel_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_closing_fuel_decay_2
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov dptr,#_closing_fuel_delta
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_closing_fuel_candidate
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    sjmp _finish_throttle_charge_update
+}
+
+// Clear the correction words and continue in place.
+replace {
+    mov dptr,#_opening_fuel_delta
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_opening_fuel_candidate
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_closing_fuel_delta
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_closing_fuel_candidate
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    lcall _finish_throttle_charge_update
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#_opening_fuel_delta
+    movx @dptr,a
+    mov dptr,#(_opening_fuel_delta + 1)
+    movx @dptr,a
+    mov dptr,#_opening_fuel_candidate
+    movx @dptr,a
+    mov dptr,#(_opening_fuel_candidate + 1)
+    movx @dptr,a
+    mov dptr,#_closing_fuel_delta
+    movx @dptr,a
+    mov dptr,#(_closing_fuel_delta + 1)
+    movx @dptr,a
+    mov dptr,#_closing_fuel_candidate
+    movx @dptr,a
+    mov dptr,#(_closing_fuel_candidate + 1)
+    movx @dptr,a
+}

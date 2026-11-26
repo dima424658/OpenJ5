@@ -1,0 +1,99 @@
+replace {
+    mov dptr,#_service_probe_count
+    mov a,#0x01
+} by {
+    mov a,#0x01
+    mov dptr,#_service_probe_count
+}
+
+// Retain the selector on the stack and stream the existing reply header.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x8a
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov a,#0xc0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0xaa
+    movx @dptr,a
+    mov _ACC,#%1
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x8a
+    movx @dptr,a
+    inc dptr
+    mov a,#0xc0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0xaa
+    movx @dptr,a
+    inc dptr
+    mov a,#%1
+}
+
+replace {
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    movx @dptr,a
+}
+
+// Copy the eight-byte record using the pointer banks expected by B31A.
+replace {
+    mov _DPSEL,#0x04
+    mov r5,#(_serial_tx_buffer + 0x0005)
+    mov r6,#((_serial_tx_buffer + 0x0005) >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _stock_r2,#0x08
+    mov _DPSEL,#0x03
+    mov r5,#_service_probe_record
+    mov r6,#(_service_probe_record >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+} by {
+    mov _DPSEL,#0x04
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov r2,#0x08
+    mov _DPSEL,#0x03
+    mov dptr,#_service_probe_record
+    lcall _copy_xdata_bytes
+}
+
+replace {
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r3
+    movx @dptr,a
+    mov r5,#(_serial_tx_buffer + 0x000e)
+    mov r6,#((_serial_tx_buffer + 0x000e) >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+} by {
+    inc dptr
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x000e)
+}
+
+replace {
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+} by {
+    pop _DPSEL
+    lcall _append_serial_checksum
+}

@@ -1,0 +1,131 @@
+// A swap and rotate put the index and fraction in disjoint bit fields.
+// The fraction is still in A when the direct lookup condition is tested.
+replace {
+    mov r7,_stock_r2
+    mov a,r7
+    swap a
+    rl a
+    anl a,#0x1f
+    mov _stock_r3,a
+    anl ar7,#0x07
+    mov a,r7
+    swap a
+    rl a
+    anl a,#0xe0
+    mov _stock_r2,a
+    mov r6,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r7,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_stock_r2
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    mov a,r2
+    swap a
+    rl a
+    anl a,#0x1f
+    mov r3,a
+    mov a,r2
+    swap a
+    rl a
+    anl a,#0xe0
+    mov r2,a
+    jnz %2
+    %1:
+}
+
+// DPTR already holds the CODE base; the zero-fraction path reads one node.
+replace {
+    mov a,_stock_r3
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    ljmp %1
+} by {
+    mov a,r3
+    movc a,@a+dptr
+    ret
+}
+
+// Read and weight the right node, keeping its product in R1:R0.
+replace {
+    mov r5,_stock_r3
+    inc r5
+    mov a,r5
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r5,a
+    mov r4,_stock_r2
+    mov b,r5
+    mov a,r4
+    mul ab
+    mov r5,a
+    mov r3,b
+    mov _stock_r01,r5
+    mov (_stock_r01 + 1),r3
+} by {
+    mov b,r2
+    mov a,r3
+    inc a
+    movc a,@a+dptr
+    mul ab
+    mov r0,a
+    mov r1,b
+}
+
+// Read the left node with the complementary weight already in B.
+replace {
+    mov a,_stock_r3
+    add a,r6
+    mov dpl,a
+    mov a,#0x00
+    addc a,r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    clr a
+    subb a,_stock_r2
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+} by {
+    mov a,r2
+    cpl a
+    inc a
+    mov b,a
+    mov a,r3
+    movc a,@a+dptr
+    mul ab
+}
+
+// Sum both products, preserving the low-byte sum in R0.
+replace {
+    mov r7,a
+    mov r5,b
+    mov a,r7
+    add a,_stock_r01
+    mov r7,a
+    mov a,r5
+    addc a,(_stock_r01 + 1)
+    mov r5,a
+    mov _stock_r0,r7
+    mov _ACC,r5
+} by {
+    add a,r0
+    mov r0,a
+    mov a,r1
+    addc a,b
+}

@@ -1,0 +1,65 @@
+// Keep the request byte in A and preserve the original exits.
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    jnb _extra_state_enabled,%1
+    ljmp %2
+    %1:
+    clr _service_mode_29
+    ljmp %3
+    %2:
+    xrl _ACC,#0x01
+    mov a,_ACC
+    jz %4
+    ljmp %3
+    %4:
+    jnb _service_link_ready,%5
+    ljmp %6
+    %5:
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    xrl a,#0x02
+    mov _ACC,a
+    mov a,_ACC
+    jz %7
+    ljmp %6
+    %7:
+} by {
+    movx a,@dptr
+    jb _extra_state_enabled,%2
+    clr _service_mode_29
+    sjmp %3
+    %2:
+    xrl a,#0x01
+    jnz %3
+    jb _service_link_ready,%6
+    mov dptr,#_service_probe_count
+    movx a,@dptr
+    xrl a,#0x02
+    jnz %6
+}
+
+replace {
+    mov _stock_r0,#0x91
+    mov r1,_stock_r0
+    mov @r1,#0x00
+} by {
+    mov r0,#0x91
+    mov @r0,#0x00
+}
+
+replace {
+    mov dptr,#_service_probe_requested
+    mov a,#0x01
+} by {
+    mov a,#0x01
+    mov dptr,#_service_probe_requested
+}
+
+replace {
+    setb _service_transition_pending
+    ljmp %1
+} by {
+    setb _service_transition_pending
+    sjmp %1
+}

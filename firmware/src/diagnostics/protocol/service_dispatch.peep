@@ -1,0 +1,216 @@
+// Keep the stock command ordering and the session-specific service gate.
+replace {
+    mov r0,#_serial_request_service
+    mov _stock_r4,@r0
+    mov r7,_stock_r4
+    cjne r7,#0x10,%1
+    ljmp %2
+    %1:
+    cjne r7,#0x11,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x14,%5
+    ljmp %6
+    %5:
+    cjne r7,#0x18,%7
+    ljmp %8
+    %7:
+    cjne r7,#0x1a,%9
+    ljmp %10
+    %9:
+    cjne r7,#0x20,%11
+    ljmp %12
+    %11:
+    cjne r7,#0x21,%13
+    ljmp %14
+    %13:
+    cjne r7,#0x23,%15
+    ljmp %16
+    %15:
+    cjne r7,#0x30,%17
+    ljmp %18
+    %17:
+    cjne r7,#0x3b,%19
+    ljmp %20
+    %19:
+    cjne r7,#0x3e,%21
+    ljmp %22
+    %21:
+    cjne r7,#0x81,%23
+    ljmp %24
+    %23:
+    cjne r7,#0x82,%25
+    ljmp %26
+    %25:
+    ljmp %27
+    %14:
+    lcall _dispatch_diag_parameter
+    ljmp %28
+    %8:
+    lcall _handle_service_18
+    ljmp %28
+    %18:
+    lcall _handle_service_30
+    ljmp %28
+    %6:
+    lcall _handle_service_14
+    ljmp %28
+    %22:
+    lcall _handle_service_3e
+    ljmp %28
+    %10:
+    lcall _handle_service_1a
+    ljmp %28
+    %16:
+    lcall _handle_service_23
+    ljmp %28
+    %20:
+    lcall _handle_service_3b
+    ljmp %28
+    %2:
+    lcall _start_diagnostic_session
+    ljmp %28
+    %12:
+    lcall _stop_diagnostic_session
+    ljmp %28
+    %26:
+    lcall _stop_diagnostic_link
+    ljmp %28
+    %24:
+    lcall _start_diagnostic_link
+    ljmp %28
+    %4:
+    lcall _handle_diagnostic_service_11
+    ljmp %28
+    %27:
+    jb _service_inhibit_69,%29
+    ljmp %30
+    %29:
+    mov r7,_stock_r4
+    cjne r7,#0x7f,%31
+    ljmp %32
+    %31:
+    cjne r7,#0xe0,%33
+    ljmp %34
+    %33:
+    cjne r7,#0xea,%35
+    ljmp %36
+    %35:
+    ljmp %30
+    %34:
+    lcall _handle_service_e0
+    ljmp %28
+    %36:
+    lcall _handle_service_ea
+    ljmp %28
+    %32:
+    lcall _handle_service_7f
+    ljmp %28
+    %30:
+    lcall _handle_unrecognized_service
+    %28:
+    ret
+} by {
+    mov r0,#_serial_request_service
+    mov a,@r0
+    mov r4,a
+    xrl a,#0x21
+    jnz 00970$
+    lcall _dispatch_diag_parameter
+    ljmp 00971$
+    00970$:
+    mov a,r4
+    xrl a,#0x18
+    jnz 00972$
+    lcall _handle_service_18
+    ljmp 00971$
+    00972$:
+    mov a,r4
+    xrl a,#0x30
+    jnz 00973$
+    lcall _handle_service_30
+    ljmp 00971$
+    00973$:
+    mov a,r4
+    xrl a,#0x14
+    jnz 00974$
+    lcall _handle_service_14
+    sjmp 00971$
+    00974$:
+    mov a,r4
+    xrl a,#0x3e
+    jnz 00975$
+    lcall _handle_service_3e
+    sjmp 00971$
+    00975$:
+    mov a,r4
+    xrl a,#0x1a
+    jnz 00976$
+    lcall _handle_service_1a
+    sjmp 00971$
+    00976$:
+    mov a,r4
+    xrl a,#0x23
+    jnz 00977$
+    lcall _handle_service_23
+    sjmp 00971$
+    00977$:
+    mov a,r4
+    xrl a,#0x3b
+    jnz 00978$
+    lcall _handle_service_3b
+    sjmp 00971$
+    00978$:
+    mov a,r4
+    xrl a,#0x10
+    jnz 00979$
+    lcall _start_diagnostic_session
+    sjmp 00971$
+    00979$:
+    mov a,r4
+    xrl a,#0x20
+    jnz 00980$
+    lcall _stop_diagnostic_session
+    sjmp 00971$
+    00980$:
+    mov a,r4
+    xrl a,#0x82
+    jnz 00981$
+    lcall _stop_diagnostic_link
+    sjmp 00971$
+    00981$:
+    mov a,r4
+    xrl a,#0x81
+    jnz 00982$
+    lcall _start_diagnostic_link
+    sjmp 00971$
+    00982$:
+    mov a,r4
+    xrl a,#0x11
+    jnz 00983$
+    lcall _handle_diagnostic_service_11
+    sjmp 00971$
+    00983$:
+    jnb _service_inhibit_69,00984$
+    mov a,r4
+    xrl a,#0xe0
+    jnz 00985$
+    lcall _handle_service_e0
+    sjmp 00971$
+    00985$:
+    mov a,r4
+    xrl a,#0xea
+    jnz 00986$
+    lcall _handle_service_ea
+    sjmp 00971$
+    00986$:
+    mov a,r4
+    xrl a,#0x7f
+    jnz 00984$
+    lcall _handle_service_7f
+    sjmp 00971$
+    00984$:
+    lcall _handle_unrecognized_service
+    00971$:
+    ret
+}

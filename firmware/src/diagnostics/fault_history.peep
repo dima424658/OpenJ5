@@ -1,0 +1,374 @@
+// Reserve pointer banks 2, 3 and 4 for masks, history and ROM lifetimes.
+replace {
+    jb _tick_1s,%1
+    ljmp %2
+    %1:
+    mov r7,#0x00
+    mov r6,#0x00
+    %3:
+    cjne r6,#0x40,%4
+    %4:
+    jc %5
+    ljmp %2
+    %5:
+} by {
+    jnb _tick_1s,_refresh_active_fault_history
+    mov _DPSEL,#0x02
+    mov dptr,#(_pending_masks - 1)
+    mov _DPSEL,#0x03
+    mov dptr,#_fault_history
+    mov _DPSEL,#0x04
+    mov dptr,#_fault_history_initial_values
+    mov r2,#0x00
+    mov _DPSEL,#0x00
+    mov dptr,#_fault_state
+    00970$:
+    mov a,r2
+    cjne a,#0x40,00971$
+    sjmp _refresh_active_fault_history
+    00971$:
+}
+
+// Consume one mask per group of eight and shift the next observation into carry.
+replace {
+    mov ar5,r6
+    mov ar4,r5
+    anl ar4,#0x07
+    mov a,r4
+    jz %1
+    ljmp %2
+    %1:
+    mov b,#0x08
+    mov a,r5
+    div ab
+    mov r5,a
+    mov a,r5
+    add a, #_pending_masks
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_pending_masks >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    mov a,r5
+    add a, #_pending_masks
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_pending_masks >> 8)
+    mov dph,a
+    mov a,#0x00
+    movx @dptr,a
+    %2:
+    mov a,#0x01
+    anl a,r7
+    mov r5,a
+    mov a,r7
+    clr c
+    rrc a
+    mov r7,a
+    mov a,r6
+    add a, #_fault_state
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_state >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r4,a
+} by {
+    anl a,#0x07
+    jnz 00972$
+    mov _DPSEL,#0x02
+    inc dptr
+    movx a,@dptr
+    mov b,a
+    clr a
+    movx @dptr,a
+    mov _DPSEL,#0x00
+    00972$:
+    mov a,b
+    rrc a
+    mov b,a
+    movx a,@dptr
+}
+
+// Update the candidate or confirmed state with the stock short branches.
+replace {
+    mov a,r5
+    jnz %1
+    ljmp %2
+    %1:
+    mov a,r4
+    jz %3
+    ljmp %4
+    %3:
+    mov a,r6
+    add a, #_fault_state
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_state >> 8)
+    mov dph,a
+    mov a,#0x01
+    movx @dptr,a
+    ljmp %5
+    %4:
+    mov a,r6
+    add a, #_fault_state
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_state >> 8)
+    mov dph,a
+    mov a,#0xff
+    movx @dptr,a
+    ljmp %6
+    %2:
+    mov a,r4
+    jnb acc.7,%7
+    ljmp %6
+    %7:
+    mov a,r4
+    jnz %8
+    ljmp %5
+    %8:
+    mov a,r4
+    inc a
+    mov r5,a
+    mov a,r6
+    add a, #_fault_state
+    mov r3,a
+    mov a,#0x00
+    addc a, #(_fault_state >> 8)
+    mov r4,a
+    cjne r5,#0x14,%9
+    %9:
+    jc %10
+    ljmp %11
+    %10:
+    ljmp %12
+    %11:
+    mov r5,#0x00
+    %12:
+    mov dpl,r3
+    mov dph,r4
+    mov a,r5
+    movx @dptr,a
+    ljmp %5
+    %6:
+} by {
+    jc 00973$
+    jb acc.7,00976$
+    jz 00977$
+    inc a
+    cjne a,#0x14,.+3
+    jc 00975$
+    clr a
+    sjmp 00975$
+    00973$:
+    jz 00974$
+    mov a,#0xff
+    movx @dptr,a
+    sjmp 00976$
+    00974$:
+    mov a,#0x01
+    00975$:
+    movx @dptr,a
+    sjmp 00977$
+}
+
+// Refresh the history byte and advance the three per-fault pointers.
+replace {
+    mov a,r6
+    add a, #_fault_history
+    mov r4,a
+    mov a,#0x00
+    addc a, #(_fault_history >> 8)
+    mov r5,a
+    mov a,r6
+    add a, #_fault_history_initial_values
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_history_initial_values >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    mov dpl,r4
+    mov dph,r5
+    mov a,r3
+    movx @dptr,a
+    %1:
+    inc r6
+    ljmp %2
+    %3:
+    lcall _refresh_active_fault_history
+    %4:
+    ret
+} by {
+    00976$:
+    mov _DPSEL,#0x04
+    clr a
+    movc a,@a+dptr
+    mov _DPSEL,#0x03
+    movx @dptr,a
+    mov _DPSEL,#0x00
+    00977$:
+    inc r2
+    inc dptr
+    mov _DPSEL,#0x03
+    inc dptr
+    mov _DPSEL,#0x04
+    inc dptr
+    mov _DPSEL,#0x00
+    sjmp 00970$
+}
+
+// Keep DPSEL on the state between iterations and load the two calibrated constants into R4 and R3.
+replace {
+    jnb _history_sync_inhibit_0b,%1
+    ljmp %2
+    %1:
+    jb _tick_1s,%3
+    ljmp %2
+    %3:
+    mov dptr,#_active_fault_history_lifetime
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_fault_clear_after_decrement
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov r5,#0x00
+    %4:
+    cjne r5,#0x40,%5
+    %5:
+    jc %6
+    ljmp %2
+    %6:
+} by {
+    jb _history_sync_inhibit_0b,00983$
+    jnb _tick_1s,00983$
+    mov dptr,#_active_fault_history_lifetime
+    clr a
+    movc a,@a+dptr
+    mov r4,a
+    mov dptr,#_fault_clear_after_decrement
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    push _DPSEL
+    mov _DPSEL,#0x02
+    mov dptr,#_fault_history
+    mov _DPSEL,#0x03
+    mov dptr,#_fault_history_timers
+    pop _DPSEL
+    clr a
+    mov r2,a
+    mov dptr,#_fault_state
+    00980$:
+    mov a,r2
+    cjne a,#0x40,00981$
+    sjmp 00983$
+    00981$:
+}
+
+// Save the state in ACC while writing its parallel timer, then clear confirmation when due.
+replace {
+    mov a,r5
+    add a, #_fault_state
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_state >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r4,a
+    mov a,r4
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    mov a,r5
+    add a, #_fault_history_timers
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_history_timers >> 8)
+    mov dph,a
+    mov a,r7
+    movx @dptr,a
+    jb _tick_1min,%3
+    ljmp %2
+    %3:
+    dec r4
+    mov a,r4
+    cjne a,ar6,%4
+    sjmp %5
+    %4:
+    ljmp %2
+    %5:
+    mov a,r5
+    add a, #_fault_history
+    mov r2,a
+    mov a,#0x00
+    addc a, #(_fault_history >> 8)
+    mov r3,a
+    mov a,r5
+    add a, #_fault_history
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_history >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r1,a
+    anl ar1,#0x7f
+    mov dpl,r2
+    mov dph,r3
+    mov a,r1
+    movx @dptr,a
+    mov r4,#0x00
+    %2:
+    mov a,r5
+    add a, #_fault_state
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_state >> 8)
+    mov dph,a
+    mov a,r4
+    movx @dptr,a
+    inc r5
+    ljmp %6
+    %7:
+    lcall _update_lamp_and_outputs
+    %8:
+    ret
+} by {
+    movx a,@dptr
+    jnb acc.7,00982$
+    push acc
+    push _DPSEL
+    mov _DPSEL,#0x03
+    mov a,r4
+    movx @dptr,a
+    pop _DPSEL
+    pop acc
+    jnb _tick_1min,00982$
+    dec a
+    mov b,r3
+    cjne a,b,00982$
+    push _DPSEL
+    mov _DPSEL,#0x02
+    movx a,@dptr
+    anl a,#0x7f
+    movx @dptr,a
+    pop _DPSEL
+    clr a
+    00982$:
+    movx @dptr,a
+    inc r2
+    inc dptr
+    push _DPSEL
+    mov _DPSEL,#0x02
+    inc dptr
+    mov _DPSEL,#0x03
+    inc dptr
+    pop _DPSEL
+    sjmp 00980$
+    00983$:
+}

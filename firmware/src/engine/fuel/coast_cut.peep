@@ -1,0 +1,351 @@
+// Delay setup and phase 2 setup both continue in the immediately following
+// block. Their entry points are available to the dispatcher as well.
+replace {
+    lcall _check_coast_fuel_cut_delay
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_coast_fuel_cut
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+} by {
+    anl a,#0x02
+    jnz %2
+}
+
+replace {
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+} by {
+    anl a,#0x04
+    jnz %2
+}
+
+replace {
+    jnb acc.5,%1
+    ljmp %2
+    %1:
+} by {
+    anl a,#0x20
+    jnz %2
+}
+
+replace {
+    mov dptr,#%1
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#%1
+    movx @dptr,a
+}
+
+replace {
+    clr c
+    mov a,%1
+    subb a,_B
+} by {
+    mov a,%1
+    clr c
+    subb a,_B
+}
+
+// The existing airflow path also handles the case where the delay counter
+// has advanced but has not reached its calibrated threshold.
+replace {
+    jnb _fuel_always_enabled,%1
+    ljmp %2
+    %1:
+} by {
+    jb _fuel_always_enabled,%2
+}
+
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_cut_rpm_threshold
+} by {
+    jc %2
+    mov dptr,#_fuel_cut_rpm_threshold
+}
+
+replace {
+    jc %1
+    ljmp %4
+    %1:
+    jb _speed_sensor_fitted,%2
+    ljmp %4
+    %2:
+    jnb _speed_sensor_fault,%3
+    ljmp %4
+    %3:
+} by {
+    jnc %4
+    jnb _speed_sensor_fitted,%4
+    jb _speed_sensor_fault,%4
+}
+
+replace {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    subb a,_B
+    jc %1
+    ljmp %3
+    %1:
+    %2:
+    lcall _apply_idle_airflow
+    ljmp %4
+    %3:
+} by {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc %3
+    %2:
+    ljmp _apply_idle_airflow
+    %3:
+}
+
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _begin_coast_fuel_cut
+    %3:
+    ret
+} by {
+    jc %2
+}
+
+// Keep the phase byte in A for the two tests. Phases 2 and 4 share the
+// delay increment. Otherwise select the deceleration ignition curve.
+replace {
+    mov r7,_fuel_cut_phase
+    cjne r7,#0x02,%1
+    ljmp %2
+    %1:
+    cjne r7,#0x04,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    %2:
+    mov dptr,#_fuel_cut_ignition_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    inc _fuel_cut_elapsed
+    mov a,_fuel_cut_elapsed
+    clr c
+    subb a,_B
+    jnc %6
+    ljmp %7
+    %6:
+    inc _fuel_cut_phase
+    %5:
+} by {
+    mov a,_fuel_cut_phase
+    cjne a,#0x02,%1
+    sjmp %2
+    %1:
+    cjne a,#0x04,%5
+    %2:
+    mov dptr,#_fuel_cut_ignition_delay_ticks
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    inc _fuel_cut_elapsed
+    mov a,_fuel_cut_elapsed
+    clr c
+    subb a,_B
+    jc %7
+    inc _fuel_cut_phase
+    %5:
+}
+
+replace {
+    mov a,_rpm_nearest_half_bin
+    add a,#_fuel_cut_ignition_half_degrees
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_fuel_cut_ignition_half_degrees >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov _base_ignition,r7
+    %1:
+    lcall _check_fuel_cut_recovery
+    %2:
+    ret
+} by {
+    mov dptr,#_fuel_cut_ignition_half_degrees
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov _base_ignition,a
+    %1:
+}
+
+// These two bit tests use the same in-section fuel-cut successor.
+replace {
+    jb _speed_sensor_fitted,%1
+    ljmp %3
+    %1:
+    jnb _speed_sensor_fault,%2
+    ljmp %3
+    %2:
+    mov r7,_fuel_cut_phase
+    cjne r7,#0x02,%4
+    ljmp %5
+    %4:
+    cjne r7,#0x03,%6
+    sjmp %7
+    %6:
+    ljmp %8
+    %7:
+    %5:
+} by {
+    jnb _speed_sensor_fitted,_apply_deceleration_fuel_cut
+    jb _speed_sensor_fault,_apply_deceleration_fuel_cut
+    mov a,_fuel_cut_phase
+    cjne a,#0x02,%4
+    sjmp %5
+    %4:
+    cjne a,#0x03,%8
+    %5:
+}
+
+replace {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    subb a,_B
+} by {
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    clr c
+    subb a,_B
+}
+
+// Enter the low-speed phases only below both calibrated bounds.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_resume_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    mov r7,_fuel_cut_phase
+    mov a,#0x02
+    add a,r7
+    mov _fuel_cut_phase,a
+    lcall _apply_idle_airflow
+    ljmp %4
+} by {
+    jnc _apply_deceleration_fuel_cut
+    mov dptr,#_fuel_resume_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jnc _apply_deceleration_fuel_cut
+    mov a,_fuel_cut_phase
+    add a,#0x02
+    mov _fuel_cut_phase,a
+    sjmp _apply_idle_airflow
+}
+
+// Leave the low-speed phases when either upper bound is reached.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_cut_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    lcall _apply_idle_airflow
+    ljmp %4
+    %2:
+    mov r7,_fuel_cut_phase
+    mov a,r7
+    add a,#0xfe
+    mov _fuel_cut_phase,a
+    %5:
+    lcall _apply_deceleration_fuel_cut
+    %4:
+    ret
+} by {
+    jnc %2
+    mov dptr,#_fuel_cut_rpm_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_30
+    clr c
+    subb a,_B
+    jnc %2
+    sjmp _apply_idle_airflow
+    %2:
+    mov a,_fuel_cut_phase
+    clr c
+    subb a,#0x02
+    mov _fuel_cut_phase,a
+}
+
+replace {
+    mov dptr,#_fuel_transition_event_count
+    mov a,#0x04
+    movx @dptr,a
+    lcall _finish_ignition_corrections
+    %1:
+    ret
+} by {
+    mov a,#0x04
+    mov dptr,#_fuel_transition_event_count
+    movx @dptr,a
+    ljmp _finish_ignition_corrections
+}
+
+replace {
+    lcall _continue_after_idle_airflow
+    %1:
+    ret
+} by {
+    %1:
+}

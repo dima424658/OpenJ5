@@ -1,0 +1,119 @@
+// Preserve MDU operand order, four wait cycles and the register comparisons.
+replace {
+    mov _mdu_0,#0x10
+    mov _mdu_1,#0x27
+    mov _mdu_4,#0x2c
+    mov _mdu_5,#0x01
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_4
+    mov _stock_r3,_mdu_5
+    mov a,#0x21
+    cjne a,_stock_r01,%1
+    mov a,#0x00
+    cjne a,(_stock_r01 + 1),%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov a,#0x64
+    cjne a,_stock_r23,%4
+    mov a,#0x00
+    cjne a,(_stock_r23 + 1),%4
+    sjmp %5
+    %4:
+    ljmp %3
+    %5:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    ljmp %6
+    %3:
+    mov _stock_r01,#0x34
+    mov (_stock_r01 + 1),#0x12
+    %6:
+    mov _monitor_mdu_test_result,_stock_r01
+    mov (_monitor_mdu_test_result + 1),(_stock_r01 + 1)
+    mov a,_stock_r1
+    orl a,_stock_r0
+    mov _ACC,a
+    mov a,_ACC
+    jnz %7
+    ljmp %8
+    %7:
+    setb _monitor_checksum_failed
+    %8:
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    %9:
+    ret
+} by {
+    mov _mdu_0,#0x10
+    mov _mdu_1,#0x27
+    mov _mdu_4,#0x2c
+    mov _mdu_5,#0x01
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_4
+    mov r3,_mdu_5
+    mov a,r0
+    cjne a,#0x21,00970$
+    mov a,r1
+    cjne a,#0x00,00970$
+    mov a,r2
+    cjne a,#0x64,00970$
+    mov a,r3
+    cjne a,#0x00,00970$
+    mov r0,#0x00
+    mov r1,#0x00
+    sjmp 00971$
+    00970$:
+    mov r0,#0x34
+    mov r1,#0x12
+    00971$:
+    mov _monitor_mdu_test_result,r0
+    mov 0x43,r1
+    mov a,r0
+    orl a,r1
+    jz 00972$
+    setb _monitor_checksum_failed
+    00972$:
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+}
+
+// Keep four NOPs per iteration and the accumulator DJNZ timing.
+replace {
+    %1:
+    nop
+    nop
+    nop
+    nop
+    mov a,_ACC
+    dec a
+    mov r7,a
+    mov _ACC,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    %3:
+    ret
+} by {
+    nop
+    nop
+    nop
+    nop
+    djnz acc,_monitor_delay_acc
+    ret
+}

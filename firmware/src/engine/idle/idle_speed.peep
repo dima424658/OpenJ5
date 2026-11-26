@@ -1,0 +1,211 @@
+// The hold branch loads the existing target. Otherwise pass the CODE curve
+// and its two coordinates to the stock interpolator in DPTR and R2:R3.
+replace {
+    mov a,_idle_control_7a
+    jb acc.6,%1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_rpm_target
+    movx a,@dptr
+    mov _ACC,a
+    ljmp %3
+    %2:
+    mov dptr,#_idle_temp_index
+    movx a,@dptr
+    mov _stock_r2,a
+    mov dptr,#_idle_temp_fraction
+    movx a,@dptr
+    mov _stock_r3,a
+    mov r6,#_desired_idle_rpm
+    mov r7,#(_desired_idle_rpm >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_curve_u8
+    mov _B,_ACC
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_B
+    add a,_ACC
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %4
+    ljmp %3
+    %4:
+    mov _ACC,#0xff
+    %3:
+    lcall _update_idle_transition_rpm
+    %5:
+    ret
+} by {
+    mov a,_idle_control_7a
+    anl a,#0x40
+    jnz %1
+    mov dptr,#_idle_temp_index
+    movx a,@dptr
+    mov r2,a
+    mov dptr,#_idle_temp_fraction
+    movx a,@dptr
+    mov r3,a
+    mov dptr,#_desired_idle_rpm
+    lcall _interp_curve_u8
+    mov _B,a
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    add a,_B
+    jnc %3
+    mov a,#0xff
+    sjmp %3
+    %1:
+    mov dptr,#_idle_rpm_target
+    movx a,@dptr
+    %3:
+}
+
+// Save the base RPM in the active bank's R0 before calculating the thresholds.
+replace {
+    mov _stock_r0,_ACC
+    mov _B,_ACC
+    jb _air_conditioning_active,%1
+    ljmp %2
+    %1:
+    mov dptr,#_idle_transition_1_ac_q8
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    ljmp %3
+    %2:
+    mov dptr,#_idle_transition_1_q8
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    %3:
+} by {
+    mov r0,a
+    mov _B,a
+    jb _air_conditioning_active,%1
+    mov dptr,#_idle_transition_1_q8
+    clr a
+    movc a,@a+dptr
+    sjmp %3
+    %1:
+    mov dptr,#_idle_transition_1_ac_q8
+    clr a
+    movc a,@a+dptr
+    %3:
+}
+
+// MUL leaves the Q8 increment in B. Test the carry from ADD for saturation.
+replace {
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _B,r5
+} by {
+    mul ab
+}
+
+replace {
+    mov _ACC,_stock_r0
+} by {
+    mov a,r0
+}
+
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_B
+} by {
+    movx a,@dptr
+    mov a,_B
+}
+
+replace {
+    mov a,_B
+    add a,_ACC
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0xff
+    %2:
+} by {
+    add a,_B
+    jnc %2
+    mov a,#0xff
+    %2:
+}
+
+replace {
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    movx @dptr,a
+}
+
+replace {
+    mov _B,_ACC
+    mov dptr,#_idle_transition_2_q8
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+} by {
+    mov _B,a
+    mov dptr,#_idle_transition_2_q8
+    clr a
+    movc a,@a+dptr
+}
+
+// All three ways of qualifying for the offset share its CODE read.
+replace {
+    mov a,_idle_control_7a
+    jnb acc.6,%1
+    ljmp %2
+    %1:
+    jb _speed_sensor_fitted,%3
+    ljmp %4
+    %3:
+    jnb _speed_sensor_fault,%5
+    ljmp %4
+    %5:
+    jb _vehicle_moving,%6
+    ljmp %2
+    %6:
+    %4:
+} by {
+    mov a,_idle_control_7a
+    anl a,#0x40
+    jnz %2
+    jnb _speed_sensor_fitted,%4
+    jb _speed_sensor_fault,%4
+    jnb _vehicle_moving,%2
+    %4:
+}
+
+// The linker map verifies both fall-through addresses.
+replace {
+    lcall _apply_moving_idle_rpm_offset
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _update_idle_ignition
+    %1:
+    ret
+} by {
+    %1:
+}

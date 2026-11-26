@@ -1,0 +1,424 @@
+// Keep the active-session guard and the two clear-group replies.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,%1
+    ljmp %2
+    %1:
+    mov r6,#_fault_clear_inactive
+    mov r7,#(_fault_clear_inactive >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %3
+    %2:
+    setb _service_request_seen
+    jb _serial_extended_length,%4
+    ljmp %5
+    %4:
+    mov r7,#0x01
+    ljmp %6
+    %5:
+    mov r7,#0x00
+    %6:
+    mov a,#0x04
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    mov ar6,r7
+    mov a,r7
+    jz %7
+    ljmp %8
+    %7:
+    lcall _clear_diagnostic_faults
+    mov r5,#_faults_cleared_group_00
+    mov r7,#(_faults_cleared_group_00 >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r5
+    mov _stock_r2,#0x07
+    lcall _append_code_bytes_to_serial
+    ljmp %3
+    %8:
+    cjne r6,#0xff,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    lcall _clear_diagnostic_faults
+    mov r6,#_faults_cleared_group_ff
+    mov r7,#(_faults_cleared_group_ff >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    mov _stock_r2,#0x07
+    lcall _append_code_bytes_to_serial
+    ljmp %3
+    %11:
+    mov r6,#_fault_clear_invalid_group
+    mov r7,#(_fault_clear_invalid_group >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %3:
+    setb _service_dispatch_7c
+    %12:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,00970$
+    setb _service_request_seen
+    jnb _serial_extended_length,00971$
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    sjmp 00972$
+    00971$:
+    mov dptr,#(_serial_rx_buffer + 4)
+    movx a,@dptr
+    00972$:
+    jz 00973$
+    inc a
+    jz 00974$
+    sjmp 00975$
+    00973$:
+    lcall _clear_diagnostic_faults
+    mov r3,#(_faults_cleared_group_00 >> 8)
+    mov r4,#_faults_cleared_group_00
+    mov r2,#0x07
+    lcall _append_code_bytes_to_serial
+    sjmp 00976$
+    00974$:
+    lcall _clear_diagnostic_faults
+    mov r3,#(_faults_cleared_group_ff >> 8)
+    mov r4,#_faults_cleared_group_ff
+    mov r2,#0x07
+    lcall _append_code_bytes_to_serial
+    sjmp 00976$
+    00975$:
+    mov r3,#(_fault_clear_invalid_group >> 8)
+    mov r4,#_fault_clear_invalid_group
+    lcall _append_code_string_to_serial
+    sjmp 00976$
+    00970$:
+    mov r3,#(_fault_clear_inactive >> 8)
+    mov r4,#_fault_clear_inactive
+    lcall _append_code_string_to_serial
+    00976$:
+    setb _service_dispatch_7c
+    ret
+}
+
+// Read the fault group in the original byte order and dispatch its response.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,%1
+    ljmp %2
+    %1:
+    mov r6,#_fault_read_inactive
+    mov r7,#(_fault_read_inactive >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %3
+    %2:
+    setb _service_request_seen
+    jb _serial_extended_length,%4
+    ljmp %5
+    %4:
+    mov r7,#0x01
+    ljmp %6
+    %5:
+    mov r7,#0x00
+    %6:
+    mov a,#0x05
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov _B,a
+    mov a,#0x04
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    jz %7
+    ljmp %8
+    %7:
+    mov a,_B
+    jnz %9
+    ljmp %10
+    %9:
+    mov a,#0xff
+    cjne a,_B,%11
+    sjmp %12
+    %11:
+    ljmp %8
+    %12:
+    %10:
+    lcall _build_diagnostic_fault_response
+    ljmp %3
+    %8:
+    mov r6,#_fault_read_invalid_group
+    mov r7,#(_fault_read_invalid_group >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %3:
+    setb _service_dispatch_7c
+    %13:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,00977$
+    setb _service_request_seen
+    jnb _serial_extended_length,00978$
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    mov b,a
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    sjmp 00979$
+    00978$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    mov b,a
+    mov dptr,#(_serial_rx_buffer + 4)
+    movx a,@dptr
+    00979$:
+    jnz 00980$
+    mov a,b
+    jz 00981$
+    inc a
+    jnz 00980$
+    00981$:
+    lcall _build_diagnostic_fault_response
+    sjmp 00982$
+    00980$:
+    mov r3,#(_fault_read_invalid_group >> 8)
+    mov r4,#_fault_read_invalid_group
+    lcall _append_code_string_to_serial
+    sjmp 00982$
+    00977$:
+    mov r3,#(_fault_read_inactive >> 8)
+    mov r4,#_fault_read_inactive
+    lcall _append_code_string_to_serial
+    00982$:
+    setb _service_dispatch_7c
+    ret
+}
+
+// Clear the fault masks and retained history with the stock fill value.
+replace {
+    setb _lamp_off_request
+    mov _ACC,#0x00
+    mov r0,#_diagnostic_fault_count
+    mov @r0,_ACC
+    mov _fault_mask_22,_ACC
+    mov _fault_mask_23,_ACC
+    mov _fault_mask_24,_ACC
+    mov _displayed_fault_mask,_ACC
+    mov _fault_mask_25,_ACC
+    mov _output_flags,_ACC
+    mov dptr,#_driver_fault_status
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_driver_fault_b2
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_driver_fault_b3
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_driver_fault_b4
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_fault_state_6c
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_fault_state_6d
+    mov a,_ACC
+    movx @dptr,a
+    mov r7,#0x00
+    %1:
+    cjne r7,#0x08,%2
+    %2:
+    jc %3
+    ljmp %4
+    %3:
+    mov a,r7
+    add a, #_pending_fault_masks
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_pending_fault_masks >> 8)
+    mov dph,a
+    mov a,_ACC
+    movx @dptr,a
+    inc r7
+    ljmp %1
+    %4:
+    lcall _clear_retained_words_ce94
+    mov r7,#0x00
+    %5:
+    cjne r7,#0x40,%6
+    %6:
+    jc %7
+    ljmp %8
+    %7:
+    mov a,r7
+    add a, #_retained_faults
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_retained_faults >> 8)
+    mov dph,a
+    mov a,_ACC
+    movx @dptr,a
+    inc r7
+    ljmp %5
+    %8:
+    ret
+} by {
+    setb _lamp_off_request
+    mov r0,#_diagnostic_fault_count
+    clr a
+    mov @r0,a
+    mov _fault_mask_22,a
+    mov _fault_mask_23,a
+    mov _fault_mask_24,a
+    mov _displayed_fault_mask,a
+    mov _fault_mask_25,a
+    mov _output_flags,a
+    mov dptr,#_driver_fault_status
+    movx @dptr,a
+    mov dptr,#_driver_fault_b2
+    movx @dptr,a
+    mov dptr,#_driver_fault_b3
+    movx @dptr,a
+    mov dptr,#_driver_fault_b4
+    movx @dptr,a
+    mov dptr,#_fault_state_6c
+    movx @dptr,a
+    mov dptr,#_fault_state_6d
+    movx @dptr,a
+    mov r2,#0x08
+    mov dptr,#_pending_fault_masks
+    00970$:
+    movx @dptr,a
+    inc dptr
+    djnz r2,00970$
+    lcall _clear_retained_words_ce94
+    mov r2,#0x40
+    mov dptr,#_retained_faults
+    00971$:
+    movx @dptr,a
+    inc dptr
+    djnz r2,00971$
+    ret
+}
+
+// Preserve the length and the three-bank transmit cursor for stored fault records.
+replace {
+    mov r0,#_diagnostic_fault_count
+    mov _stock_r3,@r0
+    mov r7,_stock_r3
+    mov a,r7
+    mov b,#0x03
+    mul ab
+    mov _stock_r2,a
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov a,#0x02
+    add a, _stock_r2
+    orl a,#0x80
+    mov r6,a
+    mov dptr,#_serial_tx_buffer
+    mov a,r6
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0x58
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_stock_r3
+    movx @dptr,a
+    mov _serial_tx_count,#0x05
+    mov a,_stock_r3
+    jnz %1
+    ljmp %2
+    %1:
+    mov a,#0x05
+    add a, _stock_r2
+    mov _serial_tx_count,a
+    mov _DPSEL,#0x04
+    mov r5,#(_serial_tx_buffer + 0x0005)
+    mov r6,#((_serial_tx_buffer + 0x0005) >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _DPSEL,#0x03
+    mov r5,#_diagnostic_fault_records_start
+    mov r6,#(_diagnostic_fault_records_start >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+    %2:
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %3:
+    ret
+} by {
+    mov r0,#_diagnostic_fault_count
+    mov a,@r0
+    mov r3,a
+    mov b,#0x03
+    mul ab
+    mov r2,a
+    add a,#0x02
+    orl a,#0x80
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    movx @dptr,a
+    mov r0,#_serial_response_address
+    mov a,@r0
+    inc dptr
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0x58
+    movx @dptr,a
+    mov a,r3
+    inc dptr
+    movx @dptr,a
+    mov _serial_tx_count,#0x05
+    jz 00970$
+    mov a,r2
+    add a,#0x05
+    mov _serial_tx_count,a
+    mov _DPSEL,#0x04
+    mov dptr,#(_serial_tx_buffer + 5)
+    mov _DPSEL,#0x03
+    mov dptr,#_diagnostic_fault_records_start
+    lcall _copy_xdata_bytes
+    00970$:
+    pop _DPSEL
+    lcall _append_serial_checksum
+    ret
+}

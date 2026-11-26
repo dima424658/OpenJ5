@@ -1,0 +1,351 @@
+// Select a residual and its raw period according to the two sign paths and the stock carry test.
+replace {
+    mov r7,_stock_r1
+    anl ar7,#0x80
+    mov a,r7
+    cjne a,#0x01,%1
+    %1:
+    mov _select_misfire_period_residual_sloc0_1_0,c
+    mov c,_select_misfire_period_residual_sloc0_1_0
+    cpl c
+    clr a
+    rlc a
+    mov _select_misfire_period_residual_late_negative_10000_8,a
+    mov dptr,#_early_period_residual
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov a,_select_misfire_period_residual_late_negative_10000_8
+    jnz %2
+    ljmp %3
+    %2:
+    mov a,r7
+    anl a,#0x01
+    mov r6,a
+    mov a,r6
+    cjne a,#0x01,%4
+    %4:
+    mov _select_misfire_period_residual_sloc0_1_0,c
+    mov c,_select_misfire_period_residual_sloc0_1_0
+    clr a
+    rlc a
+    mov r6,a
+    ljmp %5
+    %3:
+    anl ar7,#0x80
+    mov ar6,r7
+    %5:
+    mov a,r6
+    jnz %6
+    ljmp %7
+    %6:
+    mov _stock_r01,#0x00
+    mov (_stock_r01 + 1),#0x80
+    mov dptr,#_selected_period_ratio
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _skip_misfire_period_update
+    ljmp %8
+    %7:
+    mov dptr,#_early_period_residual
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    mov a,_select_misfire_period_residual_late_negative_10000_8
+    jnz %9
+    ljmp %10
+    %9:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    ljmp %11
+    %10:
+    mov c,_CY
+    cpl c
+    mov _select_misfire_period_residual_sloc0_1_0,c
+    mov c,_select_misfire_period_residual_sloc0_1_0
+    clr a
+    rlc a
+    mov r7,a
+    %11:
+    mov a,r7
+    jnz %12
+    ljmp %13
+    %12:
+    mov dptr,#_selected_period_residual
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_early_raw_period
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    ljmp %14
+    %13:
+    mov dptr,#_late_period_residual
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#_selected_period_residual
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_late_raw_period
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    %14:
+    lcall _normalize_misfire_period
+    %8:
+    ret
+} by {
+    mov a,r1
+    mov c,acc.7
+    mov dptr,#(_early_period_residual + 1)
+    movx a,@dptr
+    jc 00950$
+    orl c,acc.7
+    jc 00951$
+    mov dptr,#_early_period_residual
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jc 00952$
+    mov dptr,#_selected_period_residual
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#_early_raw_period
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    sjmp _normalize_misfire_period
+    00952$:
+    mov dptr,#_late_period_residual
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_selected_period_residual
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_late_raw_period
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    sjmp _normalize_misfire_period
+    00951$:
+    mov r0,#0x00
+    mov r1,#0x80
+    mov dptr,#_selected_period_ratio
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    ljmp _skip_misfire_period_update
+    00950$:
+    anl c,acc.0
+    jnc 00951$
+    mov dptr,#_early_period_residual
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jnc 00953$
+    mov dptr,#_selected_period_residual
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#_early_raw_period
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    sjmp _normalize_misfire_period
+    00953$:
+    mov dptr,#_late_period_residual
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_selected_period_residual
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_late_raw_period
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+}
+
+// Add the selected residual and double the selected raw period with saturation.
+replace {
+    mov dptr,#_selected_raw_period
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_selected_period_residual
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _add_u16_register_pairs
+    mov dptr,#_corrected_raw_period
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_selected_raw_period
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _shift_left_saturating_1
+    mov _bank_one_r23,_stock_r01
+    mov (_bank_one_r23 + 1),(_stock_r01 + 1)
+    mov dptr,#_corrected_raw_period
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    mov dptr,#_selected_raw_period
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#_selected_period_residual
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _add_u16_register_pairs
+    mov dptr,#_corrected_raw_period
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_selected_raw_period
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _shift_left_saturating_1
+    mov (_bank_one_r23 + 1),r1
+    mov _bank_one_r23,r0
+    mov dptr,#_corrected_raw_period
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+// Divide the shifted corrected period by the doubled reference and publish the low word.
+replace {
+    mov _mdu_0,#0x00
+    mov _mdu_1,#0x00
+    mov _mdu_2,_stock_r0
+    mov _mdu_3,_stock_r1
+    mov _mdu_4,_stock_r2
+    mov _mdu_5,_stock_r3
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_selected_period_ratio
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _continue_misfire_period_update
+    %1:
+    ret
+} by {
+    mov _mdu_0,#0x00
+    mov _mdu_1,#0x00
+    mov _mdu_2,r0
+    mov _mdu_3,r1
+    mov _mdu_4,r2
+    mov _mdu_5,r3
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    mov dptr,#_selected_period_ratio
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}

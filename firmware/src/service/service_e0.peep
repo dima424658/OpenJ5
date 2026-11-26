@@ -1,0 +1,141 @@
+// Dispatch the first set of option bits with A and the saved R4 intact.
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    mov _stock_r4,_ACC
+    jnb _extra_state_enabled,%1
+    ljmp %2
+    %1:
+    jnb _shutdown_option,%3
+    ljmp %4
+    %3:
+    jb _ACC_BIT2,%5
+    ljmp %6
+    %5:
+    setb _shutdown_option
+    clr _service_link_ready
+    ljmp %7
+    %6:
+    jb _ACC_BIT0,%8
+    ljmp %7
+    %8:
+    jb _ACC_BIT1,%9
+    ljmp %7
+    %9:
+    ljmp %10
+    %4:
+} by {
+    movx a,@dptr
+    mov r4,a
+    jb _extra_state_enabled,%2
+    jb _shutdown_option,%4
+    jb _ACC_BIT2,%5
+    jnb _ACC_BIT0,%7
+    jnb _ACC_BIT1,%7
+    sjmp %10
+    %5:
+    setb _shutdown_option
+    clr _service_link_ready
+    sjmp %7
+    %4:
+}
+
+// Keep the range checks ahead of the EEPROM write.
+replace {
+    anl acc,#0xfd
+    movx @dptr,a
+    lcall _compare_service_record_f4a6
+    jb _service_link_ready,%1
+    ljmp %2
+    %1:
+    mov _ACC,_stock_r4
+    jb _ACC_BIT2,%3
+    ljmp %2
+    %3:
+    jb _ACC_BIT3,%4
+    ljmp %2
+    %4:
+} by {
+    anl a,#0xfd
+    movx @dptr,a
+    lcall _compare_service_record_f4a6
+    jnb _service_link_ready,%2
+    mov a,r4
+    jnb _ACC_BIT2,%2
+    jnb _ACC_BIT3,%2
+}
+
+replace {
+    mov r6,#_probe_record
+    mov r7,#(_probe_record >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _write_startup_fault_history
+    jnb _eeprom_io_failed,%1
+    ljmp %2
+    %1:
+} by {
+    mov dptr,#_probe_record
+    lcall _write_startup_fault_history
+    jb _eeprom_io_failed,%2
+}
+
+replace {
+    mov _stock_r7,#0x00
+    lcall _write_eeprom_shutdown_record
+    setb _EA
+    jb _eeprom_io_failed,%1
+    ljmp %2
+    %1:
+    %3:
+    setb _EA
+    mov _stock_r3,#0x10
+    lcall _build_serial_probe_status
+    ljmp %4
+} by {
+    mov r7,#0x00
+    lcall _write_eeprom_shutdown_record
+    setb _EA
+    jb _eeprom_io_failed,%3
+    sjmp %2
+    %3:
+    setb _EA
+    mov r3,#0x10
+    lcall _build_serial_probe_status
+    sjmp %4
+}
+
+// The active-state path can return through the earlier comparison.
+replace {
+    jnb _shutdown_option,%1
+    ljmp %2
+    %1:
+    jb _ACC_BIT2,%3
+    ljmp %4
+    %3:
+    lcall _compare_service_record_f4a0
+    jb _service_link_ready,%5
+    ljmp %6
+    %5:
+    setb _shutdown_option
+    ljmp %6
+    %4:
+    jnb _ACC_BIT1,%7
+    ljmp %8
+    %7:
+    lcall _compare_service_record_f4a0
+    ljmp %6
+    %8:
+} by {
+    jb _shutdown_option,%2
+    jnb _ACC_BIT2,%4
+    lcall _compare_service_record_f4a0
+    jnb _service_link_ready,%6
+    setb _shutdown_option
+    sjmp %6
+    %4:
+    jb _ACC_BIT1,%8
+    lcall _compare_service_record_f4a0
+    sjmp %6
+    %8:
+}

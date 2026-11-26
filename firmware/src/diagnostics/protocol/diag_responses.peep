@@ -1,0 +1,387 @@
+// Write the full diagnostic response using the stock transmit cursor and field lists.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,#0x61
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov r5,#_serial_tx_buffer
+    mov r6,#(_serial_tx_buffer >> 8)
+    mov a,#0x06
+    add a, r5
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _serial_tx_count,#0x06
+    mov _DPSEL,r7
+    mov r6,#_diag_full_iram
+    mov r7,#(_diag_full_iram >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_iram_fields_to_serial
+    mov r6,#_diag_full_xdata_bytes
+    mov r7,#(_diag_full_xdata_bytes >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_fields_to_serial
+    mov r6,#_diag_full_xdata_words
+    mov r7,#(_diag_full_xdata_words >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_words_to_serial
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov r6,_serial_tx_count
+    dec r6
+    dec r6
+    dec r6
+    dec r6
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,r6
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    inc dptr
+    mov a,#0x61
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x06
+    pop _DPSEL
+    mov r3,#(_diag_full_iram >> 8)
+    mov r4,#_diag_full_iram
+    lcall _append_iram_fields_to_serial
+    mov r3,#(_diag_full_xdata_bytes >> 8)
+    mov r4,#_diag_full_xdata_bytes
+    lcall _append_xdata_fields_to_serial
+    mov r3,#(_diag_full_xdata_words >> 8)
+    mov r4,#_diag_full_xdata_words
+    lcall _append_xdata_words_to_serial
+    mov a,_serial_tx_count
+    clr c
+    subb a,#0x04
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#(_serial_tx_buffer + 3)
+    movx @dptr,a
+    pop _DPSEL
+    lcall _append_serial_checksum
+    ret
+}
+
+// Write the compact response with the same header, length and checksum.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,#0x61
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov r5,#_serial_tx_buffer
+    mov r6,#(_serial_tx_buffer >> 8)
+    mov a,#0x06
+    add a, r5
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _serial_tx_count,#0x06
+    mov _DPSEL,r7
+    mov r6,#_diag_short_iram
+    mov r7,#(_diag_short_iram >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_iram_fields_to_serial
+    mov r6,#_diag_short_xdata_bytes
+    mov r7,#(_diag_short_xdata_bytes >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_fields_to_serial
+    mov r6,#_diag_short_xdata_words
+    mov r7,#(_diag_short_xdata_words >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_words_to_serial
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov r6,_serial_tx_count
+    dec r6
+    dec r6
+    dec r6
+    dec r6
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,r6
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    inc dptr
+    mov a,#0x61
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x06
+    pop _DPSEL
+    mov r3,#(_diag_short_iram >> 8)
+    mov r4,#_diag_short_iram
+    lcall _append_iram_fields_to_serial
+    mov r3,#(_diag_short_xdata_bytes >> 8)
+    mov r4,#_diag_short_xdata_bytes
+    lcall _append_xdata_fields_to_serial
+    mov r3,#(_diag_short_xdata_words >> 8)
+    mov r4,#_diag_short_xdata_words
+    lcall _append_xdata_words_to_serial
+    mov a,_serial_tx_count
+    clr c
+    subb a,#0x04
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#(_serial_tx_buffer + 3)
+    movx @dptr,a
+    pop _DPSEL
+    lcall _append_serial_checksum
+    ret
+}
+
+// Serialize the ADC field lists into the diagnostic buffer.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,#0x61
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov r5,#_serial_tx_buffer
+    mov r6,#(_serial_tx_buffer >> 8)
+    mov a,#0x06
+    add a, r5
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _serial_tx_count,#0x06
+    mov _DPSEL,r7
+    mov r6,#_diag_adc_iram
+    mov r7,#(_diag_adc_iram >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_iram_fields_to_serial
+    mov r6,#_diag_adc_xdata_bytes
+    mov r7,#(_diag_adc_xdata_bytes >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_fields_to_serial
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov r6,_serial_tx_count
+    dec r6
+    dec r6
+    dec r6
+    dec r6
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,r6
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    inc dptr
+    mov a,#0x61
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x06
+    pop _DPSEL
+    mov r3,#(_diag_adc_iram >> 8)
+    mov r4,#_diag_adc_iram
+    lcall _append_iram_fields_to_serial
+    mov r3,#(_diag_adc_xdata_bytes >> 8)
+    mov r4,#_diag_adc_xdata_bytes
+    lcall _append_xdata_fields_to_serial
+    mov a,_serial_tx_count
+    clr c
+    subb a,#0x04
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#(_serial_tx_buffer + 3)
+    movx @dptr,a
+    pop _DPSEL
+    lcall _append_serial_checksum
+    ret
+}
+
+// Serialize misfire state and return through the diagnostic checksum routine.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,#0x61
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov r5,#_serial_tx_buffer
+    mov r6,#(_serial_tx_buffer >> 8)
+    mov a,#0x06
+    add a, r5
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _serial_tx_count,#0x06
+    mov _DPSEL,r7
+    mov r6,#_diag_misfire_xdata_bytes
+    mov r7,#(_diag_misfire_xdata_bytes >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_fields_to_serial
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov r6,_serial_tx_count
+    dec r6
+    dec r6
+    dec r6
+    dec r6
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,r6
+    movx @dptr,a
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x80
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    inc dptr
+    mov a,#0x61
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x06
+    pop _DPSEL
+    mov r3,#(_diag_misfire_xdata_bytes >> 8)
+    mov r4,#_diag_misfire_xdata_bytes
+    lcall _append_xdata_fields_to_serial
+    mov a,_serial_tx_count
+    clr c
+    subb a,#0x04
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#(_serial_tx_buffer + 3)
+    movx @dptr,a
+    pop _DPSEL
+    lcall _append_serial_checksum
+    ret
+}

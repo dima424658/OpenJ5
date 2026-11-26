@@ -1,0 +1,294 @@
+// Dispatch identification only within an active link.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    setb _service_request_seen
+    lcall _build_identification_response
+    ljmp %3
+    %2:
+    mov r6,#_identification_inactive_reply
+    mov r7,#(_identification_inactive_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %3:
+    setb _service_dispatch_7c
+    %4:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,00970$
+    setb _service_request_seen
+    lcall _build_identification_response
+    sjmp 00971$
+    00970$:
+    mov r3,#(_identification_inactive_reply >> 8)
+    mov r4,#_identification_inactive_reply
+    lcall _append_code_string_to_serial
+    00971$:
+    setb _service_dispatch_7c
+    ret
+}
+
+// Preserve identification field order, canned replies and the combined checksum.
+replace {
+    jb _serial_extended_length,%1
+    ljmp %2
+    %1:
+    mov r7,#0x01
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov a,#0x04
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov _stock_r4,a
+    mov r7,_stock_r4
+    cjne r7,#0x80,%4
+    ljmp %5
+    %4:
+    cjne r7,#0x90,%6
+    ljmp %7
+    %6:
+    cjne r7,#0x91,%8
+    ljmp %9
+    %8:
+    cjne r7,#0x92,%10
+    ljmp %11
+    %10:
+    cjne r7,#0x94,%12
+    ljmp %13
+    %12:
+    cjne r7,#0x97,%14
+    ljmp %15
+    %14:
+    cjne r7,#0x98,%16
+    ljmp %17
+    %16:
+    cjne r7,#0x99,%18
+    ljmp %19
+    %18:
+    cjne r7,#0x9a,%20
+    ljmp %21
+    %20:
+    ljmp %22
+    %5:
+    mov r6,#_identification_prefix
+    mov r7,#(_identification_prefix >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r6,#_identification_90_start
+    mov r7,#(_identification_90_start >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_string_to_serial
+    mov r6,#_stock_ecu_number
+    mov r7,#(_stock_ecu_number >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r6,#_stock_supplier_hardware
+    mov r7,#(_stock_supplier_hardware >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r6,#_stock_supplier_software
+    mov r7,#(_stock_supplier_software >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r6,#_stock_engine_type
+    mov r7,#(_stock_engine_type >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r6,#_identification_98_start
+    mov r7,#(_identification_98_start >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_xdata_string_to_serial
+    mov r6,#_stock_programming_date
+    mov r7,#(_stock_programming_date >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r6,#_stock_software_id
+    mov r7,#(_stock_software_id >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    lcall _append_serial_checksum
+    ljmp %23
+    %7:
+    lcall _build_identification_90
+    ljmp %23
+    %9:
+    mov r6,#_identification_91_reply
+    mov r7,#(_identification_91_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %23
+    %11:
+    mov r6,#_identification_92_reply
+    mov r7,#(_identification_92_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %23
+    %13:
+    mov r6,#_identification_94_reply
+    mov r7,#(_identification_94_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %23
+    %15:
+    mov r6,#_identification_97_reply
+    mov r7,#(_identification_97_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %23
+    %17:
+    lcall _build_identification_98
+    ljmp %23
+    %19:
+    mov r6,#_identification_99_reply
+    mov r7,#(_identification_99_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %23
+    %21:
+    mov r6,#_identification_9a_reply
+    mov r7,#(_identification_9a_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %23
+    %22:
+    mov r6,#_identification_invalid_reply
+    mov r7,#(_identification_invalid_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %23:
+    ret
+} by {
+    jnb _serial_extended_length,00970$
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    sjmp 00971$
+    00970$:
+    mov dptr,#(_serial_rx_buffer + 4)
+    movx a,@dptr
+    00971$:
+    mov r4,a
+    xrl a,#0x80
+    jnz 00972$
+    mov r3,#(_identification_prefix >> 8)
+    mov r4,#_identification_prefix
+    lcall _append_code_string_to_serial
+    mov r3,#0xf4
+    mov r4,#0x60
+    lcall _append_xdata_string_to_serial
+    mov r3,#(_stock_ecu_number >> 8)
+    mov r4,#_stock_ecu_number
+    lcall _append_code_string_to_serial
+    mov r3,#(_stock_supplier_hardware >> 8)
+    mov r4,#_stock_supplier_hardware
+    lcall _append_code_string_to_serial
+    mov r3,#(_stock_supplier_software >> 8)
+    mov r4,#_stock_supplier_software
+    lcall _append_code_string_to_serial
+    mov r3,#(_stock_engine_type >> 8)
+    mov r4,#_stock_engine_type
+    lcall _append_code_string_to_serial
+    mov r3,#0xf4
+    mov r4,#0x74
+    lcall _append_xdata_string_to_serial
+    mov r3,#(_stock_programming_date >> 8)
+    mov r4,#_stock_programming_date
+    lcall _append_code_string_to_serial
+    mov r3,#(_stock_software_id >> 8)
+    mov r4,#_stock_software_id
+    lcall _append_code_string_to_serial
+    lcall _append_serial_checksum
+    ljmp 00973$
+    00972$:
+    mov a,r4
+    xrl a,#0x90
+    jnz 00974$
+    lcall _build_identification_90
+    ljmp 00973$
+    00974$:
+    mov a,r4
+    xrl a,#0x91
+    jnz 00975$
+    mov r3,#(_identification_91_reply >> 8)
+    mov r4,#_identification_91_reply
+    lcall _append_code_string_to_serial
+    ljmp 00973$
+    00975$:
+    mov a,r4
+    xrl a,#0x92
+    jnz 00976$
+    mov r3,#(_identification_92_reply >> 8)
+    mov r4,#_identification_92_reply
+    lcall _append_code_string_to_serial
+    sjmp 00973$
+    00976$:
+    mov a,r4
+    xrl a,#0x94
+    jnz 00977$
+    mov r3,#(_identification_94_reply >> 8)
+    mov r4,#_identification_94_reply
+    lcall _append_code_string_to_serial
+    sjmp 00973$
+    00977$:
+    mov a,r4
+    xrl a,#0x97
+    jnz 00978$
+    mov r3,#(_identification_97_reply >> 8)
+    mov r4,#_identification_97_reply
+    lcall _append_code_string_to_serial
+    sjmp 00973$
+    00978$:
+    mov a,r4
+    xrl a,#0x98
+    jnz 00979$
+    lcall _build_identification_98
+    sjmp 00973$
+    00979$:
+    mov a,r4
+    xrl a,#0x99
+    jnz 00980$
+    mov r3,#(_identification_99_reply >> 8)
+    mov r4,#_identification_99_reply
+    lcall _append_code_string_to_serial
+    sjmp 00973$
+    00980$:
+    mov a,r4
+    xrl a,#0x9a
+    jnz 00981$
+    mov r3,#(_identification_9a_reply >> 8)
+    mov r4,#_identification_9a_reply
+    lcall _append_code_string_to_serial
+    sjmp 00973$
+    00981$:
+    mov r3,#(_identification_invalid_reply >> 8)
+    mov r4,#_identification_invalid_reply
+    lcall _append_code_string_to_serial
+    00973$:
+    ret
+}

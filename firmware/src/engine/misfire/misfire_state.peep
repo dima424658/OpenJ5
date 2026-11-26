@@ -1,0 +1,294 @@
+// Keep the status in B while using the accumulator for the selected threshold.
+replace {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    mov _B,_ACC
+    jnb _ACC_BIT0,%1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_initial_threshold_2
+    movx a,@dptr
+    mov _ACC,a
+    mov dptr,#_misfire_threshold
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %3
+    %2:
+} by {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _B,a
+    jb _ACC_BIT0,%2
+    mov dptr,#_misfire_initial_threshold_2
+    movx a,@dptr
+    mov dptr,#_misfire_threshold
+    movx @dptr,a
+    ljmp %3
+    %2:
+}
+
+// Preserve the reset paths for the two lowest RPM ranges.
+replace {
+    mov dptr,#_misfire_rpm_bin_mask
+    movx a,@dptr
+    anl a,#0x1f
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    jb _ACC_BIT0,%3
+    ljmp %4
+    %3:
+    %2:
+    mov _ACC,#0x00
+    ljmp %5
+    %4:
+} by {
+    mov dptr,#_misfire_rpm_bin_mask
+    movx a,@dptr
+    anl a,#0x1f
+    jnz %1
+    clr a
+    ljmp %5
+    %1:
+    jnb _ACC_BIT0,%4
+    clr a
+    ljmp %5
+    %4:
+}
+
+// Check the status bit for the selected RPM range.
+replace {
+    jb _ACC_BIT1,%1
+    ljmp %2
+    %1:
+    jb _B_BIT1,%3
+    ljmp %4
+    %3:
+    mov _ACC,#0x00
+    ljmp %5
+    %4:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    mov _ACC,a
+    ljmp %5
+    %2:
+} by {
+    jnb _ACC_BIT1,%2
+    jnb _B_BIT1,%3
+    clr a
+    ljmp %5
+    %3:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    ljmp %5
+    %2:
+}
+
+// Check the status bit for the selected RPM range.
+replace {
+    jb _ACC_BIT2,%1
+    ljmp %2
+    %1:
+    jb _B_BIT2,%3
+    ljmp %4
+    %3:
+    mov _ACC,#0x00
+    ljmp %5
+    %4:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    mov _ACC,a
+    ljmp %5
+    %2:
+} by {
+    jnb _ACC_BIT2,%2
+    jnb _B_BIT2,%3
+    clr a
+    sjmp %5
+    %3:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    sjmp %5
+    %2:
+}
+
+// Check the status bit for the selected RPM range.
+replace {
+    jb _ACC_BIT3,%1
+    ljmp %2
+    %1:
+    jb _B_BIT3,%3
+    ljmp %4
+    %3:
+    mov _ACC,#0x00
+    ljmp %5
+    %4:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    mov _ACC,a
+    ljmp %5
+    %2:
+} by {
+    jnb _ACC_BIT3,%2
+    jnb _B_BIT3,%3
+    clr a
+    sjmp %5
+    %3:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    sjmp %5
+    %2:
+}
+
+// The highest range reuses status bit 3 and falls through to the store.
+replace {
+    jb _B_BIT3,%1
+    ljmp %2
+    %1:
+    mov _ACC,#0x00
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    mov _ACC,a
+    %3:
+    mov dptr,#_misfire_threshold
+    mov a,_ACC
+    movx @dptr,a
+    lcall _load_active_misfire_words
+    %4:
+    ret
+} by {
+    jnb _B_BIT3,%1
+    clr a
+    sjmp %3
+    %1:
+    mov dptr,#_misfire_initial_threshold_1
+    movx a,@dptr
+    %3:
+    mov dptr,#_misfire_threshold
+    movx @dptr,a
+}
+
+// Write the low bytes together, then the high bytes, as in the original reset.
+replace {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT0,%1
+    ljmp %2
+    %1:
+    mov dptr,#_active_misfire_words
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0002)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0004)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0006)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0001)
+    mov a,#0x80
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0003)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0005)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0007)
+    movx @dptr,a
+    lcall _continue_misfire_rpm
+    ljmp %3
+    %2:
+} by {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    jb _ACC_BIT0,%2
+    clr a
+    mov dptr,#_active_misfire_words
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0002)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0004)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0006)
+    movx @dptr,a
+    mov a,#0x80
+    mov dptr,#(_active_misfire_words + 0x0001)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0003)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0005)
+    movx @dptr,a
+    mov dptr,#(_active_misfire_words + 0x0007)
+    movx @dptr,a
+    ljmp _continue_misfire_rpm
+    %2:
+}
+// Use the active register bank and keep DPTR on the same XDATA page.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+replace {
+    mov dptr,#%1
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    jb %1,%2
+    ljmp %3
+    %2:
+} by {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    jnb %1,%3
+}
+
+replace {
+    mov r1,a
+    ljmp %1
+    %2:
+    mov dptr,#_retained_misfire_words
+} by {
+    mov r1,a
+    sjmp %1
+    %2:
+    mov dptr,#_retained_misfire_words
+}
+
+replace {
+    lcall _continue_misfire_rpm
+    %1:
+    ret
+} by {
+    %1:
+}

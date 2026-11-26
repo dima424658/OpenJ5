@@ -1,0 +1,28 @@
+// Combine the four sensor fault bits and fall through to the fault targets.
+replace {
+    jnb _maf_adc_low,%1
+    ljmp %2
+    %1:
+    jnb _maf_adc_high,%3
+    ljmp %2
+    %3:
+    jnb _throttle_adc_low,%4
+    ljmp %2
+    %4:
+    jb _throttle_adc_high,%5
+    ljmp %6
+    %5:
+    %2:
+    lcall _update_sensor_fault_targets
+    ljmp %7
+    %6:
+    lcall _continue_without_sensor_fault
+    %7:
+    ret
+} by {
+    mov c,_maf_adc_low
+    orl c,_maf_adc_high
+    orl c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    jnc _continue_without_sensor_fault
+}

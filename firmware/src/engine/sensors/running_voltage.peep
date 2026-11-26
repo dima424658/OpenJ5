@@ -1,0 +1,320 @@
+// Keep the lookup result in A and pass the point through R1.
+replace {
+    mov dptr,#_sensor_state_f8b0
+    mov a,#0x03
+    movx @dptr,a
+    mov a,_rpm_nearest_half_bin
+    add a,#_knock_filter_point_by_rpm
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_knock_filter_point_by_rpm >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_knock_filter_point_raw
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    anl a,#0x3f
+    mov _stock_r1,a
+    mov a,_stock_r1
+    add a,#_knock_filter_frequencies
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_knock_filter_frequencies >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_knock_filter_frequency
+    mov a,r7
+    movx @dptr,a
+    lcall _evaluate_system_voltage
+    %1:
+    ret
+} by {
+    mov a,#0x03
+    mov dptr,#_sensor_state_f8b0
+    movx @dptr,a
+    mov dptr,#_knock_filter_point_by_rpm
+    mov a,_rpm_nearest_half_bin
+    movc a,@a+dptr
+    mov dptr,#_knock_filter_point_raw
+    movx @dptr,a
+    anl a,#0x3f
+    mov r1,a
+    mov dptr,#_knock_filter_frequencies
+    mov a,r1
+    movc a,@a+dptr
+    mov dptr,#_knock_filter_frequency
+    movx @dptr,a
+}
+
+replace {
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _shift_left_saturating_3
+    mov dptr,#_ignition_supply_raw
+    mov a,_stock_r1
+    movx @dptr,a
+} by {
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _shift_left_saturating_3
+    mov a,r1
+    mov dptr,#_ignition_supply_raw
+    movx @dptr,a
+}
+
+replace {
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    lcall _count_low_system_voltage
+    ljmp %3
+    %2:
+} by {
+    mov a,r1
+    cjne a,_B,.+3
+    jc _count_low_system_voltage
+}
+
+replace {
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _count_high_system_voltage
+    ljmp %3
+    %2:
+    clr _system_voltage_low
+    clr _system_voltage_high
+    mov dptr,#_voltage_fault_count
+    mov a,#0x00
+    movx @dptr,a
+    mov _ignition_voltage_raw,_stock_r1
+    lcall _update_running_injector_offset
+    %3:
+    ret
+} by {
+    mov a,r1
+    cjne a,_B,.+3
+    jnc _count_high_system_voltage
+    clr _system_voltage_low
+    clr _system_voltage_high
+    clr a
+    mov dptr,#_voltage_fault_count
+    movx @dptr,a
+    mov _ignition_voltage_raw,r1
+    sjmp _update_running_injector_offset
+}
+
+// The latched diagnostics bypass the shared debounce counter.
+replace {
+    jnb %1,%2
+    ljmp %3
+    %2:
+} by {
+    jb %1,_select_system_voltage_fallback
+}
+
+replace {
+    mov dptr,#_voltage_fault_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+} by {
+    mov dptr,#_voltage_fault_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,.+3
+    jc _select_system_voltage_fallback
+}
+
+replace {
+    setb _system_voltage_low
+    clr _system_voltage_high
+    mov dptr,#_voltage_fault_count
+    mov a,#0x00
+    movx @dptr,a
+    %1:
+    lcall _select_system_voltage_fallback
+    %2:
+    ret
+} by {
+    setb _system_voltage_low
+    clr _system_voltage_high
+    clr a
+    mov dptr,#_voltage_fault_count
+    movx @dptr,a
+    sjmp _select_system_voltage_fallback
+}
+
+replace {
+    clr _system_voltage_low
+    setb _system_voltage_high
+    mov dptr,#_voltage_fault_count
+    mov a,#0x00
+    movx @dptr,a
+    %1:
+    lcall _select_system_voltage_fallback
+    %2:
+    ret
+} by {
+    clr _system_voltage_low
+    setb _system_voltage_high
+    clr a
+    mov dptr,#_voltage_fault_count
+    movx @dptr,a
+}
+
+// Choose the upper fallback at equality and continue to Q7 conversion.
+replace {
+    clr c
+    mov a,_rpm_eighth
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_system_voltage_fallback_raw
+    clr a
+    movc a,@a+dptr
+    mov _ignition_voltage_raw,a
+    ljmp %3
+    %2:
+    mov dptr,#_system_voltage_fallback_high
+    clr a
+    movc a,@a+dptr
+    mov _ignition_voltage_raw,a
+    %3:
+    lcall _update_running_injector_offset
+    %4:
+    ret
+} by {
+    mov a,_rpm_eighth
+    cjne a,_B,.+3
+    jnc %2
+    mov dptr,#_system_voltage_fallback_raw
+    clr a
+    movc a,@a+dptr
+    mov _ignition_voltage_raw,a
+    sjmp _update_running_injector_offset
+    %2:
+    mov dptr,#_system_voltage_fallback_high
+    clr a
+    movc a,@a+dptr
+    mov _ignition_voltage_raw,a
+}
+
+// Keep the low and high product bytes in A and B through Q7 scaling.
+replace {
+    mov _ACC,_ignition_voltage_raw
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0x00
+    ljmp %3
+    %2:
+    mov a,_ACC
+    clr c
+    subb a,_B
+    mov _ACC,a
+    %3:
+    mov _B,_ACC
+    mov r7,_B
+    mov dptr,#_system_voltage_gain_q7
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov ar4,r7
+    mov ar6,r5
+    clr c
+    mov a,r6
+    subb a,#0x80
+    jnc %4
+    ljmp %5
+    %4:
+    mov r6,#0xff
+    ljmp %6
+    %5:
+    mov a,r5
+    mov c,acc.7
+    xch a,r7
+    rlc a
+    xch a,r7
+    rlc a
+    xch a,r7
+    anl a,#0x01
+    mov r5,a
+    mov ar6,r7
+    %6:
+    mov _ACC,r6
+    mov dptr,#_voltage_quantized
+    mov a,_ACC
+    movx @dptr,a
+    mov r6,#_injector_dynamic_offset_raw
+    mov r7,#(_injector_dynamic_offset_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_descending_curve_q4
+    mov _injector_voltage_offset,_ACC
+    lcall _update_throttle_zero_samples
+    %7:
+    ret
+} by {
+    mov a,_ignition_voltage_raw
+    clr c
+    subb a,_B
+    jnc %3
+    clr a
+    %3:
+    mov _B,a
+    mov dptr,#_system_voltage_gain_q7
+    clr a
+    movc a,@a+dptr
+    mul ab
+    jnb b.7,%5
+    mov a,#0xff
+    sjmp %6
+    %5:
+    rlc a
+    mov a,_B
+    rlc a
+    %6:
+    mov dptr,#_voltage_quantized
+    movx @dptr,a
+    mov dptr,#_injector_dynamic_offset_raw
+    lcall _interp_descending_curve_q4
+    mov _injector_voltage_offset,a
+}

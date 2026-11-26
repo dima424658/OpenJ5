@@ -1,0 +1,289 @@
+// Keep both driver sampling sequences, their clock edges, and the fall-through at E323.
+replace {
+    jb _serial_data_in,%1
+    ljmp %2
+    %1:
+    anl _driver_bus_f9,#0xfd
+    nop
+    setb _serial_clock
+    nop
+    clr _serial_clock
+    nop
+    clr _reuse_driver_byte
+    %3:
+    jnb _reuse_driver_byte,%4
+    ljmp %5
+    %4:
+    mov _stock_r1,#0x08
+    %6:
+    mov c,_serial_data_in
+    mov _CY,c
+    setb _serial_clock
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r7,a
+    jb _CY,%7
+    ljmp %8
+    %7:
+    mov r6,#0x80
+    ljmp %9
+    %8:
+    mov r6,#0x00
+    %9:
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    clr _serial_clock
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %10
+    ljmp %6
+    %10:
+    mov _stock_r1,_ACC
+    %5:
+    cpl _reuse_driver_byte
+    mov _ACC,_stock_r1
+    mov a,_ACC
+    rl a
+    rl a
+    mov r7,a
+    mov a,_ACC
+    mov _ACC,r7
+    mov _stock_r1,_ACC
+    mov a,#0xff
+    xrl a,_ACC
+    anl a,#0x03
+    mov _ACC,a
+    mov a,#0x03
+    cjne a,_ACC,%11
+    sjmp %12
+    %11:
+    ljmp %13
+    %12:
+    mov _ACC,#0x04
+    %13:
+    mov _B,_ACC
+    mov _ACC,_stock_r1
+    mov a,_ACC
+    rl a
+    rl a
+    mov r7,a
+    mov a,_ACC
+    mov _ACC,r7
+    mov _stock_r1,_ACC
+    mov a,#0xff
+    xrl a,_ACC
+    anl a,#0x03
+    mov _ACC,a
+    mov a,#0x03
+    cjne a,_ACC,%14
+    sjmp %15
+    %14:
+    ljmp %16
+    %15:
+    mov _ACC,#0x04
+    %16:
+    mov a,_ACC
+    swap a
+    anl a,#0xf0
+    mov r7,a
+    mov a,_B
+    orl a,r7
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,_stock_r0
+    inc a
+    mov r7,a
+    mov _stock_r0,r7
+    cjne r7,#0x86,%17
+    sjmp %18
+    %17:
+    ljmp %3
+    %18:
+    ljmp %19
+    %2:
+    anl _driver_bus_f9,#0xfd
+    %20:
+    mov _stock_r1,#0x02
+    %21:
+    mov c,_serial_data_in
+    mov _CY,c
+    setb _serial_clock
+    mov a,_ACC
+    add a,acc
+    mov r7,a
+    mov c,_CY
+    clr a
+    rlc a
+    mov r6,a
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    clr _serial_clock
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %22
+    ljmp %21
+    %22:
+    mov a,#0xff
+    xrl a,_ACC
+    anl a,#0x03
+    mov _ACC,a
+    mov a,#0x03
+    cjne a,_ACC,%23
+    sjmp %24
+    %23:
+    ljmp %25
+    %24:
+    mov _ACC,#0x04
+    %25:
+    mov _B,_ACC
+    mov _stock_r1,#0x02
+    %26:
+    mov c,_serial_data_in
+    mov _CY,c
+    setb _serial_clock
+    mov a,_ACC
+    add a,acc
+    mov r7,a
+    mov c,_CY
+    clr a
+    rlc a
+    mov r6,a
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    clr _serial_clock
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %27
+    ljmp %26
+    %27:
+    mov a,#0xff
+    xrl a,_ACC
+    anl a,#0x03
+    mov _ACC,a
+    mov a,#0x03
+    cjne a,_ACC,%28
+    sjmp %29
+    %28:
+    ljmp %30
+    %29:
+    mov _ACC,#0x04
+    %30:
+    mov a,_ACC
+    swap a
+    anl a,#0xf0
+    mov r7,a
+    mov a,_B
+    orl a,r7
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,_stock_r0
+    inc a
+    mov r7,a
+    mov _stock_r0,r7
+    cjne r7,#0x86,%31
+    sjmp %32
+    %31:
+    ljmp %20
+    %32:
+    %19:
+    orl _driver_bus_f9,#0x02
+    lcall _wait_for_monitor_request
+    %33:
+    ret
+} by {
+    jnb _serial_data_in,00970$
+    anl _driver_bus_f9,#0xfd
+    nop
+    setb _serial_clock
+    nop
+    clr _serial_clock
+    nop
+    clr _reuse_driver_byte
+    00973$:
+    jb _reuse_driver_byte,00971$
+    mov r1,#0x08
+    00972$:
+    mov c,_serial_data_in
+    setb _serial_clock
+    rrc a
+    clr _serial_clock
+    djnz r1,00972$
+    mov r1,a
+    00971$:
+    cpl _reuse_driver_byte
+    mov a,r1
+    rl a
+    rl a
+    mov r1,a
+    cpl a
+    anl a,#0x03
+    mov c,acc.0
+    anl c,acc.1
+    addc a,#0x00
+    mov _B,a
+    mov a,r1
+    rl a
+    rl a
+    mov r1,a
+    cpl a
+    anl a,#0x03
+    mov c,acc.0
+    anl c,acc.1
+    addc a,#0x00
+    swap a
+    orl a,_B
+    mov @r0,a
+    inc r0
+    cjne r0,#0x86,00973$
+    sjmp 00974$
+    00970$:
+    anl _driver_bus_f9,#0xfd
+    00977$:
+    mov r1,#0x02
+    00975$:
+    mov c,_serial_data_in
+    setb _serial_clock
+    rlc a
+    clr _serial_clock
+    djnz r1,00975$
+    cpl a
+    anl a,#0x03
+    mov c,acc.0
+    anl c,acc.1
+    addc a,#0x00
+    mov _B,a
+    mov r1,#0x02
+    00976$:
+    mov c,_serial_data_in
+    setb _serial_clock
+    rlc a
+    clr _serial_clock
+    djnz r1,00976$
+    cpl a
+    anl a,#0x03
+    mov c,acc.0
+    anl c,acc.1
+    addc a,#0x00
+    swap a
+    orl a,_B
+    mov @r0,a
+    inc r0
+    cjne r0,#0x86,00977$
+    00974$:
+    orl _driver_bus_f9,#0x02
+}

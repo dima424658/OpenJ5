@@ -1,0 +1,768 @@
+// Initialize the feedback state or branch into the running regulator.
+replace {
+    jb _fuel_mode_flag_5c,%1
+    ljmp %2
+    %1:
+    lcall _track_oxygen_feedback
+    ljmp %3
+    %2:
+    mov dptr,#_oxygen_reference_rpm
+    mov a,_rpm_half_bin
+    movx @dptr,a
+    mov dptr,#_oxygen_reference_charge
+    mov a,_charge_half_bin
+    movx @dptr,a
+    jb _oxygen_signal_rich,%4
+    ljmp %5
+    %4:
+    mov r7,#0xff
+    ljmp %6
+    %5:
+    mov r7,#0x00
+    %6:
+    mov _oxygen_transition_bits,r7
+    mov dptr,#_oxygen_center_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_oxygen_stable_ticks
+    movx @dptr,a
+    mov dptr,#_oxygen_transition_delay
+    movx @dptr,a
+    mov _oxygen_control_adjustment,a
+    setb _fuel_mode_flag_5c
+    %3:
+    ret
+} by {
+    jb _fuel_mode_flag_5c,_track_oxygen_feedback
+    mov a,_rpm_half_bin
+    mov dptr,#_oxygen_reference_rpm
+    movx @dptr,a
+    mov a,_charge_half_bin
+    mov dptr,#_oxygen_reference_charge
+    movx @dptr,a
+    jnb _oxygen_signal_rich,00970$
+    mov _oxygen_transition_bits,#0xff
+    sjmp 00971$
+    00970$:
+    mov _oxygen_transition_bits,#0x00
+    00971$:
+    clr a
+    mov dptr,#_oxygen_center_ticks
+    movx @dptr,a
+    mov dptr,#_oxygen_stable_ticks
+    movx @dptr,a
+    mov dptr,#_oxygen_transition_delay
+    movx @dptr,a
+    mov _oxygen_control_adjustment,#0x00
+    setb _fuel_mode_flag_5c
+    ret
+}
+
+// Preserve the closed-loop branches, byte arithmetic and regulator counters.
+replace {
+    jb _oxygen_feedback_tick,%1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_stationary_tolerance
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_reference_rpm
+    movx a,@dptr
+    clr c
+    subb a,_rpm_half_bin
+    mov _ACC,a
+    lcall _abs_accumulator_i8
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %3
+    ljmp %4
+    %3:
+    mov dptr,#_oxygen_reference_charge
+    movx a,@dptr
+    clr c
+    subb a,_charge_half_bin
+    mov _ACC,a
+    lcall _abs_accumulator_i8
+    %4:
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %5
+    ljmp %6
+    %5:
+    mov dptr,#_oxygen_stable_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_oxygen_reference_rpm
+    mov a,_rpm_half_bin
+    movx @dptr,a
+    mov dptr,#_oxygen_reference_charge
+    mov a,_charge_half_bin
+    movx @dptr,a
+    ljmp %2
+    %6:
+    mov dptr,#_oxygen_stable_ticks
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0xff,%7
+    ljmp %2
+    %7:
+    mov dptr,#_oxygen_stable_ticks
+    movx a,@dptr
+    add a, #0x01
+    movx @dptr,a
+    %2:
+    mov dptr,#_oxygen_transition_delay
+    movx a,@dptr
+    jnz %8
+    ljmp %9
+    %8:
+    mov dptr,#_oxygen_transition_delay
+    movx a,@dptr
+    dec a
+    movx @dptr,a
+    ljmp %10
+    %9:
+    jb _oxygen_feedback_tick,%11
+    ljmp %10
+    %11:
+    mov dptr,#_oxygen_center_ticks
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0xff,%12
+    ljmp %10
+    %12:
+    mov dptr,#_oxygen_center_ticks
+    movx a,@dptr
+    add a, #0x01
+    movx @dptr,a
+    %10:
+    jnb _oxygen_feedback_tick,%13
+    ljmp %14
+    %13:
+    ljmp %15
+    %14:
+    clr _oxygen_feedback_tick
+    mov c,_oxygen_signal_rich
+    jb _previous_oxygen_signal_rich,%16
+    cpl c
+    %16:
+    jc %17
+    ljmp %18
+    %17:
+    mov dptr,#_oxygen_transition_delay
+    movx a,@dptr
+    jz %19
+    ljmp %20
+    %19:
+    mov dptr,#_oxygen_center_ticks
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_oxygen_center_delay
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    clr c
+    mov a,r7
+    subb a,r6
+    jnc %21
+    ljmp %20
+    %21:
+    mov dptr,#_scheduler_tick
+    movx a,@dptr
+    anl a,#0x03
+    jnz %22
+    ljmp %23
+    %22:
+    %20:
+    ljmp %15
+    %23:
+    mov a,_coolant_index
+    add a, #_oxygen_center_step
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_oxygen_center_step >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    jb _oxygen_signal_rich,%24
+    ljmp %25
+    %24:
+    mov a,_oxygen_control_adjustment
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %26
+    %25:
+    mov a,_B
+    add a, _oxygen_control_adjustment
+    mov r7,a
+    %26:
+    mov _ACC,r7
+    mov _oxygen_control_adjustment,_ACC
+    mov a,_ACC
+    jnb acc.7,%27
+    ljmp %28
+    %27:
+    clr c
+    mov a,_ACC
+    subb a,#0x50
+    jc %29
+    ljmp %30
+    %29:
+    %28:
+    mov a,_ACC
+    jb acc.7,%31
+    ljmp %32
+    %31:
+    clr c
+    mov a,_ACC
+    subb a,#0xb0
+    jnc %33
+    ljmp %34
+    %33:
+    %32:
+    ljmp %15
+    %18:
+    jb _oxygen_signal_rich,%35
+    ljmp %36
+    %35:
+    setb _previous_oxygen_signal_rich
+    mov dptr,#_oxygen_positive_limit_count
+    mov a,#0x00
+    movx @dptr,a
+    mov a,_operating_point_index
+    add a, #_oxygen_rich_lean_delay
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_oxygen_rich_lean_delay >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_oxygen_transition_delay
+    mov a,r7
+    movx @dptr,a
+    ljmp %37
+    %36:
+    clr _previous_oxygen_signal_rich
+    mov dptr,#_oxygen_negative_limit_count
+    mov a,#0x00
+    movx @dptr,a
+    mov a,_operating_point_index
+    add a, #_oxygen_lean_rich_delay
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_oxygen_lean_rich_delay >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_oxygen_transition_delay
+    mov a,r7
+    movx @dptr,a
+    %37:
+    mov dptr,#_oxygen_center_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov a,_operating_point_index
+    add a, #_oxygen_transition_step
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_oxygen_transition_step >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_previous_adjustment
+    movx a,@dptr
+    clr c
+    subb a,_oxygen_control_adjustment
+    mov _ACC,a
+    lcall _abs_accumulator_i8
+    div ab
+    mov _B,_ACC
+    mov _ACC,_oxygen_transition_bits
+    %38:
+    mov a,_ACC
+    add a,acc
+    mov r7,a
+    mov c,_oxygen_signal_rich
+    cpl c
+    mov _track_oxygen_feedback_sloc0_1_0,c
+    mov c,_track_oxygen_feedback_sloc0_1_0
+    clr a
+    rlc a
+    mov r6,a
+    mov a,r6
+    orl ar7,a
+    mov _ACC,r7
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %39
+    ljmp %38
+    %39:
+    mov _oxygen_transition_bits,_ACC
+    mov dptr,#_oxygen_transition_snapshot
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_oxygen_previous_adjustment
+    mov a,_oxygen_control_adjustment
+    movx @dptr,a
+    mov a,_operating_point_index
+    add a, #_oxygen_transition_step
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_oxygen_transition_step >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    jb _oxygen_signal_rich,%40
+    ljmp %41
+    %40:
+    mov a,_oxygen_control_adjustment
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %42
+    %41:
+    mov a,_B
+    add a, _oxygen_control_adjustment
+    mov r7,a
+    %42:
+    mov _ACC,r7
+    mov _oxygen_control_adjustment,_ACC
+    mov a,_ACC
+    jnb acc.7,%43
+    ljmp %44
+    %43:
+    clr c
+    mov a,_ACC
+    subb a,#0x50
+    jc %45
+    ljmp %30
+    %45:
+    %44:
+    mov a,_ACC
+    jb acc.7,%46
+    ljmp %47
+    %46:
+    clr c
+    mov a,_ACC
+    subb a,#0xb0
+    jnc %48
+    ljmp %34
+    %48:
+    %47:
+    jnb _learning_sweep_active,%49
+    ljmp %50
+    %49:
+    mov r7,_oxygen_transition_bits
+    anl ar7,#0x0f
+    cjne r7,#0x05,%51
+    sjmp %52
+    %51:
+    ljmp %50
+    %52:
+    mov dptr,#_oxygen_learning_temperature
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jc %53
+    ljmp %50
+    %53:
+    mov dptr,#_oxygen_stable_ticks
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_oxygen_stable_cycles
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    clr c
+    mov a,r7
+    subb a,r6
+    jc %54
+    ljmp %55
+    %54:
+    %50:
+    ljmp %15
+    %55:
+    mov c,_learning_purge_table_selected
+    clr a
+    rlc a
+    mov r6,a
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov a,#(_learned_correction_pages >> 8)
+    add a,r7
+    mov r7,a
+    mov r5,_operating_point_index
+    mov a,r5
+    add a, r6
+    mov r6,a
+    mov a,#0x00
+    addc a, r7
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov _ACC,a
+    mov dptr,#_oxygen_previous_adjustment
+    movx a,@dptr
+    mov _B,a
+    mov a,_B
+    jb acc.7,%56
+    ljmp %57
+    %56:
+    mov a,_ACC
+    jnz %58
+    ljmp %59
+    %58:
+    dec _ACC
+    ljmp %59
+    %57:
+    mov a,_B
+    jnz %60
+    ljmp %59
+    %60:
+    mov a,#0xff
+    cjne a,_ACC,%61
+    ljmp %59
+    %61:
+    inc _ACC
+    %59:
+    mov dpl,r6
+    mov dph,r7
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_learning_center_correction
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_learning_center_index
+    mov a,_operating_point_index
+    movx @dptr,a
+    mov c,_purge_active
+    mov _learning_purge_table_selected,c
+    mov dptr,#_learning_cell_index
+    mov a,#0x00
+    movx @dptr,a
+    setb _learning_sweep_active
+    ljmp %15
+    %34:
+    mov _oxygen_control_adjustment,#0xb0
+    mov dptr,#_oxygen_negative_limit_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,#0x64
+    jc %62
+    ljmp %63
+    %62:
+    ljmp %15
+    %63:
+    setb _oxygen_adaptation_fault_2c
+    ljmp %64
+    %30:
+    mov _oxygen_control_adjustment,#0x50
+    mov dptr,#_oxygen_positive_limit_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,#0x64
+    jc %65
+    ljmp %66
+    %65:
+    ljmp %15
+    %66:
+    setb _oxygen_adaptation_fault_2d
+    %64:
+    mov _oxygen_control_adjustment,#0x00
+    clr _fuel_mode_flag_5c
+    lcall _reset_fuel_correction_map
+    %15:
+    ret
+} by {
+    jb _oxygen_feedback_tick,00972$
+    sjmp 00973$
+    00972$:
+    mov dptr,#_oxygen_stationary_tolerance
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_reference_rpm
+    movx a,@dptr
+    clr c
+    subb a,_rpm_half_bin
+    lcall _abs_accumulator_i8
+    clr c
+    subb a,_B
+    jnc 00974$
+    mov dptr,#_oxygen_reference_charge
+    movx a,@dptr
+    clr c
+    subb a,_charge_half_bin
+    lcall _abs_accumulator_i8
+    clr c
+    subb a,_B
+    jc 00975$
+    00974$:
+    clr a
+    mov dptr,#_oxygen_stable_ticks
+    movx @dptr,a
+    mov a,_rpm_half_bin
+    mov dptr,#_oxygen_reference_rpm
+    movx @dptr,a
+    mov a,_charge_half_bin
+    mov dptr,#_oxygen_reference_charge
+    movx @dptr,a
+    sjmp 00973$
+    00975$:
+    mov dptr,#_oxygen_stable_ticks
+    movx a,@dptr
+    inc a
+    jz 00973$
+    movx @dptr,a
+    00973$:
+    mov dptr,#_oxygen_transition_delay
+    movx a,@dptr
+    clr c
+    subb a,#0x01
+    jc 00976$
+    movx @dptr,a
+    sjmp 00977$
+    00976$:
+    jb _oxygen_feedback_tick,00978$
+    sjmp 00977$
+    00978$:
+    mov dptr,#_oxygen_center_ticks
+    movx a,@dptr
+    inc a
+    jz 00977$
+    movx @dptr,a
+    00977$:
+    jbc _oxygen_feedback_tick,00979$
+    sjmp 00980$
+    00979$:
+    jb _oxygen_signal_rich,00981$
+    jb _previous_oxygen_signal_rich,00982$
+    00991$:
+    mov dptr,#_oxygen_transition_delay
+    movx a,@dptr
+    jz 00983$
+    ret
+    00983$:
+    mov dptr,#_oxygen_center_delay
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_center_ticks
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jc 00980$
+    mov dptr,#_scheduler_tick
+    movx a,@dptr
+    anl a,#0x03
+    jnz 00980$
+    mov dptr,#_oxygen_center_step
+    mov a,_coolant_index
+    movc a,@a+dptr
+    mov _B,a
+    jb _oxygen_signal_rich,00984$
+    add a,_oxygen_control_adjustment
+    mov _oxygen_control_adjustment,a
+    sjmp 00985$
+    00984$:
+    cpl a
+    inc a
+    add a,_oxygen_control_adjustment
+    mov _oxygen_control_adjustment,a
+    00985$:
+    jb acc.7,00986$
+    add a,#0xb0
+    jc 00987$
+    00980$:
+    ret
+    00986$:
+    add a,#0x50
+    jnc 00988$
+    ret
+    00988$:
+    ljmp 00989$
+    00987$:
+    ljmp 00990$
+    00981$:
+    jb _previous_oxygen_signal_rich,00991$
+    setb _previous_oxygen_signal_rich
+    clr a
+    mov dptr,#_oxygen_positive_limit_count
+    movx @dptr,a
+    mov dptr,#_oxygen_rich_lean_delay
+    sjmp 00992$
+    00982$:
+    clr _previous_oxygen_signal_rich
+    clr a
+    mov dptr,#_oxygen_negative_limit_count
+    movx @dptr,a
+    mov dptr,#_oxygen_lean_rich_delay
+    00992$:
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    mov dptr,#_oxygen_transition_delay
+    movx @dptr,a
+    clr a
+    mov dptr,#_oxygen_center_ticks
+    movx @dptr,a
+    mov dptr,#_oxygen_transition_step
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_previous_adjustment
+    movx a,@dptr
+    clr c
+    subb a,_oxygen_control_adjustment
+    lcall _abs_accumulator_i8
+    div ab
+    mov _B,a
+    mov a,_oxygen_transition_bits
+    00993$:
+    mov c,_oxygen_signal_rich
+    cpl c
+    rlc a
+    djnz _B,00993$
+    mov _oxygen_transition_bits,a
+    mov dptr,#_oxygen_transition_snapshot
+    movx @dptr,a
+    mov a,_oxygen_control_adjustment
+    mov dptr,#_oxygen_previous_adjustment
+    movx @dptr,a
+    mov dptr,#_oxygen_transition_step
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    mov _B,a
+    jb _oxygen_signal_rich,00994$
+    add a,_oxygen_control_adjustment
+    sjmp 00995$
+    00994$:
+    cpl a
+    inc a
+    add a,_oxygen_control_adjustment
+    00995$:
+    mov _oxygen_control_adjustment,a
+    jb acc.7,00996$
+    add a,#0xb0
+    jc 00990$
+    sjmp 00997$
+    00996$:
+    add a,#0x50
+    jnc 00989$
+    00997$:
+    jb _learning_sweep_active,00998$
+    mov a,_oxygen_transition_bits
+    anl a,#0x0f
+    cjne a,#0x05,00998$
+    mov dptr,#_oxygen_learning_temperature
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,00999$
+    00999$:
+    jnc 00998$
+    mov dptr,#_oxygen_stable_cycles
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_stable_ticks
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jc 00998$
+    mov dptr,#_oxygen_previous_adjustment
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_learned_correction_pages
+    mov dpl,_operating_point_index
+    jnb _learning_purge_table_selected,01000$
+    inc dph
+    01000$:
+    movx a,@dptr
+    xch a,_B
+    jnz 01001$
+    mov a,_B
+    sjmp 01002$
+    01001$:
+    jb acc.7,01003$
+    mov a,_B
+    inc a
+    jnz 01002$
+    dec a
+    sjmp 01002$
+    01003$:
+    mov a,_B
+    jz 01002$
+    dec a
+    01002$:
+    movx @dptr,a
+    mov dptr,#_learning_center_correction
+    movx @dptr,a
+    mov a,_operating_point_index
+    mov dptr,#_learning_center_index
+    movx @dptr,a
+    mov c,_purge_active
+    mov _learning_purge_table_selected,c
+    clr a
+    mov dptr,#_learning_cell_index
+    movx @dptr,a
+    setb _learning_sweep_active
+    00998$:
+    ret
+    00989$:
+    mov _oxygen_control_adjustment,#0xb0
+    mov dptr,#_oxygen_negative_limit_count
+    movx a,@dptr
+    add a,#0x01
+    movx @dptr,a
+    cjne a,#0x64,01004$
+    01004$:
+    jc 01005$
+    setb _oxygen_adaptation_fault_2c
+    sjmp 01006$
+    00990$:
+    mov _oxygen_control_adjustment,#0x50
+    mov dptr,#_oxygen_positive_limit_count
+    movx a,@dptr
+    add a,#0x01
+    movx @dptr,a
+    cjne a,#0x64,01007$
+    01007$:
+    jc 01005$
+    setb _oxygen_adaptation_fault_2d
+    01006$:
+    mov _oxygen_control_adjustment,#0x00
+    clr _fuel_mode_flag_5c
+    lcall _reset_fuel_correction_map
+    01005$:
+    ret
+}

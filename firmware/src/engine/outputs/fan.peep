@@ -1,0 +1,194 @@
+// Keep the override mask in A for the shared counter write.
+replace {
+    mov a,_fan_control_79
+    anl a,#0x02
+    mov r7,a
+    mov ar6,r7
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    mov _ACC,r6
+    mov c,_fan_override_on
+    mov _CY,c
+    lcall _publish_fan_request
+    ljmp %3
+    %2:
+} by {
+    mov a,_fan_control_79
+    anl a,#0x02
+    jz %2
+    mov c,_fan_override_on
+    sjmp _publish_fan_request
+    %2:
+}
+
+// CY already holds the accumulated request. Load the threshold for the
+// previous relay state and compare without clobbering the temperature in A.
+replace {
+    mov c,_coolant_fault_1b
+    mov _CY,c
+    mov c,_coolant_fault_23
+    orl c,_CY
+    mov _CY,c
+    mov c,_air_conditioning_active
+    orl c,_CY
+    mov _CY,c
+    jnb _CY,%1
+    ljmp %2
+    %1:
+    jb _fan_off,%3
+    ljmp %4
+    %3:
+    mov dptr,#_fan_on_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %5
+    %4:
+    mov dptr,#_fan_off_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %5:
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,_B
+    mov %6,c
+    mov c,%6
+    cpl c
+    mov _CY,c
+    %2:
+    lcall _apply_fan_delay
+    %7:
+    ret
+} by {
+    mov c,_coolant_fault_1b
+    orl c,_coolant_fault_23
+    orl c,_air_conditioning_active
+    jc _apply_fan_delay
+    jb _fan_off,%3
+    mov dptr,#_fan_off_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp %5
+    %3:
+    mov dptr,#_fan_on_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %5:
+    mov a,_coolant_temperature_raw
+    cjne a,_B,%1
+    %1:
+    cpl c
+}
+
+// A request is delayed only during idle with the relay currently off.
+replace {
+    jb _idle_mode,%1
+    ljmp %4
+    %1:
+    jb _fan_off,%2
+    ljmp %4
+    %2:
+    jb _CY,%3
+    ljmp %4
+    %3:
+} by {
+    jnb _idle_mode,%4
+    jnb _fan_off,%4
+    jnc %4
+}
+
+// Keep the counter in A. The history clear preserves the limit in B.
+replace {
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_fan_iac_offset
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov a,r6
+    add a,_iac_target_raw
+    mov _iac_target_raw,a
+    lcall _clear_iac_history
+    mov r7,#0x00
+    %2:
+    inc r7
+    clr c
+    mov a,r7
+    subb a,_B
+    mov %3,c
+    mov c,%3
+    cpl c
+    mov _CY,c
+    jnb _CY,%4
+    ljmp %5
+    %4:
+    mov _ACC,r7
+    lcall _publish_fan_request
+    ljmp %6
+    %5:
+    mov _ACC,#0x00
+    lcall _publish_fan_request
+    %6:
+    ret
+} by {
+    movx a,@dptr
+    jnz %2
+    mov dptr,#_fan_iac_offset
+    clr a
+    movc a,@a+dptr
+    add a,_iac_target_raw
+    mov _iac_target_raw,a
+    lcall _clear_iac_history
+    clr a
+    %2:
+    inc a
+    cjne a,_B,%4
+    %4:
+    cpl c
+    jnc _publish_fan_request
+    %5:
+    clr a
+}
+
+// ACC and CY are live on both entry paths. Change only the fan latch bit.
+replace {
+    mov dptr,#_fan_start_counter
+    mov a,_ACC
+    movx @dptr,a
+    mov c,_CY
+    cpl c
+    mov _fan_off,c
+    mov c,_fan_off
+    cpl c
+    mov _CY,c
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_CY
+    mov _ACC_RELAY,c
+    mov a,_ACC
+    movx @dptr,a
+    lcall _cooling_fan_continue
+    %1:
+    ret
+} by {
+    mov dptr,#_fan_start_counter
+    movx @dptr,a
+    cpl c
+    mov _fan_off,c
+    cpl c
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov _ACC_RELAY,c
+    mov dptr,#_relay_output_latch
+    movx @dptr,a
+}

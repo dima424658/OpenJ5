@@ -1,0 +1,517 @@
+// Reset the mode bits and return the mixture limiter to its cranking seed.
+replace {
+    clr _fuel_mode_flag_5c
+    clr _knock_zone_active
+    clr _idle_regulating
+    mov _fuel_cut_phase,#0x00
+    mov a,_fuel_control_7b
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+    mov dptr,#_coast_work_f869
+    mov a,#0x00
+    movx @dptr,a
+    %2:
+    mov dptr,#_startup_mixture
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_mixture_rate_fraction
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_mixture_rate_output
+    mov a,_B
+    movx @dptr,a
+    %3:
+    ret
+} by {
+    clr _fuel_mode_flag_5c
+    clr _knock_zone_active
+    clr _idle_regulating
+    mov _fuel_cut_phase,#0x00
+    mov a,_fuel_control_7b
+    anl a,#0x02
+    jnz 00970$
+    clr a
+    mov dptr,#_coast_work_f869
+    movx @dptr,a
+    00970$:
+    mov dptr,#_startup_mixture
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr a
+    mov dptr,#_mixture_rate_fraction
+    movx @dptr,a
+    inc dpl
+    mov a,_B
+    movx @dptr,a
+    ret
+}
+
+// Choose cranking ignition and IAC outputs and resume at the shared mixture entry.
+replace {
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+    mov dptr,#_rpm_eighth_bin
+    movx a,@dptr
+    mov _B,a
+    mov a,_B
+    add a, #_cranking_ignition_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cranking_ignition_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _requested_ignition,a
+    %2:
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.5,%3
+    ljmp %4
+    %3:
+    mov dptr,#_cold_start_coolant_threshold
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jnc %5
+    ljmp %6
+    %5:
+    mov dptr,#_cold_start_iac_max_position
+    clr a
+    movc a,@a+dptr
+    mov _iac_target,a
+    ljmp %4
+    %6:
+    mov dptr,#_iac_max_position
+    clr a
+    movc a,@a+dptr
+    mov _iac_target,a
+    %4:
+    lcall _clear_fuel_history_f839
+    lcall _reset_start_mode_3edb
+    mov dptr,#_start_exit_pending
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnz %7
+    ljmp %8
+    %7:
+    mov a,#0xff
+    xrl a,_P4
+    anl a,#0x0f
+    jnz %9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    %8:
+    mov a,_ACC
+    jnz %12
+    ljmp %13
+    %12:
+    mov dptr,#_start_exit_pending
+    mov a,#0x00
+    movx @dptr,a
+    %13:
+    setb _fuel_mode_flag_55
+    setb _fuel_mode_flag_56
+    %11:
+    lcall _apply_requested_mixture
+    %14:
+    ret
+} by {
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x04
+    jnz 00971$
+    mov dptr,#_rpm_eighth_bin
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_cranking_ignition_raw
+    mov a,_B
+    movc a,@a+dptr
+    mov _requested_ignition,a
+    00971$:
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x20
+    jnz 00972$
+    mov dptr,#_cold_start_coolant_threshold
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,00973$
+    00973$:
+    jc 00974$
+    mov dptr,#_cold_start_iac_max_position
+    clr a
+    movc a,@a+dptr
+    sjmp 00975$
+    00974$:
+    mov dptr,#_iac_max_position
+    clr a
+    movc a,@a+dptr
+    00975$:
+    mov _iac_target,a
+    00972$:
+    lcall _clear_fuel_history_f839
+    lcall _reset_start_mode_3edb
+    mov dptr,#_start_exit_pending
+    movx a,@dptr
+    jz 00976$
+    mov a,_P4
+    cpl a
+    anl a,#0x0f
+    jnz 00977$
+    mov dptr,#_start_exit_pending
+    movx @dptr,a
+    00976$:
+    setb _fuel_mode_flag_55
+    setb _fuel_mode_flag_56
+    00977$:
+    ljmp _apply_requested_mixture
+}
+
+// Select the knock zone using the two map bits and the existing state.
+replace {
+    mov a,_oxygen_control_7d
+    jb acc.2,%1
+    ljmp %2
+    %1:
+    clr _knock_zone_active
+    ljmp %3
+    %2:
+    mov a,_throttle_position
+    add a, #_throttle_quantization_q4
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_throttle_quantization_q4 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,#0x08
+    add a, r7
+    anl a,#0xf0
+    mov r7,a
+    mov r6,_rpm_nearest_bin
+    mov a,r6
+    add a, r7
+    mov _stock_r2,a
+    mov a,_stock_r2
+    add a, #_operating_zone_flags
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_operating_zone_flags >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov a,_ACC
+    anl a,#0x01
+    mov r7,a
+    mov a,r7
+    jz %4
+    ljmp %5
+    %4:
+    mov a,_ACC
+    rr a
+    anl a,#0x01
+    mov r7,a
+    mov a,r7
+    jnz %6
+    ljmp %7
+    %6:
+    jnb _knock_zone_active,%8
+    ljmp %5
+    %8:
+    %7:
+    clr _select_knock_regulation_zone_sloc0_1_0
+    ljmp %9
+    %5:
+    setb _select_knock_regulation_zone_sloc0_1_0
+    %9:
+    mov c,_select_knock_regulation_zone_sloc0_1_0
+    mov _knock_zone_active,c
+    %3:
+    lcall _update_idle_or_economy_mixture
+    %10:
+    ret
+} by {
+    mov a,_oxygen_control_7d
+    anl a,#0x04
+    jz 00978$
+    clr c
+    sjmp 00979$
+    00978$:
+    mov dptr,#_throttle_quantization_q4
+    mov a,_throttle_position
+    movc a,@a+dptr
+    add a,#0x08
+    anl a,#0xf0
+    add a,_rpm_nearest_bin
+    mov r2,a
+    mov dptr,#_operating_zone_flags
+    mov a,r2
+    movc a,@a+dptr
+    mov c,_knock_zone_active
+    anl c,acc.1
+    orl c,acc.0
+    00979$:
+    mov _knock_zone_active,c
+}
+
+// Seed the first and last history words and clear the low words.
+replace {
+    mov _ACC,#0x00
+    mov dptr,#_period_offset
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_offset + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_period_scale
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_selected_period_ratio
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,#0x0c
+    mov r6,#_period_history_low
+    mov r7,#(_period_history_low >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov dptr,#_period_history_high
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x000a)
+    mov a,_ACC
+    movx @dptr,a
+    mov _ACC,#0x80
+    mov dptr,#(_period_scale + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_selected_period_ratio + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x000b)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0008)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_period_bin_countdown
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0002)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0004)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0009)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#(_period_bin_countdown + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0003)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0005)
+    mov a,_ACC
+    movx @dptr,a
+    %3:
+    ret
+} by {
+    clr a
+    mov dptr,#_period_offset
+    movx @dptr,a
+    mov dptr,#0xfa16
+    movx @dptr,a
+    mov dptr,#_period_scale
+    movx @dptr,a
+    mov dptr,#_selected_period_ratio
+    movx @dptr,a
+    mov _B,#0x0c
+    mov dptr,#_period_history_low
+    00970$:
+    movx @dptr,a
+    inc dptr
+    djnz _B,00970$
+    mov dptr,#_period_history_high
+    movx @dptr,a
+    mov dptr,#0xfa4b
+    movx @dptr,a
+    mov a,#0x80
+    mov dptr,#0xfa18
+    movx @dptr,a
+    mov dptr,#0xfa10
+    movx @dptr,a
+    mov dptr,#0xfa42
+    movx @dptr,a
+    mov dptr,#0xfa4c
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 8)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_period_bin_countdown
+    movx @dptr,a
+    mov dptr,#0xfa4f
+    movx @dptr,a
+    mov dptr,#0xfa51
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 9)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#0xfa4e
+    movx @dptr,a
+    mov dptr,#0xfa50
+    movx @dptr,a
+    mov dptr,#0xfa52
+    movx @dptr,a
+    ret
+}
+
+// Restore the remaining words and default deviations.
+replace {
+    mov _ACC,#0x00
+    mov dptr,#(_period_history_high + 0x0002)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x0004)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x0006)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x0008)
+    mov a,_ACC
+    movx @dptr,a
+    mov _ACC,#0x80
+    mov dptr,#(_period_history_high + 0x0003)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x0005)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x0007)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_history_high + 0x0009)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_peak_period_dev
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#(_peak_period_dev + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_primary_period_dev + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0002)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_secondary_period_dev
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0003)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#(_secondary_period_dev + 0x0001)
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#_misfire_status
+    mov a,#0x00
+    movx @dptr,a
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#0xfa43
+    movx @dptr,a
+    mov dptr,#0xfa45
+    movx @dptr,a
+    mov dptr,#0xfa47
+    movx @dptr,a
+    mov dptr,#0xfa49
+    movx @dptr,a
+    mov a,#0x80
+    mov dptr,#0xfa44
+    movx @dptr,a
+    mov dptr,#0xfa46
+    movx @dptr,a
+    mov dptr,#0xfa48
+    movx @dptr,a
+    mov dptr,#0xfa4a
+    movx @dptr,a
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_peak_period_dev
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 1)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#0xfa34
+    movx @dptr,a
+    mov dptr,#0xfa2c
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 2)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_secondary_period_dev
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 3)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#0xfa2e
+    movx @dptr,a
+    clr a
+    mov dptr,#_misfire_status
+    movx @dptr,a
+    ret
+}

@@ -1,0 +1,1048 @@
+// Read eeprom record f485.
+replace {
+    mov _stock_r4,#0x10
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%1
+    ljmp %2
+    %1:
+    setb _eeprom_io_failed
+    %2:
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x85
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %3:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    mov _ACC,#0x00
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    %5:
+    ret
+} by {
+    mov r4,#0x10
+    mov r1,#0x07
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00970$
+    setb _eeprom_io_failed
+    00970$:
+    mov r1,#0x07
+    mov r0,#0x94
+    mov dptr,#0xf485
+    00971$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00971$
+    clr a
+    movx @dptr,a
+    ret
+}
+
+// Read eeprom record f48d.
+replace {
+    mov _stock_r4,#0x18
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%1
+    ljmp %2
+    %1:
+    setb _eeprom_io_failed
+    %2:
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x8d
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %3:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    mov _ACC,#0x00
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    %5:
+    ret
+} by {
+    mov r4,#0x18
+    mov r1,#0x07
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00972$
+    setb _eeprom_io_failed
+    00972$:
+    mov r1,#0x07
+    mov r0,#0x94
+    mov dptr,#0xf48d
+    00973$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00973$
+    clr a
+    movx @dptr,a
+    ret
+}
+
+// Read eeprom record f474.
+replace {
+    mov _stock_r4,#0x48
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%1
+    ljmp %2
+    %1:
+    setb _eeprom_io_failed
+    %2:
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x74
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %3:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    mov _ACC,#0x00
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    %5:
+    ret
+} by {
+    mov r4,#0x48
+    mov r1,#0x07
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00974$
+    setb _eeprom_io_failed
+    00974$:
+    mov r1,#0x07
+    mov r0,#0x94
+    mov dptr,#0xf474
+    00975$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00975$
+    clr a
+    movx @dptr,a
+    ret
+}
+
+// Read eeprom record f495.
+replace {
+    mov _stock_r4,#0x20
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x95
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %3:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    mov _stock_r4,#0x28
+    mov _stock_r1,#0x02
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jnb _CARRY,%5
+    ljmp %2
+    %5:
+    mov _stock_r1,#0x02
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x9d
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %6:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %7
+    ljmp %6
+    %7:
+    mov _ACC,#0x00
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %8
+    %2:
+    setb _eeprom_io_failed
+    %8:
+    ret
+} by {
+    mov r4,#0x20
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00976$
+    setb _eeprom_io_failed
+    sjmp 00977$
+    00976$:
+    mov r1,#0x08
+    mov r0,#0x94
+    mov dptr,#0xf495
+    00978$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00978$
+    mov r4,#0x28
+    mov r1,#0x02
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00979$
+    setb _eeprom_io_failed
+    sjmp 00977$
+    00979$:
+    mov r1,#0x02
+    mov r0,#0x94
+    mov dptr,#0xf49d
+    00980$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00980$
+    clr a
+    movx @dptr,a
+    00977$:
+    ret
+}
+
+// Read eeprom record f460.
+replace {
+    mov _stock_r4,#0x30
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x60
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %3:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    mov _stock_r4,#0x38
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jnb _CARRY,%5
+    ljmp %2
+    %5:
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x68
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %6:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %7
+    ljmp %6
+    %7:
+    mov _stock_r4,#0x40
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jnb _CARRY,%8
+    ljmp %2
+    %8:
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x70
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %9:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %10
+    ljmp %9
+    %10:
+    mov _ACC,#0x00
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %11
+    %2:
+    setb _eeprom_io_failed
+    %11:
+    ret
+} by {
+    mov r4,#0x30
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00981$
+    setb _eeprom_io_failed
+    sjmp 00982$
+    00981$:
+    mov r1,#0x08
+    mov r0,#0x94
+    mov dptr,#0xf460
+    00983$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00983$
+    mov r4,#0x38
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00984$
+    setb _eeprom_io_failed
+    sjmp 00982$
+    00984$:
+    mov r1,#0x08
+    mov r0,#0x94
+    mov dptr,#0xf468
+    00985$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00985$
+    mov r4,#0x40
+    mov r1,#0x03
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00986$
+    setb _eeprom_io_failed
+    sjmp 00982$
+    00986$:
+    mov r1,#0x03
+    mov r0,#0x94
+    mov dptr,#0xf470
+    00987$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00987$
+    clr a
+    movx @dptr,a
+    00982$:
+    ret
+}
+
+// Read eeprom record f480.
+replace {
+    mov _stock_r4,#0xfb
+    mov _stock_r1,#0x05
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_bytes
+    jb _CARRY,%1
+    ljmp %2
+    %1:
+    setb _eeprom_io_failed
+    %2:
+    mov _stock_r1,#0x05
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x80
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %3:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %4
+    ljmp %3
+    %4:
+    %5:
+    ret
+} by {
+    mov r4,#0xfb
+    mov r1,#0x05
+    mov r0,#0x94
+    lcall _read_eeprom_bytes
+    jnc 00988$
+    setb _eeprom_io_failed
+    00988$:
+    mov r1,#0x05
+    mov r0,#0x94
+    mov dptr,#0xf480
+    00989$:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,00989$
+    ret
+}
+
+// Write eeprom record f485.
+replace {
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x85
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x10
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+    ret
+} by {
+    mov r1,#0x07
+    mov r0,#0x94
+    mov dptr,#0xf485
+    00990$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,00990$
+    mov r4,#0x10
+    mov r1,#0x07
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnc 00991$
+    setb _eeprom_io_failed
+    00991$:
+    ret
+}
+
+// Write eeprom record f48d.
+replace {
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x8d
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x18
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+    ret
+} by {
+    mov r1,#0x07
+    mov r0,#0x94
+    mov dptr,#0xf48d
+    00992$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,00992$
+    mov r4,#0x18
+    mov r1,#0x07
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnc 00993$
+    setb _eeprom_io_failed
+    00993$:
+    ret
+}
+
+// Write eeprom record f474.
+replace {
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x74
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x48
+    mov _stock_r1,#0x07
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+    ret
+} by {
+    mov r1,#0x07
+    mov r0,#0x94
+    mov dptr,#0xf474
+    00994$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,00994$
+    mov r4,#0x48
+    mov r1,#0x07
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnc 00995$
+    setb _eeprom_io_failed
+    00995$:
+    ret
+}
+
+// Write eeprom record f495.
+replace {
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x95
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x20
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnb _CARRY,%3
+    ljmp %4
+    %3:
+    lcall _wait_for_eeprom_write
+    mov _stock_r1,#0x02
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x9d
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %5:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %6
+    ljmp %5
+    %6:
+    mov _stock_r4,#0x28
+    mov _stock_r1,#0x02
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnb _CARRY,%7
+    ljmp %4
+    %7:
+    ljmp %8
+    %4:
+    setb _eeprom_io_failed
+    %8:
+    ret
+} by {
+    mov r1,#0x08
+    mov r0,#0x94
+    mov dptr,#0xf495
+    00996$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,00996$
+    mov r4,#0x20
+    mov r1,#0x08
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jc 00997$
+    lcall _wait_for_eeprom_write
+    mov r1,#0x02
+    mov r0,#0x94
+    mov dptr,#0xf49d
+    00998$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,00998$
+    mov r4,#0x28
+    mov r1,#0x02
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnc 00999$
+    00997$:
+    setb _eeprom_io_failed
+    00999$:
+    ret
+}
+
+// Write eeprom record f460.
+replace {
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x60
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x30
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnb _CARRY,%3
+    ljmp %4
+    %3:
+    lcall _wait_for_eeprom_write
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x68
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %5:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %6
+    ljmp %5
+    %6:
+    mov _stock_r4,#0x38
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnb _CARRY,%7
+    ljmp %4
+    %7:
+    lcall _wait_for_eeprom_write
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x70
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    %8:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %9
+    ljmp %8
+    %9:
+    mov _stock_r4,#0x40
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnb _CARRY,%10
+    ljmp %4
+    %10:
+    ljmp %11
+    %4:
+    setb _eeprom_io_failed
+    %11:
+    ret
+} by {
+    mov r1,#0x08
+    mov r0,#0x94
+    mov dptr,#0xf460
+    01000$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,01000$
+    mov r4,#0x30
+    mov r1,#0x08
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jc 01001$
+    lcall _wait_for_eeprom_write
+    mov r1,#0x08
+    mov r0,#0x94
+    mov dptr,#0xf468
+    01002$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,01002$
+    mov r4,#0x38
+    mov r1,#0x08
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jc 01001$
+    lcall _wait_for_eeprom_write
+    mov r1,#0x03
+    mov r0,#0x94
+    mov dptr,#0xf470
+    01003$:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,01003$
+    mov r4,#0x40
+    mov r1,#0x03
+    mov r0,#0x94
+    clr _EA
+    lcall _write_eeprom_bytes
+    setb _EA
+    jnc 01004$
+    01001$:
+    setb _eeprom_io_failed
+    01004$:
+    ret
+}
+
+// Wait for eeprom write.
+replace {
+    mov _stock_r3,#0x34
+    mov _stock_r4,#0xff
+    %1:
+    dec _stock_r4
+    mov a,_stock_r4
+    jz %2
+    ljmp %1
+    %2:
+    mov a,_stock_r3
+    dec a
+    mov r7,a
+    mov _stock_r3,r7
+    mov a,r7
+    jz %3
+    ljmp %1
+    %3:
+    %4:
+    ret
+} by {
+    mov r3,#0x34
+    mov r4,#0xff
+    01005$:
+    djnz r4,01005$
+    djnz r3,01005$
+    ret
+}

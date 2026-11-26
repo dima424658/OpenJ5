@@ -1,0 +1,294 @@
+// Publish the sample slot and send the attenuator switch point before reading the ADC sample.
+replace {
+    clr _knock_sample_pending
+    mov dptr,#_knock_sample_cylinder
+    mov a,_knock_mask_index
+    movx @dptr,a
+    mov a,_rpm_state_54
+    add a, #_knock_attenuator_switch_point
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_knock_attenuator_switch_point >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,#0xbf
+    anl a,r7
+    orl a,#0x80
+    mov _B,a
+    anl _knock_control_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_control_port,#0x20
+    lcall _update_cylinder_knock_threshold
+    %1:
+    ret
+} by {
+    clr _knock_sample_pending
+    mov a,_knock_mask_index
+    mov dptr,#_knock_sample_cylinder
+    movx @dptr,a
+    mov dptr,#_knock_attenuator_switch_point
+    mov a,_rpm_state_54
+    movc a,@a+dptr
+    clr 0xe6
+    setb 0xe7
+    mov _B,a
+    anl _knock_control_port,#0xdf
+    lcall _send_knock_command
+    orl _knock_control_port,#0x20
+}
+
+// Keep the raw sample in B and R4 and apply the physical bank-one input limit.
+replace {
+    mov _B,_knock_adc_sample
+    mov _stock_r4,_B
+    mov a,_knock_mask_index
+    add a, #_cylinder_raw_samples
+    mov r0,acc
+    mov @r0,_B
+    mov a,_knock_mask_index
+    add a, #_cylinder_filtered_noise
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_filtered_noise >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov _stock_r3,a
+    mov _stock_r0,_B
+    clr c
+    mov a,_stock_r3
+    subb a,#0x0a
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,_B
+    clr c
+    rrc a
+    mov _stock_r0,a
+    clr c
+    mov a,_stock_r3
+    subb a,_bank_one_noise_floor
+    jc %3
+    ljmp %4
+    %3:
+    mov a,_stock_r3
+    rl a
+    mov _bank_one_noise_floor,a
+    mov a,_stock_r3
+    ljmp %2
+    %4:
+    mov _stock_r0,_B
+    %2:
+} by {
+    mov a,_knock_adc_sample
+    mov _B,a
+    mov r4,a
+    mov a,#_cylinder_raw_samples
+    add a,_knock_mask_index
+    mov r0,a
+    mov @r0,_B
+    mov dptr,#_cylinder_filtered_noise
+    mov a,_knock_mask_index
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r3,a
+    cjne a,#0x0a,00940$
+    00940$:
+    jc 00941$
+    mov a,_B
+    clr c
+    rrc a
+    mov r0,a
+    mov a,r3
+    cjne a,_bank_one_noise_floor,00942$
+    00942$:
+    jnc 00941$
+    rl a
+    mov _bank_one_noise_floor,a
+    sjmp 00943$
+    00941$:
+    mov r0,_B
+}
+
+// Keep DPTR on the filter sum across the call and update the cylinder noise array.
+replace {
+    mov a,_knock_mask_index
+    mov b,#0x02
+    mul ab
+    add a, #_cylinder_noise_accumulator
+    mov dpl,a
+    mov a,#(_cylinder_noise_accumulator >> 8)
+    addc a, b
+    mov dph,a
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    mov _stock_r1,r6
+    mov _stock_r2,r7
+    mov _ACC,_stock_r0
+    lcall _filter_maf_baseline
+    mov _stock_r3,_ACC
+    mov a,_knock_mask_index
+    mov b,#0x02
+    mul ab
+    add a, #_cylinder_noise_accumulator
+    mov dpl,a
+    mov a,#(_cylinder_noise_accumulator >> 8)
+    addc a, b
+    mov dph,a
+    mov r6,_stock_r2
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_stock_r1
+    mov r5,#0x00
+    mov a,r4
+    orl ar6,a
+    mov a,r5
+    orl ar7,a
+    mov a,r6
+    movx @dptr,a
+    mov a,r7
+    inc dptr
+    movx @dptr,a
+    mov a,_knock_mask_index
+    add a, #_cylinder_filtered_noise
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_filtered_noise >> 8)
+    mov dph,a
+    mov a,_stock_r3
+    movx @dptr,a
+} by {
+    00943$:
+    mov dptr,#_cylinder_noise_accumulator
+    mov a,_knock_mask_index
+    rl a
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r1,a
+    inc dpl
+    movx a,@dptr
+    mov r2,a
+    mov a,r0
+    lcall _filter_maf_baseline
+    mov r3,a
+    mov a,r2
+    movx @dptr,a
+    dec dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_cylinder_filtered_noise
+    mov a,_knock_mask_index
+    add a,dpl
+    mov dpl,a
+    mov a,r3
+    movx @dptr,a
+}
+
+// Saturate the Q4 product, take the floor from retained noise, and fall through.
+replace {
+    mov _stock_r1,_B
+    mov dptr,#_knock_threshold_multiplier_q4
+    movx a,@dptr
+    mov _B,a
+    mov r7,_stock_r3
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov a,r5
+    swap a
+    xch a,r7
+    swap a
+    anl a,#0x0f
+    xrl a,r7
+    xch a,r7
+    anl a,#0x0f
+    xch a,r7
+    xrl a,r7
+    xch a,r7
+    mov r6,a
+    mov ar4,r7
+    mov ar5,r6
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r5
+    jc %1
+    ljmp %2
+    %1:
+    mov r4,#0xff
+    mov r5,#0x00
+    ljmp %3
+    %2:
+    mov ar4,r7
+    mov ar5,r6
+    %3:
+    mov _B,r4
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %4
+    ljmp %5
+    %4:
+    mov _B,_ACC
+    %5:
+    mov a,_knock_mask_index
+    add a, #_cylinder_knock_threshold
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_knock_threshold >> 8)
+    mov dph,a
+    mov a,_B
+    movx @dptr,a
+    mov _stock_r3,_B
+    lcall _evaluate_knock_sample
+    %6:
+    ret
+} by {
+    mov r1,_B
+    mov dptr,#_knock_threshold_multiplier_q4
+    movx a,@dptr
+    mov _B,a
+    mov a,r3
+    mul ab
+    mov r2,a
+    mov a,_B
+    anl a,#0xf0
+    jnz 00944$
+    mov a,r2
+    anl a,#0xf0
+    orl a,_B
+    swap a
+    sjmp 00945$
+    00944$:
+    mov a,#0xff
+    00945$:
+    mov _B,a
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    cjne a,_B,00946$
+    00946$:
+    jc 00947$
+    mov _B,a
+    00947$:
+    mov dptr,#_cylinder_knock_threshold
+    mov a,_knock_mask_index
+    add a,dpl
+    mov dpl,a
+    mov a,_B
+    movx @dptr,a
+    mov r3,a
+}

@@ -1,0 +1,163 @@
+// Preserve the serial poll, length and sum checks, and dispatch fall-through.
+replace {
+    lcall _service_monitor_uart_byte
+    clr _EA
+    jnb _monitor_frame_pending,%1
+    ljmp %2
+    %1:
+    setb _EA
+    ljmp %3
+    %2:
+    mov _DPSEL,#0x06
+    mov r7,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r5,#_monitor_rx_buffer
+    mov r6,#(_monitor_rx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    setb _EA
+    mov _DPSEL,#0x00
+    cjne r7,#0x02,%4
+    %4:
+    jc %5
+    ljmp %6
+    %5:
+    lcall _clear_flag_21_0_f275
+    ljmp %3
+    %6:
+    mov _stock_r0,r7
+    mov a,r7
+    add a,#0xfe
+    mov _stock_r3,a
+    mov _stock_r2,#0x00
+    mov r6,#_monitor_rx_buffer
+    mov r7,#(_monitor_rx_buffer >> 8)
+    mov a,r6
+    add a,#0xff
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,r7
+    addc a,#0xff
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    %7:
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    add a, _stock_r2
+    mov _stock_r2,a
+    mov a,_stock_r0
+    dec a
+    mov r7,a
+    mov _stock_r0,r7
+    mov a,r7
+    jz %8
+    ljmp %7
+    %8:
+    mov _ACC,_stock_r2
+    mov a,_ACC
+    jnz %9
+    ljmp %10
+    %9:
+    lcall _clear_flag_21_0_f275
+    ljmp %3
+    %10:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,#0x00
+    movx @dptr,a
+    mov _DPSEL,#0x07
+    mov r6,#_monitor_reply_buffer
+    mov r7,#(_monitor_reply_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _DPSEL,a
+    mov _stock_r2,a
+    mov r6,#_monitor_rx_buffer
+    mov r7,#(_monitor_rx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov dptr,#_monitor_rx_buffer
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jz %11
+    ljmp %12
+    %11:
+    lcall _clear_flag_21_0_f275
+    ljmp %3
+    %12:
+    lcall _dispatch_monitor_frame
+    %3:
+    ret
+} by {
+    lcall _service_monitor_uart_byte
+    clr _EA
+    jb _monitor_frame_pending,00970$
+    setb _EA
+    ret
+    00970$:
+    mov _DPSEL,#0x06
+    mov a,dpl
+    mov dptr,#_monitor_rx_buffer
+    setb _EA
+    mov _DPSEL,#0x00
+    clr c
+    subb a,#0x00
+    cjne a,#0x02,00971$
+    00971$:
+    jc 00972$
+    mov r0,a
+    dec a
+    dec a
+    mov r3,a
+    mov r2,#0x00
+    mov dptr,#0xf9ff
+    00973$:
+    inc dptr
+    movx a,@dptr
+    add a,r2
+    mov r2,a
+    djnz r0,00973$
+    mov a,r2
+    jnz 00972$
+    movx @dptr,a
+    mov _DPSEL,#0x07
+    mov dptr,#_monitor_reply_buffer
+    mov _DPSEL,#0x00
+    mov r2,#0x00
+    mov dptr,#_monitor_rx_buffer
+    movx a,@dptr
+    jnz 00988$
+    00972$:
+    .globl _reject_monitor_frame
+    _reject_monitor_frame = .
+    ljmp _clear_flag_21_0_f275
+    00988$:
+}
+
+// Preserve the pending-frame test and transmit-ready kick.
+replace {
+    lcall _finish_monitor_reply
+    jb _monitor_frame_pending,%1
+    ljmp %2
+    %1:
+    setb _monitor_transmitting
+    clr _monitor_frame_pending
+    orl _SCON,#0x02
+    %2:
+    ret
+} by {
+    lcall _finish_monitor_reply
+    jnb _monitor_frame_pending,00970$
+    setb _monitor_transmitting
+    clr _monitor_frame_pending
+    orl _SCON,#0x02
+    00970$:
+    ret
+}

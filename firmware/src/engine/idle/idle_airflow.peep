@@ -1,0 +1,161 @@
+// Convert the threshold to the comparison scale with two unsigned shifts.
+// Reuse the subtraction result for the excess in R4. MUL of the interpolated
+// curve and the excess leaves saturation in bit 15 and the high seven-bit
+// shift result in B plus bit 7 of A.
+replace {
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    mov r7,a
+    mov b,#0x04
+    mov a,r7
+    div ab
+    mov r7,a
+    mov _B,r7
+    mov r7,_engine_rpm_40
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _B,#0x00
+    ljmp %3
+    %2:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov _stock_r4,a
+    mov r6,#_idle_airflow_rpm_gain_q8
+    mov r7,#(_idle_airflow_rpm_gain_q8 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    lcall _interp_curve_q4
+    mov r7,_ACC
+    mov r6,_stock_r4
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov ar4,r7
+    mov ar6,r5
+    clr c
+    mov a,r6
+    subb a,#0x80
+    jnc %4
+    ljmp %5
+    %4:
+    mov r4,#0xff
+    mov r6,#0x00
+    ljmp %6
+    %5:
+    mov ar4,r7
+    mov a,r5
+    mov c,acc.7
+    xch a,r4
+    rlc a
+    xch a,r4
+    rlc a
+    xch a,r4
+    anl a,#0x01
+    mov r6,a
+    %6:
+    mov _B,r4
+    %3:
+} by {
+    mov dptr,#_idle_transition_rpm_2
+    movx a,@dptr
+    clr c
+    rrc a
+    clr c
+    rrc a
+    mov _B,a
+    mov a,_engine_rpm_40
+    clr c
+    subb a,_B
+    jc %1
+    mov r4,a
+    mov dptr,#_idle_airflow_rpm_gain_q8
+    mov r2,_rpm_q4
+    lcall _interp_curve_q4
+    mov _B,r4
+    mul ab
+    jnb b.7,%5
+    mov a,#0xff
+    sjmp %6
+    %5:
+    mov c,_ACC_SIGN
+    mov a,_B
+    rlc a
+    %6:
+    mov _B,a
+    sjmp %3
+    %1:
+    mov _B,#0x00
+    %3:
+}
+
+// Both table reads use the same coolant index directly as the MOVC offset.
+replace {
+    jb _air_conditioning_active,%1
+    ljmp %2
+    %1:
+    mov a,_coolant_nearest_index
+    add a,#_idle_ac_airflow_by_temp
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_idle_ac_airflow_by_temp >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    ljmp %3
+    %2:
+    mov a,_coolant_nearest_index
+    add a,#_idle_airflow_by_temp
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_idle_airflow_by_temp >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    %3:
+} by {
+    jb _air_conditioning_active,%1
+    mov dptr,#_idle_airflow_by_temp
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    sjmp %3
+    %1:
+    mov dptr,#_idle_ac_airflow_by_temp
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    %3:
+}
+
+// Saturate the sum using ADD carry and fall through to the next block.
+replace {
+    mov a,_B
+    add a,_ACC
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0xff
+    %2:
+    mov _idle_airflow_request,_ACC
+    lcall _select_idle_or_fuel_cut
+    %3:
+    ret
+} by {
+    add a,_B
+    jnc %2
+    mov a,#0xff
+    %2:
+    mov _idle_airflow_request,a
+}

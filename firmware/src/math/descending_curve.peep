@@ -1,0 +1,101 @@
+// Keep the curve base in DPTR and index the two samples with MOVC.
+replace {
+    mov _stock_r1,_ACC
+    mov r6,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r7,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    swap a
+    anl a,#0x0f
+    mov _B,a
+    mov a,_B
+    add a, r6
+    mov dpl,a
+    mov a,#0x00
+    addc a, r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov r4,_B
+    mov r5,#0x00
+    inc r4
+    cjne r4,#0x00,%1
+    inc r5
+    %1:
+    mov a,r4
+    add a, r6
+    mov dpl,a
+    mov a,r5
+    addc a, r7
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_stock_r0
+    clr c
+    subb a,_B
+    mov _B,a
+} by {
+    mov r1,a
+    swap a
+    anl a,#0x0f
+    mov _B,a
+    movc a,@a+dptr
+    mov r0,a
+    mov a,_B
+    inc a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r0
+    clr c
+    subb a,_B
+    mov _B,a
+}
+
+// Scale the byte difference by the Q4 fraction and saturate the subtraction.
+replace {
+    mov r7,_stock_r1
+    anl ar7,#0x0f
+    mov a,r7
+    swap a
+    anl a,#0xf0
+    mov _ACC,a
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _B,r5
+    mov r7,_stock_r0
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov _ACC,r7
+    %4:
+    ret
+} by {
+    mov a,r1
+    anl a,#0x0f
+    swap a
+    mul ab
+    mov a,r0
+    clr c
+    subb a,_B
+    jnc %4
+    mov a,#0x00
+    %4:
+    ret
+}

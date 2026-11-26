@@ -1,0 +1,39 @@
+// Keep each repeated fill byte in A.
+replace {
+    mov _ACC,#0x00
+} by {
+    clr a
+}
+
+replace {
+    mov _ACC,#0xff
+} by {
+    mov a,#0xff
+}
+
+replace {
+    mov _ACC,#0x3c
+} by {
+    mov a,#0x3c
+}
+
+replace {
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#(%1 + 0x0001)
+    movx @dptr,a
+    mov dptr,#(%1 + 0x0002)
+    movx @dptr,a
+} by {
+    inc dptr
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+}

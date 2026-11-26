@@ -1,0 +1,107 @@
+// Clamp the stored phase and reduce the subtraction modulo the cycle.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,#0x1e
+    jnc %2
+    ljmp %3
+    %2:
+    mov _ACC,#0x1d
+    %3:
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,#0x0b
+    jnc %4
+    ljmp %5
+    %4:
+    mov r7,_ACC
+    mov a,r7
+    add a,#0xf5
+    mov _ACC,a
+    ljmp %6
+    %5:
+    mov r7,_ACC
+    mov a,#0x13
+    add a,r7
+    mov _ACC,a
+    %6:
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    cjne a,#0x1e,.+3
+    jc %3
+    mov a,#0x1d
+    %3:
+    movx @dptr,a
+    clr c
+    subb a,#0x0b
+    jnc %6
+    add a,#0x1e
+    %6:
+}
+
+replace {
+    mov r7,_ACC
+    mov a,#0x0f
+    add a,r7
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,#0x1e
+    jnc %1
+    ljmp %2
+    %1:
+    mov r7,_ACC
+    mov a,r7
+    add a,#0xe2
+    mov _ACC,a
+    %2:
+} by {
+    add a,#0x0f
+    cjne a,#0x1e,.+3
+    jc %2
+    subb a,#0x1e
+    %2:
+}
+
+replace {
+    mov _stock_r0,_ACC
+} by {
+    mov r0,a
+}
+
+replace {
+    mov _stock_r1,_ACC
+} by {
+    mov r1,a
+}
+
+replace {
+    mov _stock_r2,_ACC
+} by {
+    mov r2,a
+}
+
+// Preserve the atomic update and the active register bank.
+replace {
+    mov _knock_end_pair_2,_ACC
+    mov _knock_end_pair_1,_stock_r2
+    mov _knock_begin_pair_2,_stock_r1
+    mov _knock_begin_pair_1,_stock_r0
+    setb _interrupts_enabled
+    lcall _continue_cycle_fuel
+    %1:
+    ret
+} by {
+    mov _knock_end_pair_2,a
+    mov _knock_end_pair_1,r2
+    mov _knock_begin_pair_2,r1
+    mov _knock_begin_pair_1,r0
+    setb _interrupts_enabled
+}

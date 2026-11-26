@@ -1,0 +1,198 @@
+// Skip the dew-point check once its state is latched.
+replace {
+    jnb _oxygen_monitor_reset_53,%1
+    ljmp %2
+    %1:
+    jnb _oxygen_threshold_set_4f,%3
+    ljmp %2
+    %3:
+} by {
+    jb _oxygen_monitor_reset_53,%2
+    jb _oxygen_threshold_set_4f,%2
+}
+
+replace {
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    setb _oxygen_threshold_set_4f
+    ljmp %3
+} by {
+    movc a,@a+dptr
+    cjne a,_B,.+3
+    jnc %2
+    setb _oxygen_threshold_set_4f
+    sjmp %3
+}
+
+// The warm-restart flag qualifies the lower air-mass threshold.
+replace {
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_retained_flags
+    movx a,@dptr
+    jb acc.0,%3
+    ljmp %2
+    %3:
+    mov dptr,#_dew_point_air_mass_warm_restart
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    ljmp %4
+    %2:
+    mov dptr,#_dew_point_air_mass_default
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    %4:
+    mov dptr,#_dew_point_air_mass_threshold
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,_ACC
+    mov dptr,#_accumulated_air_mass_high
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %5
+    ljmp %6
+    %5:
+    setb _oxygen_threshold_set_4f
+    %6:
+    lcall _dispatch_oxygen_heater
+    %7:
+    ret
+} by {
+    movc a,@a+dptr
+    cjne a,_B,.+3
+    jnc %2
+    mov dptr,#_retained_flags
+    movx a,@dptr
+    jnb acc.0,%2
+    mov dptr,#_dew_point_air_mass_warm_restart
+    clr a
+    movc a,@a+dptr
+    sjmp %4
+    %2:
+    mov dptr,#_dew_point_air_mass_default
+    clr a
+    movc a,@a+dptr
+    %4:
+    mov dptr,#_dew_point_air_mass_threshold
+    movx @dptr,a
+    mov _B,a
+    mov dptr,#_accumulated_air_mass_high
+    movx a,@dptr
+    cjne a,_B,.+3
+    jc %6
+    setb _oxygen_threshold_set_4f
+    %6:
+}
+
+// Reject heater operation before selecting the dew-point path.
+replace {
+    jb _oxygen_sensor_configured,%1
+    ljmp %2
+    %1:
+    jnb _crank_stopped,%3
+    ljmp %2
+    %3:
+} by {
+    jnb _oxygen_sensor_configured,%2
+    jb _crank_stopped,%2
+}
+
+replace {
+    mov dptr,#_ignition_supply_raw
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_heater_coolant_cutoff
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jc %3
+    ljmp %2
+    %3:
+    jnb _oxygen_threshold_set_4f,%4
+    ljmp %5
+    %4:
+    lcall _service_oxygen_heater_early
+    ljmp %6
+    %5:
+} by {
+    mov dptr,#_ignition_supply_raw
+    movx a,@dptr
+    cjne a,_B,.+3
+    jnc %2
+    mov dptr,#_oxygen_heater_coolant_cutoff
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,.+3
+    jnc %2
+    jb _oxygen_threshold_set_4f,%5
+    ljmp _service_oxygen_heater_early
+    %5:
+}
+
+replace {
+    mov dptr,#_exhaust_temperature_high
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    lcall _check_oxygen_heater_resistance
+    ljmp %3
+    %2:
+    lcall _disable_oxygen_heater
+    %3:
+    ret
+} by {
+    mov dptr,#_exhaust_temperature_high
+    movx a,@dptr
+    cjne a,_B,.+3
+    jc _check_oxygen_heater_resistance
+    %2:
+}
+
+replace {
+    anl acc,#0xfd
+    movx @dptr,a
+    mov dptr,#_oxygen_heater_diagnostic_count
+    mov a,#0x00
+    movx @dptr,a
+    lcall _update_idle_speed_target
+    %1:
+    ret
+} by {
+    anl a,#0xfd
+    movx @dptr,a
+    clr a
+    mov dptr,#_oxygen_heater_diagnostic_count
+    movx @dptr,a
+    ljmp _update_idle_speed_target
+}

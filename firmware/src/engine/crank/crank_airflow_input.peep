@@ -1,0 +1,415 @@
+// Take the airflow event, publish the snapshot and keep the empty-sample fast path.
+replace {
+    jnb _crank_airflow_pending,%1
+    ljmp %2
+    %1:
+    lcall _finish_crank_interrupt
+    ljmp %3
+    %2:
+    clr _crank_airflow_pending
+    mov dptr,#_crank_state_snapshot
+    mov a,_crank_state_41
+    movx @dptr,a
+    mov a,_maf_sample_count
+    jz %4
+    ljmp %5
+    %4:
+    lcall _update_crank_throttle_gain
+    ljmp %3
+    %5:
+} by {
+    jb _crank_airflow_pending,00950$
+    ljmp _finish_crank_interrupt
+    00950$:
+    clr _crank_airflow_pending
+    mov a,_crank_state_41
+    mov dptr,#_crank_state_snapshot
+    movx @dptr,a
+    mov a,_maf_sample_count
+    jnz 00951$
+    ljmp _update_crank_throttle_gain
+}
+
+// Average the MAF samples through the MDU and apply the zero and diagnostic limits.
+replace {
+    mov _mdu_0,_maf_sample_sum
+    mov _mdu_1,(_maf_sample_sum + 0x0001)
+    mov _mdu_4,_maf_sample_count
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jnb _ignition_supply_low,%1
+    ljmp %2
+    %1:
+    mov r6,_stock_r01
+    mov r7,(_stock_r01 + 1)
+    clr c
+    mov a,r6
+    subb a,#0xe8
+    mov a,r7
+    subb a,#0x03
+    jc %3
+    ljmp %4
+    %3:
+    mov r6,#0x00
+    mov r7,#0x00
+    ljmp %5
+    %4:
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov a,r4
+    add a,#0x18
+    mov r6,a
+    mov a,r5
+    addc a,#0xfc
+    mov r7,a
+    %5:
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r7
+    mov a,_stock_r1
+    jz %6
+    ljmp %7
+    %6:
+    jnb _startup_flag_53,%8
+    ljmp %7
+    %8:
+    mov dptr,#_maf_min_diagnostic_flow
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,_stock_r0
+    subb a,r7
+    jc %9
+    ljmp %7
+    %9:
+    mov dptr,#_maf_adc_sample
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x07,%10
+    %10:
+    mov _maf_adc_low,c
+    clr _maf_adc_high
+    ljmp %2
+    %7:
+    clr _maf_adc_low
+    mov dptr,#_mass_airflow
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _update_crank_throttle_gain
+    ljmp %11
+    %2:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    mov dptr,#_mass_airflow
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _update_crank_throttle_gain
+    %11:
+    ret
+} by {
+    00951$:
+    mov _mdu_0,_maf_sample_sum
+    mov _mdu_1,(_maf_sample_sum + 1)
+    mov _mdu_4,_maf_sample_count
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jb _ignition_supply_low,00952$
+    clr c
+    mov a,r0
+    subb a,#0xe8
+    mov r0,a
+    mov a,r1
+    subb a,#0x03
+    jnc 00953$
+    clr a
+    mov r0,a
+    00953$:
+    mov r1,a
+    mov a,r1
+    jnz 00954$
+    jb _startup_flag_53,00954$
+    mov dptr,#_maf_min_diagnostic_flow
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r0
+    clr c
+    mov _maf_adc_low,c
+    subb a,_B
+    jnc 00954$
+    mov dptr,#_maf_adc_sample
+    movx a,@dptr
+    clr c
+    subb a,#0x07
+    mov _maf_adc_low,c
+    clr _maf_adc_high
+    00952$:
+    mov r0,#0x00
+    mov r1,#0x00
+    mov dptr,#_mass_airflow
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    ljmp _update_crank_throttle_gain
+    00954$:
+    clr _maf_adc_low
+    mov dptr,#_mass_airflow
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Reset the throttle history and use the dynamic gain for the forced-output state.
+replace {
+    jb _output_state_flag_45,%1
+    ljmp %2
+    %1:
+    mov dptr,#_dynamic_charge_filter_gain
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_charge_filter_coefficient
+    movx @dptr,a
+    clr _throttle_moved
+    mov dptr,#_throttle_stable_count
+    mov a,#0x00
+    movx @dptr,a
+    lcall _continue_airflow_calculation
+    ljmp %3
+    %2:
+} by {
+    jnb _output_state_flag_45,00955$
+    mov dptr,#_dynamic_charge_filter_gain
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_charge_filter_coefficient
+    movx @dptr,a
+    clr _throttle_moved
+    clr a
+    mov dptr,#_throttle_stable_count
+    movx @dptr,a
+    ljmp _continue_airflow_calculation
+}
+
+// Sample throttle channel 3 and apply the offset, gain and cap.
+replace {
+    jnb _throttle_adc_low,%1
+    ljmp %2
+    %1:
+    jnb _throttle_adc_high,%3
+    ljmp %2
+    %3:
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    mov _stock_r2,a
+    mov _B,#0x03
+    lcall _read_adc_8bit
+    mov _B,_ACC
+    setb _adc_interrupted_by_iac
+    mov dptr,#_throttle_zero_reference
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,_B
+    subb a,r7
+    jc %4
+    ljmp %5
+    %4:
+    lcall _continue_airflow_calculation
+    ljmp %6
+    %5:
+    mov dptr,#_throttle_zero_reference
+    movx a,@dptr
+    mov r7,a
+    mov a,_B
+    clr c
+    subb a,r7
+    mov _B,a
+    mov r7,_B
+    mov dptr,#_throttle_transfer_gain
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _B,r5
+    mov dptr,#_crank_throttle_position
+    mov a,_B
+    movx @dptr,a
+    mov dptr,#_throttle_max_position
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %7
+    ljmp %2
+    %7:
+    mov dptr,#_throttle_max_position
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_crank_throttle_position
+    movx @dptr,a
+    %2:
+} by {
+    00955$:
+    mov c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    jc 00956$
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    mov r2,a
+    mov _B,#0x03
+    lcall _read_adc_8bit
+    mov _B,a
+    setb _adc_interrupted_by_iac
+    mov dptr,#_throttle_zero_reference
+    movx a,@dptr
+    xch a,_B
+    clr c
+    subb a,_B
+    jc _continue_airflow_calculation
+    mov _B,a
+    mov dptr,#_throttle_transfer_gain
+    clr a
+    movc a,@a+dptr
+    mul ab
+    mov a,_B
+    mov dptr,#_crank_throttle_position
+    movx @dptr,a
+    mov dptr,#_throttle_max_position
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,_B
+    jnc 00956$
+    add a,_B
+    mov dptr,#_crank_throttle_position
+    movx @dptr,a
+}
+
+// Compare the signed throttle delta and apply the stable or dynamic charge gain.
+replace {
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    clr c
+    subb a,_stock_r2
+    mov _ACC,a
+    lcall _abs_accumulator_i8
+    clr c
+    mov a,_ACC
+    subb a,#0x02
+    jnc %1
+    ljmp %2
+    %1:
+    setb _throttle_moved
+    mov dptr,#_throttle_stable_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_dynamic_charge_filter_gain
+    movc a,@a+dptr
+    mov dptr,#_charge_filter_coefficient
+    movx @dptr,a
+    ljmp %3
+    %2:
+    mov dptr,#_throttle_stable_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov dptr,#_throttle_stable_limit
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,_ACC
+    subb a,r7
+    jnc %4
+    ljmp %5
+    %4:
+    clr _throttle_moved
+    mov dptr,#_stable_charge_filter_gain
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_charge_filter_coefficient
+    movx @dptr,a
+    ljmp %3
+    %5:
+    mov dptr,#_throttle_stable_count
+    mov a,_ACC
+    movx @dptr,a
+    %3:
+    lcall _continue_airflow_calculation
+    %6:
+    ret
+} by {
+    00956$:
+    mov dptr,#_crank_throttle_position
+    movx a,@dptr
+    clr c
+    subb a,r2
+    lcall _abs_accumulator_i8
+    cjne a,#0x02,00957$
+    00957$:
+    jc 00958$
+    setb _throttle_moved
+    clr a
+    mov dptr,#_throttle_stable_count
+    movx @dptr,a
+    mov dptr,#_dynamic_charge_filter_gain
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_charge_filter_coefficient
+    movx @dptr,a
+    sjmp _continue_airflow_calculation
+    00958$:
+    mov dptr,#_throttle_stable_limit
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_throttle_stable_count
+    movx a,@dptr
+    inc a
+    cjne a,_B,00959$
+    00959$:
+    jc 00960$
+    clr _throttle_moved
+    mov dptr,#_stable_charge_filter_gain
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_charge_filter_coefficient
+    movx @dptr,a
+    sjmp _continue_airflow_calculation
+    00960$:
+    mov dptr,#_throttle_stable_count
+    movx @dptr,a
+}

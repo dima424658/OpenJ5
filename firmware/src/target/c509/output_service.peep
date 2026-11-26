@@ -1,0 +1,273 @@
+// Take each port sample before loading its XDATA destination.
+replace {
+    mov dptr,#_port1_snapshot
+    mov a,_P1
+    movx @dptr,a
+    mov dptr,#_sfr_f8_snapshot
+    mov a,_sfr_f8
+    movx @dptr,a
+    mov dptr,#_sfr_fa_snapshot
+    mov a,_sfr_fa
+    movx @dptr,a
+    mov dptr,#_sfr_dd_snapshot
+    mov a,_sfr_dd
+    movx @dptr,a
+} by {
+    mov a,_P1
+    mov dptr,#_port1_snapshot
+    movx @dptr,a
+    mov a,_sfr_f8
+    mov dptr,#_sfr_f8_snapshot
+    movx @dptr,a
+    mov a,_sfr_fa
+    mov dptr,#_sfr_fa_snapshot
+    movx @dptr,a
+    mov a,_sfr_dd
+    mov dptr,#_sfr_dd_snapshot
+    movx @dptr,a
+}
+
+// Skip the injector port block in the running fuel mode.
+replace {
+    jnb _fuel_mode_flag_56,%1
+    ljmp %2
+    %1:
+} by {
+    jb _fuel_mode_flag_56,00970$
+}
+
+// Apply injector 1 phase and share the delay decrement.
+replace {
+    mov a,_output_flags_7c
+    jb acc.0,%1
+    ljmp %2
+    %1:
+    mov c,_injector_phase_1
+    mov _injector_output_1,c
+    jnb _injector_phase_1,%3
+    ljmp %4
+    %3:
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    mov r7,a
+    mov ar6,r7
+    mov a,r7
+    jnz %5
+    ljmp %6
+    %5:
+    mov a,r6
+    dec a
+    mov dptr,#_injector_test_delay
+    movx @dptr,a
+    ljmp %4
+    %6:
+    setb _injector_phase_1
+    anl _output_flags_7c,#0xf0
+    ljmp %4
+    %2:
+} by {
+    mov a,_output_flags_7c
+    anl a,#0x01
+    jz 00971$
+    mov c,_injector_phase_1
+    mov _injector_output_1,c
+    jb _injector_phase_1,00970$
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    jnz 00975$
+    setb _injector_phase_1
+    anl _output_flags_7c,#0xf0
+    sjmp 00970$
+
+    00975$:
+    dec a
+    movx @dptr,a
+    sjmp 00970$
+    00971$:
+}
+
+// Apply injector 2 phase and share the delay decrement.
+replace {
+    mov a,_output_flags_7c
+    jb acc.1,%1
+    ljmp %2
+    %1:
+    mov c,_injector_phase_2
+    mov _injector_output_2,c
+    jnb _injector_phase_2,%3
+    ljmp %4
+    %3:
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    mov r7,a
+    mov ar6,r7
+    mov a,r7
+    jnz %5
+    ljmp %6
+    %5:
+    mov a,r6
+    dec a
+    mov dptr,#_injector_test_delay
+    movx @dptr,a
+    ljmp %4
+    %6:
+    setb _injector_phase_2
+    anl _output_flags_7c,#0xf0
+    ljmp %4
+    %2:
+} by {
+    mov a,_output_flags_7c
+    anl a,#0x02
+    jz 00972$
+    mov c,_injector_phase_2
+    mov _injector_output_2,c
+    jb _injector_phase_2,00970$
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    jnz 00975$
+    setb _injector_phase_2
+    anl _output_flags_7c,#0xf0
+    sjmp 00970$
+    00972$:
+}
+
+// Apply injector 3 phase and share the delay decrement.
+replace {
+    mov a,_output_flags_7c
+    jb acc.2,%1
+    ljmp %2
+    %1:
+    mov c,_injector_phase_3
+    mov _injector_output_3,c
+    jnb _injector_phase_3,%3
+    ljmp %4
+    %3:
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    mov r7,a
+    mov ar6,r7
+    mov a,r7
+    jnz %5
+    ljmp %6
+    %5:
+    mov a,r6
+    dec a
+    mov dptr,#_injector_test_delay
+    movx @dptr,a
+    ljmp %4
+    %6:
+    setb _injector_phase_3
+    anl _output_flags_7c,#0xf0
+    ljmp %4
+    %2:
+} by {
+    mov a,_output_flags_7c
+    anl a,#0x04
+    jz 00973$
+    mov c,_injector_phase_3
+    mov _injector_output_3,c
+    jb _injector_phase_3,00970$
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    jnz 00975$
+    setb _injector_phase_3
+    anl _output_flags_7c,#0xf0
+    sjmp 00970$
+    00973$:
+}
+
+// Apply injector 4 phase and share the delay decrement.
+replace {
+    mov a,_output_flags_7c
+    jb acc.3,%1
+    ljmp %2
+    %1:
+    mov c,_injector_phase_4
+    mov _injector_output_4,c
+    jnb _injector_phase_4,%3
+    ljmp %2
+    %3:
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    mov r7,a
+    mov ar6,r7
+    mov a,r7
+    jnz %4
+    ljmp %5
+    %4:
+    mov a,r6
+    dec a
+    mov dptr,#_injector_test_delay
+    movx @dptr,a
+    ljmp %2
+    %5:
+    setb _injector_phase_4
+    anl _output_flags_7c,#0xf0
+    %2:
+} by {
+    mov a,_output_flags_7c
+    anl a,#0x08
+    jz 00970$
+    mov c,_injector_phase_4
+    mov _injector_output_4,c
+    jb _injector_phase_4,00970$
+    mov dptr,#_injector_test_delay
+    movx a,@dptr
+    jnz 00975$
+    setb _injector_phase_4
+    anl _output_flags_7c,#0xf0
+    00970$:
+}
+
+// Keep the conditional driver call and fall through to the next control calculation.
+replace {
+    jnb _service_inhibit_69,%1
+    ljmp %2
+    %1:
+    lcall _update_relay_outputs
+    %2:
+    lcall _continue_after_output_service
+    %3:
+    ret
+} by {
+    jb _service_inhibit_69,00976$
+    lcall _update_relay_outputs
+    00976$:
+}
+
+// Set the transmitted bit after reading the port and sample its stock input bit.
+replace {
+    orl _driver_bus_f9,#0x01
+    mov _ACC,_driver_bus_f9
+    mov c,%40
+    mov _ACC_DATA_OUT,c
+    mov _driver_bus_f9,_ACC
+    mov c,_ACC_DATA_IN
+    mov %40,c
+    anl _driver_bus_f9,#0xfe
+    nop
+} by {
+    orl _driver_bus_f9,#0x01
+    mov c,%40
+    mov a,_driver_bus_f9
+    mov _ACC_DATA_OUT,c
+    mov _driver_bus_f9,a
+    mov c,_ACC_DATA_IN
+    mov %40,c
+    anl _driver_bus_f9,#0xfe
+    nop
+}
+
+// Store the shift response from B without changing the stock access order.
+replace {
+    mov dptr,#_relay_driver_response
+    mov a,_B
+    movx @dptr,a
+    %1:
+    ret
+} by {
+    mov a,_B
+    mov dptr,#_relay_driver_response
+    movx @dptr,a
+    ret
+}

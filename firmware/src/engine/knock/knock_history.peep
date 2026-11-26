@@ -1,0 +1,512 @@
+// Clear prior history when the operating mode requires it and handle fault fallback.
+replace {
+    jnb _previous_fuel_mode_63,%1
+    ljmp %2
+    %1:
+    mov _previous_knock_mask,#0x00
+    mov r7,#0x00
+    %3:
+    cjne r7,#0x04,%4
+    %4:
+    jc %5
+    ljmp %6
+    %5:
+    mov a,r7
+    add a, #_cylinder_knock_interval
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_knock_interval >> 8)
+    mov dph,a
+    mov a,#0x00
+    movx @dptr,a
+    inc r7
+    ljmp %3
+    %6:
+    mov r7,#0x00
+    %7:
+    cjne r7,#0x04,%8
+    %8:
+    jc %9
+    ljmp %2
+    %9:
+    mov a,r7
+    add a, #_cylinder_retard
+    mov r0,acc
+    mov @r0,#0x00
+    inc r7
+    ljmp %7
+    %2:
+    jnb _knock_fault_1f,%10
+    ljmp %11
+    %10:
+    jnb _knock_fault_27,%12
+    ljmp %11
+    %12:
+    jb _knock_fault_28,%13
+    ljmp %14
+    %13:
+    %11:
+    mov r7,#0x00
+    %15:
+    cjne r7,#0x04,%16
+    %16:
+    jc %17
+    ljmp %18
+    %17:
+    mov a,r7
+    add a, #_cylinder_retard
+    mov r1,a
+    mov a,_rpm_half_step_index
+    add a, #_knock_maximum_retard_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_knock_maximum_retard_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    mov @r1,ar6
+    inc r7
+    ljmp %15
+    %18:
+    ljmp %19
+    %14:
+} by {
+    jb _previous_fuel_mode_63,00940$
+    mov _previous_knock_mask,#0x00
+    mov _B,#0x04
+    mov dptr,#_cylinder_knock_interval
+    clr a
+    00941$:
+    movx @dptr,a
+    inc dptr
+    djnz _B,00941$
+    mov _B,#0x04
+    mov r0,#_cylinder_retard
+    00942$:
+    mov @r0,#0x00
+    inc r0
+    djnz _B,00942$
+    00940$:
+    mov c,_knock_fault_1f
+    orl c,_knock_fault_27
+    orl c,_knock_fault_28
+    jc 00943$
+    sjmp 00944$
+    00943$:
+    mov _B,#0x04
+    mov r0,#_cylinder_retard
+    00945$:
+    mov dptr,#_knock_maximum_retard_raw
+    mov a,_rpm_half_step_index
+    movc a,@a+dptr
+    mov @r0,a
+    inc r0
+    djnz _B,00945$
+    ret
+}
+
+// Read the current cylinder state and atomically remove its pending event bit.
+replace {
+    clr _knock_event_seen
+    mov dptr,#_knock_zone
+    movx a,@dptr
+    mov _active_knock_zone,a
+    mov _stock_r1,#0x00
+    %1:
+    clr c
+    mov a,_stock_r1
+    subb a,#0x04
+    jc %2
+    ljmp %3
+    %2:
+    mov r7,_stock_r1
+    mov a,r7
+    mov b,#0x0c
+    mul ab
+    mov r7,a
+    mov r6,_active_knock_zone
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov dpl,r7
+    mov dph,#(_zone_retard_page >> 8)
+    movx a,@dptr
+    mov _stock_r4,a
+    mov a,_stock_r1
+    add a, #_cylinder_retard
+    mov r1,a
+    mov _stock_r3,@r1
+    mov a,_stock_r1
+    add a, #_knock_event_masks
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_knock_event_masks >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    clr _interrupts_enabled
+    mov _ACC,_pending_knock_mask
+    mov a,_stock_r2
+    anl a,_ACC
+    mov _B,a
+    mov a,_B
+    xrl a,_ACC
+    mov _pending_knock_mask,a
+    setb _interrupts_enabled
+} by {
+    00944$:
+    mov r1,#0x00
+    clr _knock_event_seen
+    mov dptr,#_knock_zone
+    movx a,@dptr
+    mov _active_knock_zone,a
+    00961$:
+    mov dptr,#_zone_retard_page
+    mov a,#0x0c
+    mov _B,r1
+    mul ab
+    add a,_active_knock_zone
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r4,a
+    mov a,#_cylinder_retard
+    add a,r1
+    mov r0,a
+    mov a,@r0
+    mov r3,a
+    mov dptr,#_knock_event_masks
+    mov a,r1
+    movc a,@a+dptr
+    mov _B,a
+    mov r2,a
+    clr _interrupts_enabled
+    mov a,_pending_knock_mask
+    anl _B,a
+    xrl a,_B
+    mov _pending_knock_mask,a
+    setb _interrupts_enabled
+}
+
+// Apply the recovery period or retard step, retaining the original branch order.
+replace {
+    mov a,_B
+    jnz %1
+    ljmp %2
+    %1:
+    setb _knock_event_seen
+    mov a,_stock_r2
+    anl a,_previous_knock_mask
+    jnz %3
+    ljmp %4
+    %3:
+    mov a,_stock_r1
+    add a, #_cylinder_knock_interval
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_knock_interval >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r6,a
+    mov dptr,#_minimum_knock_interval
+    movx a,@dptr
+    mov r5,a
+    clr c
+    mov a,r6
+    subb a,r5
+    jc %5
+    ljmp %4
+    %5:
+    mov r6,_stock_r3
+    mov a,#0x04
+    add a, r6
+    mov _stock_r3,a
+    mov r6,_stock_r4
+    mov a,#0x04
+    add a, r6
+    mov _stock_r4,a
+    %4:
+    mov a,_stock_r1
+    add a, #_cylinder_knock_interval
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_knock_interval >> 8)
+    mov dph,a
+    mov a,#0x00
+    movx @dptr,a
+    mov a,_stock_r2
+    orl _previous_knock_mask,a
+    ljmp %6
+    %2:
+    mov a,_stock_r1
+    add a, #_cylinder_knock_interval
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_knock_interval >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r6,a
+    mov dptr,#_retard_recovery_interval
+    movx a,@dptr
+    mov r5,a
+    clr c
+    mov a,r6
+    subb a,r5
+    jc %7
+    ljmp %8
+    %7:
+    mov a,_stock_r1
+    add a, #_cylinder_knock_interval
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_knock_interval >> 8)
+    mov dph,a
+    inc r6
+    mov a,r6
+    movx @dptr,a
+    ljmp %6
+    %8:
+    mov a,_stock_r1
+    add a, #_cylinder_knock_interval
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cylinder_knock_interval >> 8)
+    mov dph,a
+    mov a,#0x00
+    movx @dptr,a
+    mov a,_stock_r3
+    jnz %9
+    ljmp %10
+    %9:
+    dec _stock_r3
+    %10:
+    mov a,_stock_r4
+    jnz %11
+    ljmp %12
+    %11:
+    dec _stock_r4
+    %12:
+    mov a,#0xff
+    xrl a,_stock_r2
+    anl _previous_knock_mask,a
+    %6:
+} by {
+    mov a,_B
+    jnz 00946$
+    mov dptr,#_retard_recovery_interval
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_cylinder_knock_interval
+    mov a,dpl
+    add a,r1
+    mov dpl,a
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc 00947$
+    add a,_B
+    inc a
+    movx @dptr,a
+    sjmp 00948$
+    00947$:
+    clr a
+    movx @dptr,a
+    mov a,r3
+    jz 00949$
+    dec r3
+    00949$:
+    mov a,r4
+    jz 00950$
+    dec r4
+    00950$:
+    mov a,r2
+    cpl a
+    anl _previous_knock_mask,a
+    sjmp 00948$
+    00946$:
+    setb _knock_event_seen
+    mov a,_previous_knock_mask
+    anl a,r2
+    jz 00951$
+    mov dptr,#_minimum_knock_interval
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_cylinder_knock_interval
+    mov a,dpl
+    add a,r1
+    mov dpl,a
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc 00951$
+    inc r3
+    inc r3
+    inc r3
+    inc r3
+    inc r4
+    inc r4
+    inc r4
+    inc r4
+    00951$:
+    mov dptr,#_cylinder_knock_interval
+    mov a,dpl
+    add a,r1
+    mov dpl,a
+    clr a
+    movx @dptr,a
+    mov a,r2
+    orl _previous_knock_mask,a
+}
+
+// Compare with physical IRAM and age the zone hold counter.
+replace {
+    clr c
+    mov a,_stock_r4
+    subb a,_bank_zero_r3
+    jnc %1
+    ljmp %2
+    %1:
+    mov _stock_r3,_stock_r4
+    ljmp %3
+    %2:
+    mov a,_stock_r1
+    add a, #_zone_hold_count
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_zone_hold_count >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r6,a
+    dec r6
+    mov a,_stock_r1
+    add a, #_zone_hold_count
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_zone_hold_count >> 8)
+    mov dph,a
+    mov a,r6
+    movx @dptr,a
+    mov a,r6
+    jz %4
+    ljmp %3
+    %4:
+    dec _stock_r3
+    mov a,_stock_r1
+    add a, #_zone_hold_count
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_zone_hold_count >> 8)
+    mov dph,a
+    mov a,#0x05
+    movx @dptr,a
+    %3:
+} by {
+    00948$:
+    mov a,r4
+    cjne a,_bank_zero_r3,00952$
+    00952$:
+    jc 00953$
+    mov r3,a
+    sjmp 00954$
+    00953$:
+    mov dptr,#_zone_hold_count
+    mov a,dpl
+    add a,r1
+    mov dpl,a
+    movx a,@dptr
+    dec a
+    movx @dptr,a
+    jnz 00954$
+    dec r3
+    mov a,#0x05
+    movx @dptr,a
+}
+
+// Clamp the two retard values, store the zone and advance the stock cylinder loop.
+replace {
+    mov a,_rpm_half_step_index
+    add a, #_knock_maximum_retard_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_knock_maximum_retard_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_stock_r4
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov _stock_r4,_B
+    %2:
+    clr c
+    mov a,_stock_r3
+    subb a,_B
+    jnc %3
+    ljmp %4
+    %3:
+    mov _stock_r3,_B
+    %4:
+    mov dpl,r7
+    mov dph,#(_zone_retard_page >> 8)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov a,_knock_window_override
+    jnb acc.7,%5
+    ljmp %6
+    %5:
+    mov a,_stock_r1
+    add a, #_cylinder_retard
+    mov r0,acc
+    mov @r0,_stock_r3
+    %6:
+    inc _stock_r1
+    ljmp %7
+    %8:
+    ret
+} by {
+    00954$:
+    mov dptr,#_knock_maximum_retard_raw
+    mov a,_rpm_half_step_index
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r4
+    cjne a,_B,00955$
+    00955$:
+    jc 00956$
+    mov r4,_B
+    00956$:
+    mov a,r3
+    cjne a,_B,00957$
+    00957$:
+    jc 00958$
+    mov r3,_B
+    00958$:
+    mov dptr,#_zone_retard_page
+    mov a,#0x0c
+    mov _B,r1
+    mul ab
+    add a,_active_knock_zone
+    add a,dpl
+    mov dpl,a
+    mov a,r4
+    movx @dptr,a
+    mov a,_knock_window_override
+    anl a,#0x80
+    jnz 00959$
+    mov a,#_cylinder_retard
+    add a,r1
+    mov r0,a
+    mov a,r3
+    mov @r0,a
+    00959$:
+    inc r1
+    cjne r1,#0x04,00960$
+    ret
+    00960$:
+    ljmp 00961$
+}

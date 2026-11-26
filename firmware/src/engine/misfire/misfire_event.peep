@@ -1,0 +1,148 @@
+// Preserve the original XDATA and CODE access sequences for word operands.
+replace {
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+replace {
+    mov dptr,#_misfire_scaled_event
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov a,r0
+    mov dptr,#_misfire_scaled_event
+    movx @dptr,a
+    mov a,r1
+    inc dptr
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#%1
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#%2
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+} by {
+    mov dptr,#%1
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    clr a
+    inc dptr
+    movc a,@a+dptr
+    mov r3,a
+}
+
+replace {
+    jnb _CY,%1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    orl acc,#0x02
+    movx @dptr,a
+    clr _fuel_mode_flag_5c
+    lcall _count_misfire_samples
+    ljmp %3
+    %2:
+} by {
+    jc %2
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    orl a,#0x02
+    movx @dptr,a
+    clr _fuel_mode_flag_5c
+    sjmp _count_misfire_samples
+    %2:
+}
+
+// Decrement only nonzero counters and retain the XDATA address in DPTR.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jnz %2
+    ljmp %3
+    %2:
+    mov r7,_ACC
+    dec r7
+    mov dptr,#%1
+    mov a,r7
+    movx @dptr,a
+    %3:
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    jz %3
+    dec a
+    movx @dptr,a
+    %3:
+}
+
+replace {
+    anl acc,#%1
+} by {
+    anl a,#%1
+}
+
+replace {
+    lcall _publish_misfire_counter_flags
+    %1:
+    ret
+} by {
+    ljmp _publish_misfire_counter_flags
+}
+
+// Increment only for nonnegative comparisons. Skip the wrapped store at 255.
+replace {
+    jnb _CY,%1
+    ljmp %2
+    %1:
+    mov dptr,#%3
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %4
+    ljmp %2
+    %4:
+    mov dptr,#%3
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+} by {
+    jc %2
+    mov dptr,#%3
+    movx a,@dptr
+    inc a
+    jz %2
+    movx @dptr,a
+    %2:
+}
+
+replace {
+    lcall _compare_misfire_samples
+    %1:
+    ret
+} by {
+    %1:
+}

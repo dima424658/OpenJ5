@@ -1,0 +1,152 @@
+// Skip directly to knock processing when there is no crank activity.
+replace {
+    jb _crank_stopped,%1
+    ljmp %2
+    %1:
+    lcall _update_knock_noise_zone
+    ljmp %3
+    %2:
+} by {
+    jnb _crank_stopped,%2
+    ljmp _update_knock_noise_zone
+    %2:
+}
+
+// Keep the wrap result in A. Only a nonzero increment is written back.
+replace {
+    mov dptr,#_starter_elapsed_seconds
+    movx a,@dptr
+    mov _ACC,a
+    jb _tick_1s,%1
+    ljmp %2
+    %1:
+    inc _ACC
+    mov a,_ACC
+    jnz %3
+    ljmp %2
+    %3:
+    mov dptr,#_starter_elapsed_seconds
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    mov _B,_ACC
+} by {
+    mov dptr,#_starter_elapsed_seconds
+    movx a,@dptr
+    jnb _tick_1s,%2
+    inc a
+    jz %2
+    movx @dptr,a
+    %2:
+    mov _B,a
+}
+
+// Read the temperature bin through MOVC and compare without modifying A.
+replace {
+    mov a,_coolant_nearest_index
+    add a,#%1
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%1 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+} by {
+    mov dptr,#%1
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    cjne a,_B,.+3
+}
+
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_relay_outputs
+    movx a,@dptr
+    anl acc,#0xdf
+    movx @dptr,a
+    lcall _update_knock_noise_zone
+    ljmp %3
+    %2:
+} by {
+    jnc %2
+    mov dptr,#_relay_outputs
+    movx a,@dptr
+    anl a,#0xdf
+    movx @dptr,a
+    ljmp _update_knock_noise_zone
+    %2:
+}
+
+replace {
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_starter_above_rpm_cycles
+    mov a,#0x00
+    movx @dptr,a
+    lcall _update_knock_noise_zone
+    ljmp %3
+    %2:
+} by {
+    jc %2
+    clr a
+    mov dptr,#_starter_above_rpm_cycles
+    movx @dptr,a
+    sjmp _update_knock_noise_zone
+    %2:
+}
+
+// This counter uses the control-loop period instead of the one-second tick.
+replace {
+    mov dptr,#_starter_above_rpm_cycles
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_starter_above_rpm_cycles
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    mov _B,_ACC
+} by {
+    mov dptr,#_starter_above_rpm_cycles
+    movx a,@dptr
+    inc a
+    jz %2
+    movx @dptr,a
+    %2:
+    mov _B,a
+}
+
+// The second relay-clear path falls through to the next linked section.
+replace {
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_relay_outputs
+    movx a,@dptr
+    anl acc,#0xdf
+    movx @dptr,a
+    %2:
+    lcall _update_knock_noise_zone
+    %3:
+    ret
+} by {
+    jnc %2
+    mov dptr,#_relay_outputs
+    movx a,@dptr
+    anl a,#0xdf
+    movx @dptr,a
+    %2:
+}

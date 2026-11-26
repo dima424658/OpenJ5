@@ -1,0 +1,252 @@
+// Keep the link and operating-mode guards and retain the original immediate response.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jb _service_link_ready_6b,%1
+    ljmp %2
+    %1:
+    jb _service_session_active,%3
+    ljmp %2
+    %3:
+    setb _service_request_seen
+    jb _serial_extended_length,%4
+    ljmp %5
+    %4:
+    mov r7,#0x01
+    ljmp %6
+    %5:
+    mov r7,#0x00
+    %6:
+    mov a,#0x05
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov _stock_r3,a
+    mov a,#0x04
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov _stock_r4,a
+    mov a,_stock_r4
+    jnz %7
+    ljmp %2
+    %7:
+    clr c
+    mov a,_stock_r4
+    subb a,#0x05
+    jc %8
+    ljmp %9
+    %8:
+    lcall _apply_output_control_01_to_04
+    ljmp %10
+    %9:
+    mov r7,_stock_r4
+    cjne r7,#0x05,%11
+    ljmp %12
+    %11:
+    cjne r7,#0x06,%13
+    ljmp %14
+    %13:
+    cjne r7,#0x09,%15
+    ljmp %16
+    %15:
+    cjne r7,#0x0a,%17
+    ljmp %18
+    %17:
+    cjne r7,#0x0b,%19
+    ljmp %20
+    %19:
+    cjne r7,#0x0c,%21
+    ljmp %22
+    %21:
+    cjne r7,#0x0d,%23
+    ljmp %24
+    %23:
+    cjne r7,#0x41,%25
+    ljmp %26
+    %25:
+    cjne r7,#0x42,%27
+    ljmp %28
+    %27:
+    ljmp %29
+    %12:
+    jnb _fuel_mode_flag_56,%30
+    ljmp %2
+    %30:
+    lcall _apply_output_control_05
+    ljmp %10
+    %14:
+    jnb _fuel_mode_flag_56,%31
+    ljmp %2
+    %31:
+    lcall _apply_output_control_06
+    ljmp %10
+    %16:
+    jnb _fuel_mode_flag_56,%32
+    ljmp %2
+    %32:
+    lcall _apply_output_control_09
+    ljmp %10
+    %18:
+    lcall _apply_output_control_0a
+    ljmp %10
+    %20:
+    lcall _apply_output_control_0b
+    ljmp %10
+    %22:
+    lcall _apply_output_control_0c
+    ljmp %10
+    %24:
+    lcall _apply_output_control_0d
+    ljmp %10
+    %26:
+    lcall _apply_output_control_41
+    ljmp %33
+    %28:
+    lcall _apply_output_control_42
+    ljmp %33
+    %29:
+    mov r6,#_output_invalid_reply
+    mov r7,#(_output_invalid_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    lcall _set_flag_2f_4_cd7c
+    ljmp %34
+    %33:
+    lcall _build_extended_control_reply
+    lcall _set_flag_2f_4_cd7c
+    ljmp %34
+    %10:
+    lcall _build_output_control_reply
+    lcall _set_flag_2f_4_cd7c
+    ljmp %34
+    %2:
+    mov r6,#_output_unavailable_reply
+    mov r7,#(_output_unavailable_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    lcall _set_flag_2f_4_cd7c
+    %34:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_link_ready_6b,00970$
+    jb _service_session_active,00971$
+    00970$:
+    ljmp 00972$
+    00971$:
+    setb _service_request_seen
+    jnb _serial_extended_length,00973$
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    mov r3,a
+    dec 0x82
+    movx a,@dptr
+    sjmp 00974$
+    00973$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    mov r3,a
+    dec 0x82
+    movx a,@dptr
+    00974$:
+    mov r4,a
+    jz 00975$
+    cjne a,#0x05,00976$
+    sjmp 00977$
+    00976$:
+    jnc 00977$
+    sjmp 00978$
+    00975$:
+    ljmp 00972$
+    00978$:
+    lcall _apply_output_control_01_to_04
+    lcall _build_output_control_reply
+    ljmp _set_flag_2f_4_cd7c
+    00977$:
+    mov a,r4
+    xrl a,#0x05
+    jnz 00979$
+    jnb _fuel_mode_flag_56,00980$
+    ljmp 00972$
+    00980$:
+    lcall _apply_output_control_05
+    lcall _build_output_control_reply
+    ljmp _set_flag_2f_4_cd7c
+    00979$:
+    mov a,r4
+    xrl a,#0x06
+    jnz 00981$
+    jb _fuel_mode_flag_56,00972$
+    lcall _apply_output_control_06
+    lcall _build_output_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00981$:
+    mov a,r4
+    xrl a,#0x09
+    jnz 00982$
+    jb _fuel_mode_flag_56,00972$
+    lcall _apply_output_control_09
+    lcall _build_output_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00982$:
+    mov a,r4
+    xrl a,#0x0a
+    jnz 00983$
+    lcall _apply_output_control_0a
+    lcall _build_output_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00983$:
+    mov a,r4
+    xrl a,#0x0b
+    jnz 00984$
+    lcall _apply_output_control_0b
+    lcall _build_output_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00984$:
+    mov a,r4
+    xrl a,#0x0c
+    jnz 00985$
+    lcall _apply_output_control_0c
+    lcall _build_output_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00985$:
+    mov a,r4
+    xrl a,#0x41
+    jnz 00986$
+    lcall _apply_output_control_41
+    lcall _build_extended_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00986$:
+    mov a,r4
+    xrl a,#0x42
+    jnz 00987$
+    lcall _apply_output_control_42
+    lcall _build_extended_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00987$:
+    mov a,r4
+    xrl a,#0x0d
+    jnz 00988$
+    lcall _apply_output_control_0d
+    lcall _build_output_control_reply
+    sjmp _set_flag_2f_4_cd7c
+    00988$:
+    mov r3,#(_output_invalid_reply >> 8)
+    mov r4,#_output_invalid_reply
+    lcall _append_code_string_to_serial
+    sjmp _set_flag_2f_4_cd7c
+    00972$:
+    mov r3,#(_output_unavailable_reply >> 8)
+    mov r4,#_output_unavailable_reply
+    lcall _append_code_string_to_serial
+}

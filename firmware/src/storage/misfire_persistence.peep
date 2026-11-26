@@ -1,0 +1,628 @@
+// Restore both deviation words with the stock checks and register convention.
+replace {
+    mov a,#0x55
+    cjne a,_stock_r5,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _stock_r4,#0x20
+    mov _stock_r1,#0x0c
+    mov _stock_r0,#0x94
+    lcall _read_eeprom_page1_bytes
+    jb _CY,%4
+    ljmp %5
+    %4:
+    setb _eeprom_io_failed
+    ljmp %3
+    %5:
+    mov r7,#0x00
+    %6:
+    cjne r7,#0x02,%7
+    %7:
+    jc %8
+    ljmp %9
+    %8:
+    mov r6,#0x00
+    %10:
+    cjne r6,#0x02,%11
+    %11:
+    jc %12
+    ljmp %13
+    %12:
+    mov a,r7
+    mov b,#0x06
+    mul ab
+    mov r5,a
+    mov r4,#0x00
+    %14:
+    cjne r4,#0x02,%15
+    %15:
+    jc %16
+    ljmp %17
+    %16:
+    mov a,r5
+    add a, #_saved_word_copies
+    mov r3,a
+    mov a,r4
+    add a,acc
+    mov r2,a
+    mov a,r2
+    add a, r3
+    add a, r6
+    mov r1,a
+    mov a,r5
+    add a, #_saved_word_copies
+    mov r3,a
+    mov ar2,r4
+    inc r2
+    mov a,r2
+    add a,acc
+    mov r2,a
+    mov a,r2
+    add a, r3
+    add a, r6
+    mov r0,a
+    mov ar3,@r1
+    mov ar2,@r0
+    mov a,r3
+    cjne a,ar2,%18
+    sjmp %19
+    %18:
+    ljmp %3
+    %19:
+    inc r4
+    ljmp %14
+    %17:
+    inc r6
+    ljmp %10
+    %13:
+    inc r7
+    ljmp %6
+    %9:
+    mov r0,#(_saved_word_copies + 0x0001)
+    mov _stock_r1,@r0
+    mov dptr,#(_primary_period_dev + 0x0001)
+    mov a,_stock_r1
+    movx @dptr,a
+    mov r0,#_saved_word_copies
+    mov _stock_r0,@r0
+    mov dptr,#_primary_period_dev
+    mov a,_stock_r0
+    movx @dptr,a
+    lcall _abs_stock_i16
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_period_state_calibration + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%20
+    ljmp %3
+    %20:
+    mov r0,#(_saved_word_copies + 0x0007)
+    mov _stock_r1,@r0
+    mov dptr,#(_secondary_period_dev + 0x0001)
+    mov a,_stock_r1
+    movx @dptr,a
+    mov r0,#(_saved_word_copies + 0x0006)
+    mov _stock_r0,@r0
+    mov dptr,#_secondary_period_dev
+    mov a,_stock_r0
+    movx @dptr,a
+    lcall _abs_stock_i16
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_period_state_calibration + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%21
+    ljmp %3
+    %21:
+    mov dptr,#_primary_period_dev
+    movx a,@dptr
+    mov _stock_r0,a
+    mov dptr,#(_primary_period_dev + 0x0001)
+    movx a,@dptr
+    mov _stock_r1,a
+    lcall _abs_stock_i16
+    mov _stock_r23,_stock_r01
+    mov (_stock_r23 + 1),(_stock_r01 + 1)
+    mov dptr,#_secondary_period_dev
+    movx a,@dptr
+    mov _stock_r0,a
+    mov dptr,#(_secondary_period_dev + 0x0001)
+    movx a,@dptr
+    mov _stock_r1,a
+    lcall _abs_stock_i16
+    mov dptr,#_peak_period_dev
+    mov a,_stock_r0
+    movx @dptr,a
+    mov dptr,#(_peak_period_dev + 0x0001)
+    mov a,_stock_r1
+    movx @dptr,a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%22
+    ljmp %23
+    %22:
+    mov dptr,#_peak_period_dev
+    mov a,_stock_r2
+    movx @dptr,a
+    mov dptr,#(_peak_period_dev + 0x0001)
+    mov a,_stock_r3
+    movx @dptr,a
+    %23:
+    ljmp %24
+    %3:
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_peak_period_dev
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#(_peak_period_dev + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_primary_period_dev + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0002)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_secondary_period_dev
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0003)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#(_secondary_period_dev + 0x0001)
+    mov a,r7
+    movx @dptr,a
+    %24:
+    ret
+} by {
+    mov a,r5
+    xrl a,#0x55
+    jnz 00970$
+    mov r4,#0x20
+    mov r1,#0x0c
+    mov r0,#0x94
+    lcall _read_eeprom_page1_bytes
+    jnc 00971$
+    setb _eeprom_io_failed
+    sjmp 00970$
+    00971$:
+    mov r7,#0x02
+    mov r6,#0x02
+    mov r0,#0x94
+    00972$:
+    mov a,@r0
+    inc r0
+    inc r0
+    xrl a,@r0
+    jnz 00970$
+    djnz r7,00972$
+    mov r7,#0x02
+    mov r0,#0x95
+    djnz r6,00972$
+    mov r7,#0x02
+    mov r6,#0x02
+    mov r0,#0x9a
+    00973$:
+    mov a,@r0
+    inc r0
+    inc r0
+    xrl a,@r0
+    jnz 00970$
+    djnz r7,00973$
+    mov r7,#0x02
+    mov r0,#0x9b
+    djnz r6,00973$
+    sjmp 00974$
+    00970$:
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_peak_period_dev
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 1)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#0xfa34
+    movx @dptr,a
+    mov dptr,#0xfa2c
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 2)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_secondary_period_dev
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 3)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#0xfa2e
+    movx @dptr,a
+    sjmp 00975$
+    00974$:
+    mov r0,#0x95
+    mov a,@r0
+    mov r1,a
+    mov dptr,#0xfa2c
+    movx @dptr,a
+    mov r0,#0x94
+    mov a,@r0
+    mov r0,a
+    mov dptr,#_primary_period_dev
+    movx @dptr,a
+    lcall _abs_stock_i16
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_period_state_calibration + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jnc 00970$
+    mov r0,#0x9b
+    mov a,@r0
+    mov r1,a
+    mov dptr,#0xfa2e
+    movx @dptr,a
+    mov r0,#0x9a
+    mov a,@r0
+    mov r0,a
+    mov dptr,#_secondary_period_dev
+    movx @dptr,a
+    lcall _abs_stock_i16
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_period_state_calibration + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jnc 00970$
+    mov dptr,#_primary_period_dev
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _abs_stock_i16
+    mov a,r1
+    mov r3,a
+    mov a,r0
+    mov r2,a
+    mov dptr,#_secondary_period_dev
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _abs_stock_i16
+    mov dptr,#_peak_period_dev
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    lcall _subtract_u16_register_pairs
+    jnc 00975$
+    mov dptr,#_peak_period_dev
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    00975$:
+    ret
+}
+
+// Triplicate the misfire status byte on page one.
+replace {
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x03
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    %1:
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x1c
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jb _CY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+    lcall _wait_for_eeprom_write
+    %5:
+    ret
+} by {
+    mov r0,#0x94
+    mov r1,#0x03
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    00970$:
+    mov @r0,a
+    inc r0
+    djnz r1,00970$
+    mov r4,#0x1c
+    mov r1,#0x03
+    mov r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jnc 00971$
+    setb _eeprom_io_failed
+    00971$:
+    lcall _wait_for_eeprom_write
+    ret
+}
+
+// Serialize both deviation words with the stock register convention.
+replace {
+    mov _stock_r0,#0x94
+    mov dptr,#_primary_period_dev
+    movx a,@dptr
+    mov _stock_r2,a
+    mov dptr,#(_primary_period_dev + 0x0001)
+    movx a,@dptr
+    mov _stock_r3,a
+    mov _B,#0x00
+    %1:
+    mov _stock_r1,#0x03
+    %2:
+    mov r1,_stock_r0
+    mov @r1,_stock_r2
+    inc _stock_r0
+    mov r1,_stock_r0
+    mov @r1,_stock_r3
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %3
+    ljmp %2
+    %3:
+    mov a,_B
+    jz %4
+    ljmp %5
+    %4:
+    mov dptr,#_secondary_period_dev
+    movx a,@dptr
+    mov _stock_r2,a
+    mov dptr,#(_secondary_period_dev + 0x0001)
+    movx a,@dptr
+    mov _stock_r3,a
+    mov _B,#0x01
+    ljmp %1
+    %5:
+    mov _stock_r4,#0x20
+    mov _stock_r1,#0x0c
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jb _CY,%6
+    ljmp %7
+    %6:
+    setb _eeprom_io_failed
+    %7:
+    lcall _wait_for_eeprom_write
+    %8:
+    ret
+} by {
+    mov r0,#0x94
+    mov r1,#0x03
+    mov dptr,#_primary_period_dev
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov _B,#0x00
+    00972$:
+    mov a,r2
+    mov @r0,a
+    inc r0
+    mov a,r3
+    mov @r0,a
+    inc r0
+    djnz r1,00972$
+    mov a,_B
+    jnz 00973$
+    mov r1,#0x03
+    mov dptr,#_secondary_period_dev
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov _B,#0x01
+    sjmp 00972$
+    00973$:
+    mov r4,#0x20
+    mov r1,#0x0c
+    mov r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jnc 00974$
+    setb _eeprom_io_failed
+    00974$:
+    lcall _wait_for_eeprom_write
+    ret
+}
+
+// Write the three misfire history copies and their wrapped sum.
+replace {
+    mov _stock_r7,#0x00
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x08
+    clr _eeprom_io_failed
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,_ACC
+    add a, _stock_r7
+    mov _stock_r7,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov _stock_r4,#0x00
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jb _CY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+    lcall _wait_for_eeprom_write
+    mov _stock_r4,#0x08
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jb _CY,%5
+    ljmp %6
+    %5:
+    setb _eeprom_io_failed
+    %6:
+    lcall _wait_for_eeprom_write
+    mov _stock_r4,#0x10
+    mov _stock_r1,#0x08
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jb _CY,%7
+    ljmp %8
+    %7:
+    setb _eeprom_io_failed
+    %8:
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x03
+    %9:
+    mov r1,_stock_r0
+    mov @r1,_stock_r7
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %10
+    ljmp %9
+    %10:
+    lcall _wait_for_eeprom_write
+    mov _stock_r4,#0x18
+    mov _stock_r1,#0x03
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jb _CY,%11
+    ljmp %12
+    %11:
+    setb _eeprom_io_failed
+    %12:
+    lcall _wait_for_eeprom_write
+    %13:
+    ret
+} by {
+    mov r7,#0x00
+    mov r0,#0x94
+    mov r1,#0x08
+    clr _eeprom_io_failed
+    00975$:
+    movx a,@dptr
+    mov @r0,a
+    add a,r7
+    mov r7,a
+    inc dptr
+    inc r0
+    djnz r1,00975$
+    mov r4,#0x00
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jnc 00976$
+    setb _eeprom_io_failed
+    00976$:
+    lcall _wait_for_eeprom_write
+    mov r4,#0x08
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jnc 00977$
+    setb _eeprom_io_failed
+    00977$:
+    lcall _wait_for_eeprom_write
+    mov r4,#0x10
+    mov r1,#0x08
+    mov r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jnc 00978$
+    setb _eeprom_io_failed
+    00978$:
+    mov r0,#0x94
+    mov r1,#0x03
+    mov a,r7
+    00979$:
+    mov @r0,a
+    inc r0
+    djnz r1,00979$
+    lcall _wait_for_eeprom_write
+    mov r4,#0x18
+    mov r1,#0x03
+    mov r0,#0x94
+    lcall _write_eeprom_page1_bytes
+    jnc 00980$
+    setb _eeprom_io_failed
+    00980$:
+    lcall _wait_for_eeprom_write
+    ret
+}

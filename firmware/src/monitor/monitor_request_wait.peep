@@ -1,0 +1,143 @@
+// Preserve field extraction, serial wait, and the fall-through to the request dispatcher.
+replace {
+    mov _ACC,_monitor_field_mask
+    mov _B,_ACC
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r0,_monitor_field_address
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov a,_B
+    anl a,r7
+    mov _ACC,a
+    %3:
+    mov r7,_ACC
+    mov _ACC,_B
+    mov _B,r7
+    jb _CY,%4
+    ljmp %5
+    %4:
+    mov r7,#0x80
+    ljmp %6
+    %5:
+    mov r7,#0x00
+    %6:
+    mov a,_ACC
+    anl a,#0x01
+    mov r6,a
+    mov a,r6
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jnb _CY,%7
+    ljmp %2
+    %7:
+    mov r7,_ACC
+    mov _ACC,_B
+    mov _B,r7
+    jb _CY,%8
+    ljmp %9
+    %8:
+    mov r7,#0x80
+    ljmp %10
+    %9:
+    mov r7,#0x00
+    %10:
+    mov a,_ACC
+    anl a,#0x01
+    mov r6,a
+    mov a,r6
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    ljmp %3
+    %2:
+    mov r7,_ACC
+    mov _ACC,_B
+    mov _B,r7
+    mov _monitor_selected_field,_ACC
+    %11:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    lcall _poll_monitor_serial
+    mov _ACC,_monitor_request_offset
+    mov a,_ACC
+    jnz %12
+    ljmp %11
+    %12:
+    clr c
+    mov a,_ACC
+    subb a,#0x1e
+    jnc %13
+    ljmp %14
+    %13:
+    clr c
+    mov a,_ACC
+    subb a,#0x2c
+    jnc %15
+    ljmp %16
+    %15:
+    %14:
+    clr _monitor_command_active
+    clr _monitor_flag_01
+    clr _monitor_result_ready
+    clr _monitor_checksum_failed
+    setb _monitor_request_invalid
+    lcall _resume_service_monitor
+    ljmp %17
+    %16:
+    lcall _dispatch_monitor_request
+    %17:
+    ret
+} by {
+    mov a,_monitor_field_mask
+    mov _B,a
+    jz 00970$
+    mov r0,_monitor_field_address
+    mov a,@r0
+    anl a,_B
+    00971$:
+    xch a,_B
+    rrc a
+    jc 00970$
+    xch a,_B
+    rrc a
+    sjmp 00971$
+    00970$:
+    xch a,_B
+    mov _monitor_selected_field,a
+    00972$:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    lcall _poll_monitor_serial
+    mov a,_monitor_request_offset
+    jz 00972$
+    cjne a,#0x1e,00973$
+    00973$:
+    jc 00974$
+    cjne a,#0x2c,00975$
+    00975$:
+    jc 00989$
+    00974$:
+    clr _monitor_command_active
+    clr _monitor_flag_01
+    clr _monitor_result_ready
+    clr _monitor_checksum_failed
+    setb _monitor_request_invalid
+    ljmp _resume_service_monitor
+    00989$:
+}

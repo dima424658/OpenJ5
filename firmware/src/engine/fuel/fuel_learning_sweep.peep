@@ -1,0 +1,267 @@
+// Gate the sweep and keep the stock continuation branch.
+replace {
+    jnb _knock_rpm_cutoff_active,%1
+    ljmp %2
+    %1:
+    jnb _learning_sweep_active,%3
+    ljmp %4
+    %3:
+    %2:
+    lcall _continue_after_fuel_learning
+    ljmp %5
+    %4:
+    lcall _update_one_fuel_learning_cell
+    %5:
+    ret
+} by {
+    jnb _knock_rpm_cutoff_active,%1
+    ljmp _continue_after_fuel_learning
+    %1:
+    jb _learning_sweep_active,_update_one_fuel_learning_cell
+    ljmp _continue_after_fuel_learning
+}
+
+// Take the maximum of the absolute row and column distances.
+replace {
+    mov dptr,#_learning_cell_index
+    movx a,@dptr
+    mov _stock_r0,a
+    mov a,_stock_r0
+    anl a,#0x0f
+    mov _B,a
+    mov dptr,#_learning_center_index
+    movx a,@dptr
+    mov _stock_r1,a
+    mov r7,_stock_r1
+    anl ar7,#0x0f
+    mov r6,_B
+    mov a,r7
+    clr c
+    subb a,r6
+    mov _ACC,a
+    lcall _abs_accumulator_i8
+    mov _B,_ACC
+    mov a,_stock_r0
+    swap a
+    anl a,#0x0f
+    mov _stock_r0,a
+    mov a,_stock_r1
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    mov a,r7
+    clr c
+    subb a,_stock_r0
+    mov _ACC,a
+    lcall _abs_accumulator_i8
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,_B
+    %2:
+    mov dptr,#_fuel_learning_gradient
+    clr a
+    movc a,@a+dptr
+    mov b,a
+    mov a,_ACC
+    mul ab
+    mov _B,a
+} by {
+    mov dptr,#_learning_cell_index
+    movx a,@dptr
+    mov r0,a
+    anl a,#0x0f
+    mov _B,a
+    mov dptr,#_learning_center_index
+    movx a,@dptr
+    mov r1,a
+    anl a,#0x0f
+    clr c
+    subb a,_B
+    lcall _abs_accumulator_i8
+    mov _B,a
+    mov a,r0
+    anl a,#0xf0
+    swap a
+    mov r0,a
+    mov a,r1
+    anl a,#0xf0
+    swap a
+    clr c
+    subb a,r0
+    lcall _abs_accumulator_i8
+    clr c
+    subb a,_B
+    jnc %2
+    clr a
+    %2:
+    add a,_B
+    mov _B,a
+    mov dptr,#_fuel_learning_gradient
+    clr a
+    movc a,@a+dptr
+    mul ab
+    mov _B,a
+}
+
+// Form the saturated lower and upper bounds around the center.
+replace {
+    mov dptr,#_learning_center_correction
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov _stock_r0,r7
+    mov dptr,#_learning_center_correction
+    movx a,@dptr
+    add a, _B
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %4
+    ljmp %5
+    %4:
+    ljmp %6
+    %5:
+    mov r7,#0xff
+    %6:
+    mov _stock_r1,r7
+} by {
+    mov dptr,#_learning_center_correction
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc %3
+    mov a,#0x00
+    %3:
+    mov r0,a
+    mov dptr,#_learning_center_correction
+    movx a,@dptr
+    add a,_B
+    jnc %6
+    mov a,#0xff
+    %6:
+    mov r1,a
+}
+
+// Use the selected table page and retain DPTR through both clamps.
+replace {
+    mov dptr,#_learning_cell_index
+    movx a,@dptr
+    mov _ACC,a
+    mov r6,#_learned_correction_pages
+    mov r7,#(_learned_correction_pages >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _DPL,_ACC
+    jb _learning_purge_table_selected,%1
+    ljmp %2
+    %1:
+    inc _DPH
+    %2:
+    mov r6,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r7,((_STOCK_DPTR >> 8) & 0xFF)
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    mov _ACC,a
+    mov _stock_r2,_ACC
+    push ar7
+    push ar6
+    lcall _clamp_stock_u8
+    pop ar6
+    pop ar7
+    mov _stock_r0,#0x40
+    mov _stock_r1,#0xc0
+    push ar7
+    push ar6
+    lcall _clamp_stock_u8
+    pop ar6
+    pop ar7
+    mov dpl,r6
+    mov dph,r7
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,_ACC
+} by {
+    mov dptr,#_learning_cell_index
+    movx a,@dptr
+    mov dptr,#_learned_correction_pages
+    mov _DPL,a
+    jnb _learning_purge_table_selected,%2
+    inc _DPH
+    %2:
+    movx a,@dptr
+    mov r2,a
+    lcall _clamp_stock_u8
+    mov r0,#0x40
+    mov r1,#0xc0
+    lcall _clamp_stock_u8
+    movx @dptr,a
+    mov _B,a
+}
+
+// Compensate the active integrator for a moved cell and advance the sweep.
+replace {
+    mov a,_operating_point_index
+    cjne a,_DPL,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov a,_stock_r2
+    clr c
+    subb a,_B
+    add a, _oxygen_control_adjustment
+    mov _oxygen_control_adjustment,a
+    %3:
+    mov dptr,#_learning_cell_index
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    jz %4
+    ljmp %5
+    %4:
+    clr _learning_sweep_active
+    %5:
+    lcall _continue_after_fuel_learning
+    %6:
+    ret
+} by {
+    mov a,_DPL
+    cjne a,_operating_point_index,%3
+    mov a,r2
+    clr c
+    subb a,_B
+    add a,_oxygen_control_adjustment
+    mov _oxygen_control_adjustment,a
+    %3:
+    mov dptr,#_learning_cell_index
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    jnz %5
+    clr _learning_sweep_active
+    %5:
+}

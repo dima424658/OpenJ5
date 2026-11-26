@@ -1,0 +1,6 @@
+#include <stdint.h>
+
+/* Fine compare-timer codes indexed by the half-degree position within a slot. */
+__code const uint8_t ignition_subslot_ticks_raw[12] = {
+    0x80, 0x8b, 0x95, 0xa0, 0xab, 0xb5, 0xc0, 0xcb, 0xd5, 0xe0, 0xeb, 0xf5,
+};

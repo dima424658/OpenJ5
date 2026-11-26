@@ -1,0 +1,316 @@
+// Preserve both fixed error replies and the ordinary positive response.
+replace {
+    mov a,#0x12
+    cjne a,_stock_r2,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov r6,#_output_invalid_reply
+    mov r7,#(_output_invalid_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %4
+    %3:
+    mov a,#0x31
+    cjne a,_stock_r2,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    mov r6,#_output_range_reply
+    mov r7,#(_output_range_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %4
+    %7:
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x84
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0x70
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r3
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0006)
+    mov a,_stock_r2
+    movx @dptr,a
+    mov _serial_tx_count,#0x07
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %4:
+    ret
+} by {
+    mov a,r2
+    xrl a,#0x12
+    jnz 00970$
+    mov r3,#(_output_invalid_reply >> 8)
+    mov r4,#_output_invalid_reply
+    lcall _append_code_string_to_serial
+    sjmp 00971$
+    00970$:
+    mov a,r2
+    xrl a,#0x31
+    jnz 00972$
+    mov r3,#(_output_range_reply >> 8)
+    mov r4,#_output_range_reply
+    lcall _append_code_string_to_serial
+    sjmp 00971$
+    00972$:
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x84
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0x70
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov a,r3
+    movx @dptr,a
+    inc dptr
+    mov a,r2
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x07
+    pop _DPSEL
+    lcall _append_serial_checksum
+    00971$:
+    ret
+}
+
+// Preserve the extended IAC and RPM response and restore the selected cursor.
+replace {
+    mov a,#0x12
+    cjne a,_stock_r2,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov r6,#_output_invalid_reply
+    mov r7,#(_output_invalid_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %4
+    %3:
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x87
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0x70
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r3
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0006)
+    mov a,_iac_target
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0007)
+    mov a,_iac_position
+    movx @dptr,a
+    mov a,#0xff
+    cjne a,_rpm_half,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    mov r6,_rpm_eighth
+    ljmp %8
+    %7:
+    mov r6,_rpm_half
+    %8:
+    mov dptr,#(_serial_tx_buffer + 0x0008)
+    mov a,r6
+    movx @dptr,a
+    mov _DPSEL,r7
+    mov dptr,#_idle_rpm_target
+    movx a,@dptr
+    mov r6,a
+    mov _DPSEL,#0x07
+    mov dptr,#(_serial_tx_buffer + 0x0009)
+    mov a,r6
+    movx @dptr,a
+    mov _DPSEL,r7
+    mov _serial_tx_count,#0x0a
+    lcall _append_serial_checksum
+    %4:
+    ret
+} by {
+    mov a,r2
+    xrl a,#0x12
+    jnz 00970$
+    mov r3,#(_output_invalid_reply >> 8)
+    mov r4,#_output_invalid_reply
+    lcall _append_code_string_to_serial
+    sjmp 00971$
+    00970$:
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x87
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0x70
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov a,r3
+    movx @dptr,a
+    inc dptr
+    mov a,_iac_target
+    movx @dptr,a
+    inc dptr
+    mov a,_iac_position
+    movx @dptr,a
+    inc dptr
+    mov a,_rpm_half
+    cjne a,#0xff,00972$
+    mov a,_rpm_eighth
+    00972$:
+    movx @dptr,a
+    inc dptr
+    pop _DPSEL
+    mov dptr,#_idle_rpm_target
+    movx a,@dptr
+    push _DPSEL
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    pop _DPSEL
+    mov _serial_tx_count,#0x0a
+    lcall _append_serial_checksum
+    00971$:
+    ret
+}
+
+// Preserve the response that returns a result from R1.
+replace {
+    mov a,#0x12
+    cjne a,_stock_r2,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov r6,#_output_invalid_reply
+    mov r7,#(_output_invalid_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %4
+    %3:
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x84
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0x70
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov a,_stock_r3
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0006)
+    mov a,_stock_r1
+    movx @dptr,a
+    mov _serial_tx_count,#0x07
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    %4:
+    ret
+} by {
+    mov a,r2
+    xrl a,#0x12
+    jnz 00973$
+    mov r3,#(_output_invalid_reply >> 8)
+    mov r4,#_output_invalid_reply
+    lcall _append_code_string_to_serial
+    sjmp 00974$
+    00973$:
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x84
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0x70
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov a,r3
+    movx @dptr,a
+    inc dptr
+    mov a,r1
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x07
+    pop _DPSEL
+    lcall _append_serial_checksum
+    00974$:
+    ret
+}

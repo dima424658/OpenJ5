@@ -1,0 +1,239 @@
+// Multiply the old cylinder score by the complementary weight and retain the fixed bank-one write.
+replace {
+    mov a,_knock_mask_index
+    mov b,#0x02
+    mul ab
+    add a, #_filtered_misfire_scores
+    mov dpl,a
+    mov a,#(_filtered_misfire_scores >> 8)
+    addc a, b
+    mov dph,a
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_score_idle_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_score_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    %3:
+    clr c
+    clr a
+    subb a,r7
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov _bank_one_r23,_stock_r01
+    mov (_bank_one_r23 + 1),(_stock_r01 + 1)
+} by {
+    mov dptr,#_filtered_misfire_scores
+    mov a,_knock_mask_index
+    rl a
+    anl a,#0xfe
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_misfire_score_weight
+    jnb _idle_mode,00940$
+    mov dptr,#_misfire_score_idle_weight
+    00940$:
+    clr a
+    movc a,@a+dptr
+    cpl a
+    inc a
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov (_bank_one_r23 + 1),r1
+    mov _bank_one_r23,r0
+}
+
+// Weight the new score and add the two truncated terms in the stock register pairs.
+replace {
+    mov dptr,#_misfire_score
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    jb _idle_mode,%1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_score_idle_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    ljmp %3
+    %2:
+    mov dptr,#_misfire_score_weight
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    %3:
+    mov _B,r7
+    lcall _multiply_stock_u16_u8
+    lcall _add_u16_register_pairs
+    mov a,_knock_mask_index
+    mov b,#0x02
+    mul ab
+    add a, #_filtered_misfire_scores
+    mov dpl,a
+    mov a,#(_filtered_misfire_scores >> 8)
+    addc a, b
+    mov dph,a
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+} by {
+    mov dptr,#_misfire_score
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_misfire_score_weight
+    jnb _idle_mode,00941$
+    mov dptr,#_misfire_score_idle_weight
+    00941$:
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _add_u16_register_pairs
+    mov dptr,#_filtered_misfire_scores
+    mov a,_knock_mask_index
+    rl a
+    anl a,#0xfe
+    add a,dpl
+    mov dpl,a
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Publish threshold crossing in the shared bit and in the current cylinder bit.
+replace {
+    mov dptr,#_misfire_filtered_threshold
+    movx a,@dptr
+    mov _B,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    clr _CY
+    ljmp %3
+    %2:
+    setb _CY
+    %3:
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_CY
+    mov _ACC_SCORE_CROSSED,c
+    mov a,_ACC
+    movx @dptr,a
+    jb _CY,%4
+    ljmp %5
+    %4:
+    mov r7,_knock_mask_index
+    mov a,#0x08
+    add a, r7
+    mov r7,a
+    mov a,r7
+    rlc a
+    subb a,acc
+    mov r6,a
+    mov a,r7
+    add a, #_knock_event_masks
+    mov dpl,a
+    mov a,r6
+    addc a, #(_knock_event_masks >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    orl a,_B
+    movx @dptr,a
+    ljmp %6
+    %5:
+    mov r7,_knock_mask_index
+    mov a,#0x08
+    add a, r7
+    mov r7,a
+    mov a,r7
+    rlc a
+    subb a,acc
+    mov r6,a
+    mov a,r7
+    add a, #_knock_event_masks
+    mov dpl,a
+    mov a,r6
+    addc a, #(_knock_event_masks >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,#0xff
+    xrl a,r7
+    mov _B,a
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    anl a,_B
+    movx @dptr,a
+    %6:
+    lcall _update_misfire_period_terms
+    %7:
+    ret
+} by {
+    mov dptr,#_misfire_filtered_threshold
+    movx a,@dptr
+    mov _B,a
+    mov a,r1
+    cjne a,_B,00942$
+    00942$:
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    cpl c
+    mov _ACC_SCORE_CROSSED,c
+    movx @dptr,a
+    jnc 00943$
+    mov dptr,#(_knock_event_masks + 8)
+    mov a,_knock_mask_index
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    orl a,_B
+    sjmp 00944$
+    00943$:
+    mov dptr,#(_knock_event_masks + 8)
+    mov a,_knock_mask_index
+    movc a,@a+dptr
+    cpl a
+    mov _B,a
+    mov dptr,#_misfire_filtered_flags
+    movx a,@dptr
+    anl a,_B
+    00944$:
+    movx @dptr,a
+}

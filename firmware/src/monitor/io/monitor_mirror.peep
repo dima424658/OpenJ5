@@ -1,0 +1,107 @@
+// Preserve the rejection flags and jump to the monitor entry.
+replace {
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    lcall _resume_service_monitor
+    %1:
+    ret
+} by {
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    ljmp _resume_service_monitor
+}
+
+// Keep the input polling loops and their stock carry transitions.
+replace {
+    mov r7,_monitor_request_kind
+    cjne r7,#0x08,%1
+    ljmp %2
+    %1:
+    cjne r7,#0x09,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x0d,%5
+    ljmp %6
+    %5:
+    cjne r7,#0x2f,%7
+    ljmp %8
+    %7:
+    ljmp %9
+    %2:
+    mov c,_port1_bit2
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %2
+    %4:
+    mov c,_port3_bit5
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %6:
+    mov r7,_P6
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%10
+    %10:
+    mov _mirror_monitor_input_sloc0_1_0,c
+    mov c,_mirror_monitor_input_sloc0_1_0
+    cpl c
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %6
+    %8:
+    mov r7,_sfr_b2
+    anl ar7,#0x02
+    mov a,r7
+    cjne a,#0x01,%11
+    %11:
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    ljmp %8
+    %9:
+    lcall _reject_monitor_request
+    %12:
+    ret
+} by {
+    mov a,_monitor_request_kind
+    cjne a,#0x08,00970$
+    00971$:
+    mov c,_port1_bit2
+    cpl c
+    cpl c
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00971$
+    00970$:
+    cjne a,#0x09,00972$
+    00973$:
+    mov c,_port3_bit5
+    cpl c
+    cpl c
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00973$
+    00972$:
+    cjne a,#0x0d,00974$
+    00975$:
+    mov a,_P6
+    mov c,acc.1
+    cpl c
+    cpl c
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00975$
+    00974$:
+    cjne a,#0x2f,00976$
+    00977$:
+    mov a,_sfr_b2
+    mov c,acc.1
+    cpl c
+    mov _monitor_output_ed,c
+    lcall _poll_monitor_exit_and_io
+    sjmp 00977$
+    00976$:
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    ljmp _resume_service_monitor
+}

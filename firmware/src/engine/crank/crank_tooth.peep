@@ -1,0 +1,227 @@
+// Keep tooth indexing and compare scheduling in the capture register bank.
+replace {
+    mov r6,_crank_capture_low
+    mov r7,#0x00
+    mov r4,_crank_capture_high
+    mov r5,#0x00
+    mov ar5,r4
+    mov r4,#0x00
+    mov a,r4
+    orl a,r6
+    mov _last_crank_capture,a
+    mov a,r5
+    orl a,r7
+    mov (_last_crank_capture + 1),a
+    mov c,_current_tooth_short
+    mov _previous_tooth_short,c
+    clr _current_tooth_short
+    mov a,#0x38
+    cjne a,_crank_tooth,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _previous_tooth_period,_measured_tooth_period
+    mov (_previous_tooth_period + 1),(_measured_tooth_period + 1)
+    setb _crank_gap_compare_active
+    mov a,_capture_compare_control
+    anl a,#0x3f
+    orl a,#0x80
+    mov _capture_compare_control,a
+    setb _crank_output_latch
+    mov a,_previous_tooth_period
+    add a, _last_crank_capture
+    mov r6,a
+    mov a,(_previous_tooth_period + 1)
+    addc a, (_last_crank_capture + 1)
+    mov r7,a
+    mov _crank_capture_low,r6
+    mov _crank_capture_high,r7
+    clr _capture_compare_pending
+    inc _crank_tooth
+    mov _half_turn_tooth,#0x1b
+    ljmp %4
+    %3:
+    clr c
+    mov a,_crank_tooth
+    subb a,#0x38
+    jc %5
+    ljmp %6
+    %5:
+    mov _previous_tooth_period,_measured_tooth_period
+    mov (_previous_tooth_period + 1),(_measured_tooth_period + 1)
+    inc _crank_tooth
+    mov a,#0x1e
+    cjne a,_crank_tooth,%7
+    sjmp %8
+    %7:
+    ljmp %9
+    %8:
+    mov _half_turn_tooth,#0x00
+    mov r7,_engine_sector
+    inc r7
+    mov a,#0x03
+    anl a,r7
+    mov _engine_sector,a
+    ljmp %4
+    %9:
+    clr c
+    mov a,_crank_tooth
+    subb a,#0x1e
+    jc %10
+    ljmp %11
+    %10:
+    mov r7,_crank_tooth
+    ljmp %12
+    %11:
+    mov r6,_crank_tooth
+    mov a,r6
+    add a,#0xe2
+    mov r7,a
+    %12:
+    mov _half_turn_tooth,r7
+    ljmp %4
+    %6:
+    mov a,#0x3b
+    cjne a,_crank_tooth,%13
+    sjmp %14
+    %13:
+    ljmp %15
+    %14:
+    lcall _reset_crank_tooth_and_phase
+    ljmp %16
+    %15:
+    lcall _mark_crank_sync_lost
+    %16:
+    ljmp %17
+    %4:
+    lcall _dispatch_crank_tooth_event
+    %17:
+    ret
+} by {
+    mov r2,_crank_capture_low
+    mov r3,_crank_capture_high
+    mov c,_current_tooth_short
+    mov _previous_tooth_short,c
+    clr _current_tooth_short
+    cjne r6,#0x38,00970$
+    mov r4,_measured_tooth_period
+    mov r5,(_measured_tooth_period + 1)
+    setb _crank_gap_compare_active
+    anl _capture_compare_control,#0x3f
+    orl _capture_compare_control,#0x80
+    setb _crank_output_latch
+    mov a,r2
+    add a,r4
+    mov _crank_capture_low,a
+    mov a,r3
+    addc a,r5
+    mov _crank_capture_high,a
+    clr _capture_compare_pending
+    inc r6
+    mov r7,#0x1b
+    ljmp _dispatch_crank_tooth_event
+    00970$:
+    jnc 00971$
+    mov r4,_measured_tooth_period
+    mov r5,(_measured_tooth_period + 1)
+    inc r6
+    cjne r6,#0x1e,00972$
+    mov r7,#0x00
+    inc _engine_sector
+    anl _engine_sector,#0x03
+    sjmp _dispatch_crank_tooth_event
+    00972$:
+    mov a,r6
+    jc 00973$
+    subb a,#0x1e
+    00973$:
+    mov r7,a
+    sjmp _dispatch_crank_tooth_event
+    00971$:
+    cjne r6,#0x3b,_mark_crank_sync_lost
+}
+
+// Publish the cam phase and preserve the flags across the tooth-event tail.
+replace {
+    mov _crank_tooth,#0x00
+    mov _half_turn_tooth,#0x00
+    jnb _cam_sensor_configured,%1
+    ljmp %2
+    %1:
+    clr _crank_cam_phase_fault
+    mov r7,_engine_sector
+    inc r7
+    mov a,#0x02
+    anl a,r7
+    mov _engine_sector,a
+    ljmp %3
+    %2:
+    mov c,_cam_level
+    jb _previous_cam_level,%4
+    cpl c
+    %4:
+    jc %5
+    ljmp %6
+    %5:
+    setb _crank_cam_phase_fault
+    mov r7,_engine_sector
+    inc r7
+    mov a,#0x02
+    anl a,r7
+    mov _engine_sector,a
+    ljmp %3
+    %6:
+    clr _crank_cam_phase_fault
+    cpl _previous_cam_level
+    jb _previous_cam_level,%7
+    ljmp %8
+    %7:
+    mov r7,#0x02
+    ljmp %9
+    %8:
+    mov r7,#0x00
+    %9:
+    mov _engine_sector,r7
+    %3:
+    mov a,_engine_sector
+    jz %10
+    ljmp %11
+    %10:
+    setb _full_cycle_event
+    %11:
+    lcall _dispatch_crank_tooth_event
+    %12:
+    ret
+} by {
+    mov r6,#0x00
+    mov r7,#0x00
+    jb _cam_sensor_configured,00974$
+    clr _crank_cam_phase_fault
+    mov a,_engine_sector
+    inc a
+    sjmp 00975$
+    00974$:
+    mov a,0x90
+    mov c,acc.2
+    jc 00976$
+    jnb _previous_cam_level,00977$
+    sjmp 00978$
+    00976$:
+    jnb _previous_cam_level,00978$
+    00977$:
+    setb _crank_cam_phase_fault
+    mov a,_engine_sector
+    inc a
+    sjmp 00975$
+    00978$:
+    clr _crank_cam_phase_fault
+    cpl _previous_cam_level
+    rlc a
+    rl a
+    00975$:
+    anl a,#0x02
+    mov _engine_sector,a
+    jnz _dispatch_crank_tooth_event
+    setb _full_cycle_event
+}

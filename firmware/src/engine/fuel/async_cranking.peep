@@ -1,0 +1,478 @@
+// Clear the saved start pulse before skipping its compare-register write.
+replace {
+    mov dptr,#_start_exit_pending
+    mov a,#0x00
+    movx @dptr,a
+    lcall _skip_async_cranking
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#_start_exit_pending
+    movx @dptr,a
+}
+
+// Skip the compare-register write on an already armed pulse.
+replace {
+    _skip_async_cranking:
+    lcall _finish_async_cranking
+    %1:
+    ret
+} by {
+    _skip_async_cranking:
+    ljmp _finish_async_cranking
+}
+
+// Keep the fixed-point pulse arithmetic and MDU transaction in the stock registers.
+replace {
+    mov a,_output_override_flags
+    mov c,acc.3
+    clr a
+    rlc a
+    mov r7,a
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    jnb _service_pump_output,%3
+    ljmp %2
+    %3:
+    clr _begin_asynchronous_cranking_sloc0_1_0
+    ljmp %4
+    %2:
+    setb _begin_asynchronous_cranking_sloc0_1_0
+    %4:
+    mov c,_begin_asynchronous_cranking_sloc0_1_0
+    clr a
+    rlc a
+    mov r7,a
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    anl a,#0xbf
+    mov r6,a
+    mov a,r7
+    jnz %5
+    ljmp %6
+    %5:
+    mov r7,#0x40
+    ljmp %7
+    %6:
+    mov r7,#0x00
+    %7:
+    mov dptr,#_relay_output_latch
+    mov a,r7
+    orl a,r6
+    movx @dptr,a
+    mov dptr,#_start_exit_pending
+    movx a,@dptr
+    jnz %8
+    ljmp %9
+    %8:
+    lcall _skip_async_cranking
+    ljmp %10
+    %9:
+    jnb _ignition_supply_low,%11
+    ljmp %12
+    %11:
+    jb _async_cranking_fuel_done,%13
+    ljmp %14
+    %13:
+    %12:
+    lcall _cancel_async_cranking
+    ljmp %10
+    %14:
+    mov a,_throttle_position
+    add a, #_throttle_quantization_q4
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_throttle_quantization_q4 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,#0x08
+    add a, r7
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    mov a,r7
+    add a, #_cranking_throttle_correction
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cranking_throttle_correction >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_nearest_index
+    add a, #_cranking_async_fuel_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cranking_async_fuel_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _ACC,r5
+    mov dptr,#_start_exit_pending
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_ACC
+    jz %15
+    ljmp %16
+    %15:
+    lcall _cancel_async_cranking
+    ljmp %10
+    %16:
+    mov _stock_r1,_ACC
+    mov _stock_r0,#0x00
+    mov _stock_r3,_ACC
+    mov _stock_r2,#0x00
+    mov a,#0x80
+    xrl a,_fuel_correction
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov a,_fuel_correction
+    jb acc.7,%17
+    ljmp %18
+    %17:
+    lcall _add_u16_register_pairs
+    jb _CY,%19
+    ljmp %18
+    %19:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %18:
+    mov dptr,#_injector_static_factor
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov _stock_r23,_injector_voltage_offset
+    mov (_stock_r23 + 1),#0x00
+    lcall _add_u16_register_pairs
+    mov _B,#0x10
+    lcall _multiply_stock_u16_u8
+    %20:
+    clr _mdu_interrupted
+    mov _mdu_0,_B
+    mov _mdu_1,_stock_r0
+    mov _mdu_2,_stock_r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,#0x0c
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r2,_mdu_0
+    mov _stock_r3,_mdu_1
+    mov _ACC,_mdu_2
+    mov _ACC,_mdu_3
+    mov _ACC,_mdu_4
+    mov _ACC,_mdu_5
+    jnb _mdu_interrupted,%21
+    ljmp %20
+    %21:
+    anl _sfr_f6,#0xf0
+    clr _EA
+    mov a,_output_mask_7c
+    anl a,#0x0f
+    mov _ACC,a
+    mov a,_ACC
+    jz %22
+    ljmp %23
+    %22:
+    anl _P4,#0xf0
+    %23:
+    mov _compare_base_low,_ACC
+    setb _EA
+    mov r6,_compare_base_low
+    mov r7,#0x00
+    mov r4,_compare_base_high
+    mov r5,#0x00
+    mov ar5,r4
+    mov r4,#0x00
+    mov a,r4
+    orl ar6,a
+    mov a,r5
+    orl ar7,a
+    mov a,r6
+    add a, _stock_r23
+    mov _stock_r23,a
+    mov a,r7
+    addc a, (_stock_r23 + 1)
+    mov (_stock_r23 + 1),a
+    mov _injector_compare_1_high,_stock_r3
+    mov _injector_compare_2_high,_stock_r3
+    mov _injector_compare_3_high,_stock_r3
+    mov _injector_compare_4_high,_stock_r3
+    mov _injector_compare_1_low,_stock_r2
+    mov _injector_compare_2_low,_stock_r2
+    mov _injector_compare_3_low,_stock_r2
+    mov _injector_compare_4_low,_stock_r2
+    orl _sfr_f6,#0x0f
+    orl _P4,#0x0f
+    lcall _finish_async_cranking
+    %10:
+    ret
+} by {
+    mov a,_output_override_flags
+    anl a,#0x08
+    setb c
+    jz 00970$
+    mov c,_service_pump_output
+    00970$:
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov acc.6,c
+    movx @dptr,a
+    mov dptr,#_start_exit_pending
+    movx a,@dptr
+    jnz _skip_async_cranking
+    jb _ignition_supply_low,_cancel_async_cranking
+    jb _async_cranking_fuel_done,_cancel_async_cranking
+    mov dptr,#_throttle_quantization_q4
+    mov a,_throttle_position
+    movc a,@a+dptr
+    add a,#0x08
+    anl a,#0xf0
+    swap a
+    mov dptr,#_cranking_throttle_correction
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_cranking_async_fuel_raw
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mul ab
+    mov a,_B
+    mov dptr,#_start_exit_pending
+    movx @dptr,a
+    jz _cancel_async_cranking
+    mov r1,a
+    mov r0,#0x00
+    mov r3,a
+    mov r2,#0x00
+    mov _B,_fuel_correction
+    cpl b.7
+    lcall _multiply_stock_u16_u8
+    mov a,_fuel_correction
+    jnb acc.7,00971$
+    lcall _add_u16_register_pairs
+    jnc 00971$
+    mov r0,#0xff
+    mov r1,#0xff
+    00971$:
+    mov dptr,#_injector_static_factor
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov r2,_injector_voltage_offset
+    mov r3,#0x00
+    lcall _add_u16_register_pairs
+    mov _B,#0x10
+    lcall _multiply_stock_u16_u8
+    00972$:
+    clr _mdu_interrupted
+    mov _mdu_0,_B
+    mov _mdu_1,r0
+    mov _mdu_2,r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,#0x0c
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r2,_mdu_0
+    mov r3,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jb _mdu_interrupted,00972$
+    anl _sfr_f6,#0xf0
+    clr _EA
+    mov a,_output_mask_7c
+    anl a,#0x0f
+    jnz 00973$
+    anl _P4,#0xf0
+    00973$:
+    mov _compare_base_low,a
+    setb _EA
+    mov a,_compare_base_low
+    add a,r2
+    mov r2,a
+    mov a,_compare_base_high
+    addc a,r3
+    mov _injector_compare_1_high,a
+    mov _injector_compare_2_high,a
+    mov _injector_compare_3_high,a
+    mov _injector_compare_4_high,a
+    mov _injector_compare_1_low,r2
+    mov _injector_compare_2_low,r2
+    mov _injector_compare_3_low,r2
+    mov _injector_compare_4_low,r2
+    orl _sfr_f6,#0x0f
+    orl _P4,#0x0f
+}
+
+// Reset the cranking cycle counters before checking the exit condition.
+replace {
+    jnb _async_fuel_on_repeat_start,%1
+    ljmp %2
+    %1:
+    setb _async_cranking_fuel_done
+    %2:
+    mov dptr,#_cranking_cycle_index
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_time_since_start_f873
+    movx @dptr,a
+    lcall _advance_cranking_exit
+    %3:
+    ret
+} by {
+    jb _async_fuel_on_repeat_start,00974$
+    setb _async_cranking_fuel_done
+    00974$:
+    clr a
+    mov dptr,#_cranking_cycle_index
+    movx @dptr,a
+    clr a
+    mov dptr,#_time_since_start_f873
+    movx @dptr,a
+}
+
+// Use the two cranking exit thresholds and keep the firmware flag transitions.
+replace {
+    mov dptr,#_time_since_start_f873
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_time_since_start_f873
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    mov dptr,#_time_since_start_f873
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_cranking_sync_delay
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    clr c
+    mov a,r7
+    subb a,r6
+    jnc %3
+    ljmp %4
+    %3:
+    setb _event_flag_31
+    %4:
+    jb _startup_flag_53,%5
+    ljmp %6
+    %5:
+    mov a,_coolant_nearest_index
+    add a, #_startup_exit_rpm_by_coolant
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_startup_exit_rpm_by_coolant >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_engine_rpm_10
+    subb a,_B
+    jc %7
+    ljmp %8
+    %7:
+    mov dptr,#_startup_exit_rpm_low
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,_engine_rpm_10
+    subb a,r7
+    mov _startup_flag_51,c
+    jnb _startup_flag_51,%9
+    ljmp %10
+    %9:
+    mov dptr,#_start_exit_pending
+    mov a,#0x00
+    movx @dptr,a
+    %10:
+    lcall _apply_cranking_outputs
+    ljmp %11
+    %8:
+    clr _startup_flag_53
+    clr _startup_flag_51
+    %6:
+    lcall _select_knock_regulation_zone
+    %11:
+    ret
+} by {
+    mov dptr,#_time_since_start_f873
+    movx a,@dptr
+    inc a
+    jz 00975$
+    movx @dptr,a
+    00975$:
+    mov dptr,#_cranking_sync_delay
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_time_since_start_f873
+    movx a,@dptr
+    cjne a,_B,00976$
+    00976$:
+    jc 00977$
+    setb _event_flag_31
+    00977$:
+    jnb _startup_flag_53,00978$
+    mov dptr,#_startup_exit_rpm_by_coolant
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    jnc 00979$
+    mov dptr,#_startup_exit_rpm_low
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_engine_rpm_10
+    clr c
+    subb a,_B
+    mov _startup_flag_51,c
+    jc _apply_cranking_outputs
+    clr a
+    mov dptr,#_start_exit_pending
+    movx @dptr,a
+    sjmp _apply_cranking_outputs
+    00979$:
+    clr _startup_flag_53
+    clr _startup_flag_51
+    00978$:
+    ljmp _select_knock_regulation_zone
+}

@@ -1,0 +1,90 @@
+replace {
+    mov r6,#%1
+    mov r7,#(%1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#%1
+}
+
+replace {
+    mov _stock_r0,#%1
+} by {
+    mov r0,#%1
+}
+
+replace {
+    mov _stock_r2,#%1
+} by {
+    mov r2,#%1
+}
+
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+} by {
+    movx a,@dptr
+}
+
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+} by {
+    clr a
+    movc a,@a+dptr
+}
+
+replace {
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+} by {
+    mov @r0,a
+}
+
+// The CODE and XDATA copies share the same scratch-pointer loop.
+replace {
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    inc r0
+    inc dptr
+    djnz r2,%2
+}
+
+replace {
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov %1,r7
+    inc _stock_r0
+} by {
+    mov %1,@r0
+    inc r0
+}
+
+// This cursor is stored in direct address 02 for the mixing loop.
+replace {
+    mov _ACC,_stock_r0
+    mov _stock_r2,_ACC
+    mov _stock_r1,#0x25
+} by {
+    mov a,r0
+    mov _stock_r2,a
+    mov r1,#0x25
+}

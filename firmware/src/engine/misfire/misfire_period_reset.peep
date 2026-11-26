@@ -1,0 +1,316 @@
+// Apply the two magnitude thresholds and branch to the history reset on exit.
+replace {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _ACC,a
+    mov _B,_ACC
+    jnb _ACC_BIT0,%1
+    ljmp %2
+    %1:
+    mov dptr,#(_period_state_calibration + 0x0006)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_period_state_calibration + 0x0007)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    lcall _subtract_u16_register_pairs
+    mov _ACC,_B
+    mov c,_CY
+    mov _ACC_BIT0,c
+    mov dptr,#_misfire_status
+    mov a,_ACC
+    movx @dptr,a
+    lcall _skip_misfire_period_update
+    ljmp %3
+    %2:
+    mov dptr,#(_period_state_calibration + 0x0004)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_period_state_calibration + 0x0005)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%4
+    ljmp %5
+    %4:
+    lcall _skip_misfire_period_update
+    ljmp %3
+    %5:
+    lcall _reset_misfire_period_history
+    %3:
+    ret
+} by {
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    mov _B,a
+    jb _ACC_BIT0,00950$
+    mov dptr,#(_period_state_calibration + 6)
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_period_state_calibration + 7)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    mov a,_B
+    mov _ACC_BIT0,c
+    mov dptr,#_misfire_status
+    movx @dptr,a
+    ljmp _skip_misfire_period_update
+    00950$:
+    mov dptr,#(_period_state_calibration + 4)
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_period_state_calibration + 5)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jnc _reset_misfire_period_history
+    ljmp _skip_misfire_period_update
+}
+
+// Load the calibrated countdowns and initial deviation bytes in their original order.
+replace {
+    mov a,_B
+    mov dptr,#_misfire_status
+    anl a,#0xf0
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0008)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_period_bin_countdown
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0002)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0004)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0009)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#(_period_bin_countdown + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0003)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 0x0005)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_peak_period_low
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    mov dptr,#_primary_period_dev
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_primary_period_dev + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0002)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#_secondary_period_dev
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 0x0003)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov dptr,#(_secondary_period_dev + 0x0001)
+    mov a,r7
+    movx @dptr,a
+} by {
+    mov a,_B
+    anl a,#0xf0
+    mov dptr,#_misfire_status
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 8)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_period_bin_countdown
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 2)
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 4)
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 9)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#(_period_bin_countdown + 1)
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 3)
+    movx @dptr,a
+    mov dptr,#(_period_bin_countdown + 5)
+    movx @dptr,a
+    mov dptr,#_period_state_calibration
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_peak_period_low
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 1)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_primary_period_dev
+    movx @dptr,a
+    mov dptr,#(_primary_period_dev + 1)
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 2)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_secondary_period_dev
+    movx @dptr,a
+    mov dptr,#(_period_state_calibration + 3)
+    clr a
+    movc a,@a+dptr
+    mov dptr,#(_secondary_period_dev + 1)
+    movx @dptr,a
+}
+
+// Reset period scale, offset, ratio, and all six accumulator entries.
+replace {
+    mov dptr,#_period_offset
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#(_period_offset + 0x0001)
+    movx @dptr,a
+    mov dptr,#_period_scale
+    movx @dptr,a
+    mov dptr,#(_period_scale + 0x0001)
+    mov a,#0x80
+    movx @dptr,a
+    mov r7,#0x00
+    %1:
+    cjne r7,#0x0c,%2
+    %2:
+    jc %3
+    ljmp %4
+    %3:
+    mov a,r7
+    add a, #_period_history_low
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_period_history_low >> 8)
+    mov dph,a
+    mov a,#0x00
+    movx @dptr,a
+    inc r7
+    ljmp %1
+    %4:
+    mov r7,#0x00
+    %5:
+    cjne r7,#0x0c,%6
+    %6:
+    jc %7
+    ljmp %8
+    %7:
+    mov a,r7
+    add a, #_period_history_high
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_period_history_high >> 8)
+    mov dph,a
+    mov a,#0x00
+    movx @dptr,a
+    mov ar6,r7
+    mov a,#0x02
+    add a, r6
+    mov r7,a
+    ljmp %5
+    %8:
+    mov r7,#0x01
+    %9:
+    cjne r7,#0x0c,%10
+    %10:
+    jc %11
+    ljmp %12
+    %11:
+    mov a,r7
+    add a, #_period_history_high
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_period_history_high >> 8)
+    mov dph,a
+    mov a,#0x80
+    movx @dptr,a
+    mov ar6,r7
+    mov a,#0x02
+    add a, r6
+    mov r7,a
+    ljmp %9
+    %12:
+    mov dptr,#_selected_period_ratio
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#(_selected_period_ratio + 0x0001)
+    mov a,#0x80
+    movx @dptr,a
+    lcall _skip_misfire_period_update
+    %13:
+    ret
+} by {
+    clr a
+    mov dptr,#_period_offset
+    movx @dptr,a
+    mov dptr,#(_period_offset + 1)
+    movx @dptr,a
+    mov dptr,#_period_scale
+    movx @dptr,a
+    mov a,#0x80
+    mov dptr,#(_period_scale + 1)
+    movx @dptr,a
+    mov _B,#0x0c
+    mov dptr,#_period_history_low
+    clr a
+    00951$:
+    movx @dptr,a
+    inc dptr
+    djnz _B,00951$
+    mov _B,#0x06
+    mov dptr,#_period_history_high
+    clr a
+    00952$:
+    movx @dptr,a
+    inc dptr
+    inc dptr
+    djnz _B,00952$
+    mov _B,#0x06
+    mov dptr,#(_period_history_high + 1)
+    mov a,#0x80
+    00953$:
+    movx @dptr,a
+    inc dptr
+    inc dptr
+    djnz _B,00953$
+    clr a
+    mov dptr,#_selected_period_ratio
+    movx @dptr,a
+    mov a,#0x80
+    mov dptr,#(_selected_period_ratio + 1)
+    movx @dptr,a
+    ljmp _skip_misfire_period_update
+}

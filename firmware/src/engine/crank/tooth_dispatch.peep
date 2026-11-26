@@ -1,0 +1,358 @@
+// Latch the airflow samples and reschedule the angular event.
+replace {
+    setb _crank_event
+    mov r6,_previous_tooth_period
+    mov r7,(_previous_tooth_period + 1)
+    clr c
+    mov a,r7
+    subb a,#0x08
+    jnc %1
+    ljmp %2
+    %1:
+    clr _half_turn_capture_valid
+    clr _airflow_accumulator_valid
+    %2:
+    jb _defer_injection_slot,%3
+    ljmp %4
+    %3:
+    clr _defer_injection_slot
+    ljmp %5
+    %4:
+    mov a,_injection_slot
+    cjne a,_half_turn_tooth,%6
+    sjmp %7
+    %6:
+    ljmp %5
+    %7:
+    jb _airflow_accumulator_valid,%8
+    ljmp %9
+    %8:
+    mov _maf_sample_sum,_running_maf_sum
+    mov (_maf_sample_sum + 1),(_running_maf_sum + 1)
+    mov _maf_sample_count,_running_maf_count
+    mov a,#0x00
+    mov _running_maf_sum,a
+    mov (_running_maf_sum + 1),a
+    mov _running_maf_count,a
+    %9:
+    mov a,_engine_sector
+    clr c
+    subb a,_injection_sector
+    anl a,#0x03
+    mov _injection_relative_sector,a
+    setb _crank_airflow_pending
+    setb _crank_event_interrupt_pending
+    mov _injection_slot,_next_injection_slot
+    mov _injection_sector,_next_injection_sector
+    setb _defer_injection_slot
+    setb _airflow_accumulator_valid
+    %5:
+    lcall _publish_half_turn_period
+    %10:
+    ret
+} by {
+    setb _crank_event
+    mov a,r5
+    anl a,#0xf8
+    jz 00970$
+    clr _half_turn_capture_valid
+    clr _airflow_accumulator_valid
+    00970$:
+    mov a,r7
+    jbc _defer_injection_slot,_publish_half_turn_period
+    cjne a,_injection_slot,_publish_half_turn_period
+    jnb _airflow_accumulator_valid,00971$
+    mov _maf_sample_sum,_running_maf_sum
+    mov 0x35,0x31
+    mov _maf_sample_count,_running_maf_count
+    clr a
+    mov _running_maf_sum,a
+    mov 0x31,a
+    mov _running_maf_count,a
+    00971$:
+    mov a,_engine_sector
+    clr c
+    subb a,_injection_sector
+    anl a,#0x03
+    mov _injection_relative_sector,a
+    mov a,r7
+    setb _crank_airflow_pending
+    setb _crank_event_interrupt_pending
+    mov _injection_slot,_next_injection_slot
+    mov _injection_sector,_next_injection_sector
+    setb _defer_injection_slot
+    setb _airflow_accumulator_valid
+}
+
+// Write the half-turn period to the internal and external rings.
+replace {
+    mov a,_half_turn_tooth
+    jz %1
+    ljmp %2
+    %1:
+    jb _half_turn_capture_valid,%3
+    ljmp %4
+    %3:
+    mov r7,_sfr_dd
+    anl ar7,#0x01
+    mov a,r7
+    cjne a,#0x01,%5
+    %5:
+    mov _publish_half_turn_period_sloc0_1_0,c
+    mov c,_publish_half_turn_period_sloc0_1_0
+    cpl c
+    mov _period_borrow,c
+    mov a,_last_crank_capture
+    clr c
+    subb a,_last_half_turn_capture
+    mov r6,a
+    mov a,(_last_crank_capture + 1)
+    subb a,(_last_half_turn_capture + 1)
+    mov r7,a
+    mov c,_period_borrow
+    clr a
+    rlc a
+    mov r5,a
+    mov r4,#0x00
+    mov a,r6
+    clr c
+    subb a,r5
+    mov r6,a
+    mov a,r7
+    subb a,r4
+    mov r7,a
+    mov _crank_period,r6
+    mov (_crank_period + 1),r7
+    mov r0,#_period_ring_cursor
+    mov ar7,@r0
+    inc r7
+    inc r7
+    cjne r7,#0xbe,%6
+    %6:
+    jnc %7
+    ljmp %8
+    %7:
+    mov r7,#0xb0
+    %8:
+    mov r0,#_period_ring_cursor
+    mov @r0,ar7
+    mov ar1,r7
+    mov r6,_crank_period
+    mov @r1,ar6
+    inc r1
+    mov r6,(_crank_period + 1)
+    mov @r1,ar6
+    mov r6,_DPSEL
+    mov _DPSEL,#0x05
+    mov dptr,#_crank_period_index
+    mov a,r7
+    movx @dptr,a
+    mov a,r7
+    add a,#0x50
+    mov r7,a
+    mov a,r7
+    add a, #_crank_period_buffer
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_crank_period_buffer >> 8)
+    mov dph,a
+    mov r5,_crank_period
+    mov a,r5
+    movx @dptr,a
+    inc r7
+    mov a,r7
+    rlc a
+    subb a,acc
+    mov r5,a
+    mov a,r7
+    add a, #_crank_period_buffer
+    mov dpl,a
+    mov a,r5
+    addc a, #(_crank_period_buffer >> 8)
+    mov dph,a
+    mov r7,(_crank_period + 1)
+    mov a,r7
+    movx @dptr,a
+    mov _DPSEL,r6
+    %4:
+    mov _last_half_turn_capture,_last_crank_capture
+    mov (_last_half_turn_capture + 1),(_last_crank_capture + 1)
+    setb _half_turn_capture_valid
+    %2:
+    lcall _prepare_tooth_knock_event
+    %9:
+    ret
+} by {
+    cjne a,#0x00,_prepare_tooth_knock_event
+    jnb _half_turn_capture_valid,00972$
+    mov a,_sfr_dd
+    mov c,acc.0
+    mov _period_borrow,c
+    mov a,r2
+    subb a,_last_half_turn_capture
+    mov _crank_period,a
+    mov a,r3
+    subb a,0x37
+    mov 0x39,a
+    push 0x18
+    mov r0,#_period_ring_cursor
+    mov a,@r0
+    add a,#0x02
+    mov b,a
+    cjne a,#_period_ring_cursor,00973$
+    00973$:
+    jc 00974$
+    mov b,#0xb0
+    00974$:
+    mov @r0,b
+    mov r0,b
+    mov @r0,_crank_period
+    inc r0
+    mov @r0,0x39
+    mov a,b
+    push _DPSEL
+    mov _DPSEL,#0x05
+    mov dptr,#_crank_period_index
+    movx @dptr,a
+    clr c
+    subb a,#0xb0
+    mov dptr,#_crank_period_buffer
+    clr c
+    add a,dpl
+    mov dpl,a
+    mov a,dph
+    addc a,#0x00
+    mov dph,a
+    mov a,_crank_period
+    movx @dptr,a
+    mov a,0x39
+    inc dptr
+    movx @dptr,a
+    pop _DPSEL
+    pop 0x18
+    00972$:
+    mov a,r7
+    mov _last_half_turn_capture,r2
+    mov 0x37,r3
+    setb _half_turn_capture_valid
+}
+
+// Load the four compare bytes from the selected ignition sector.
+replace {
+    mov a,#0x08
+    cjne a,_half_turn_tooth,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _knock_mask_index,_engine_sector
+    setb _knock_sample_pending
+    setb _crank_event_interrupt_pending
+    mov a,#0x02
+    xrl a,_knock_mask_index
+    mov r7,a
+    mov a,r7
+    rl a
+    rl a
+    mov r7,a
+    mov a,#0x80
+    add a, r7
+    mov r7,a
+    mov ar1,r7
+    mov r6,_knock_mask_index
+    mov r7,#0x00
+    mov c,_ignition_coil_order
+    clr a
+    rlc a
+    mov r4,a
+    mov r5,#0x00
+    mov a,r4
+    add a, r6
+    mov r6,a
+    mov a,r5
+    addc a, r7
+    mov r7,a
+    mov a,r6
+    jb acc.0,%4
+    ljmp %5
+    %4:
+    mov r7,#_ignition_pair_b
+    ljmp %6
+    %5:
+    mov r7,#_ignition_pair_a
+    %6:
+    mov ar0,r7
+    mov ar7,@r1
+    mov @r0,ar7
+    mov a,r0
+    inc a
+    mov r7,a
+    mov a,r1
+    inc a
+    mov r6,a
+    push ar0
+    mov r0,ar6
+    mov ar6,@r0
+    pop ar0
+    push ar0
+    mov r0,ar7
+    mov @r0,ar6
+    pop ar0
+    mov a,#0x02
+    add a, r0
+    mov r7,a
+    mov a,#0x02
+    add a, r1
+    mov r6,a
+    push ar0
+    mov r0,ar6
+    mov ar6,@r0
+    pop ar0
+    push ar0
+    mov r0,ar7
+    mov @r0,ar6
+    pop ar0
+    inc r0
+    inc r0
+    inc r0
+    inc r1
+    inc r1
+    inc r1
+    mov ar7,@r1
+    mov @r0,ar7
+    %3:
+    lcall _update_crank_angular_outputs
+    %7:
+    ret
+} by {
+    cjne a,#0x08,_update_crank_angular_outputs
+    mov _knock_mask_index,_engine_sector
+    setb _knock_sample_pending
+    setb _crank_event_interrupt_pending
+    mov a,_knock_mask_index
+    cpl acc.1
+    rl a
+    rl a
+    add a,#0x80
+    mov r0,a
+    mov a,_knock_mask_index
+    mov c,_ignition_coil_order
+    addc a,#0x00
+    jb acc.0,00975$
+    mov _ignition_pair_a,@r0
+    inc r0
+    mov 0x11,@r0
+    inc r0
+    mov 0x12,@r0
+    inc r0
+    mov 0x13,@r0
+    sjmp _update_crank_angular_outputs
+    00975$:
+    mov _ignition_pair_b,@r0
+    inc r0
+    mov 0x15,@r0
+    inc r0
+    mov 0x16,@r0
+    inc r0
+    mov 0x17,@r0
+}

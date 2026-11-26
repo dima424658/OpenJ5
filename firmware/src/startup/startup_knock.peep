@@ -1,0 +1,200 @@
+replace {
+    mov _ACC,#0x05
+    mov dptr,#_knock_cylinder_count
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_knock_cylinder_count + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_knock_cylinder_count + 0x0002)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_knock_cylinder_count + 0x0003)
+    mov a,_ACC
+    movx @dptr,a
+    lcall _select_startup_knock_noise
+    %1:
+    ret
+} by {
+    mov dptr,#_knock_cylinder_count
+    mov a,#0x05
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+}
+
+// Reproduce the flag expression with the C509 carry-bit operations.
+replace {
+    mov dptr,#_retained_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _retained_ram_checksum_failed,%1
+    ljmp %2
+    %1:
+    jb _ACC_BIT1,%3
+    ljmp %4
+    %3:
+    %2:
+    jnb _startup_mode_15,%5
+    ljmp %4
+    %5:
+    mov dptr,#_startup_knock_average_noise
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+} by {
+    mov dptr,#_retained_status
+    movx a,@dptr
+    mov c,_retained_ram_checksum_failed
+    orl c,_ACC_BIT1
+    anl c,/_startup_mode_15
+    jnc _restore_startup_knock_noise
+    mov dptr,#_startup_knock_average_noise
+    clr a
+    movc a,@a+dptr
+}
+
+replace {
+    lcall _seed_startup_knock_filters
+    ljmp %1
+    %2:
+    lcall _restore_startup_knock_noise
+    %1:
+    ret
+} by {
+    sjmp _seed_startup_knock_filters
+}
+
+// Compare the doubled byte modulo 256 and the exclusive lower bound.
+replace {
+    mov dptr,#_startup_knock_average_noise
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    add a,acc
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_retained_noise_min_exclusive
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    mov _ACC,_B
+} by {
+    mov dptr,#_startup_knock_average_noise
+    clr a
+    movc a,@a+dptr
+    clr c
+    rlc a
+    cjne a,_B,%1
+    %1:
+    jc _reset_retained_knock_noise
+    mov dptr,#_retained_noise_min_exclusive
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,%3
+    %3:
+    jnc _reset_retained_knock_noise
+    mov a,_B
+}
+
+replace {
+    mov dptr,#_retained_attenuator_state
+    movx a,@dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,#0x18
+    jc %1
+    ljmp %2
+    %1:
+    lcall _write_startup_attenuator_state
+    ljmp %3
+    %2:
+    lcall _reset_retained_knock_noise
+    %3:
+    ret
+} by {
+    mov dptr,#_retained_attenuator_state
+    movx a,@dptr
+    cjne a,#0x18,%1
+    %1:
+    jc _write_startup_attenuator_state
+}
+
+replace {
+    mov _ACC,#0x08
+    lcall _write_startup_attenuator_state
+    %1:
+    ret
+} by {
+    mov a,#0x08
+}
+
+replace {
+    mov _noise_attenuator_state,_ACC
+    mov dptr,#_retained_attenuator_state
+    mov a,_ACC
+    movx @dptr,a
+    lcall _seed_startup_knock_filters
+    %1:
+    ret
+} by {
+    mov _noise_attenuator_state,a
+    mov dptr,#_retained_attenuator_state
+    movx @dptr,a
+}
+
+replace {
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    rrc a
+    mov _ACC,a
+} by {
+    movx a,@dptr
+    clr c
+    rrc a
+}
+
+replace {
+    mov _ACC,#0x00
+    mov dptr,#_knock_noise_filter_low
+} by {
+    clr a
+    mov dptr,#_knock_noise_filter_low
+}
+
+// The consecutive XDATA destinations all receive the same value in A.
+replace {
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    movx @dptr,a
+}
+
+replace {
+    lcall _continue_startup_attenuation
+    %1:
+    ret
+} by {
+    %1:
+}

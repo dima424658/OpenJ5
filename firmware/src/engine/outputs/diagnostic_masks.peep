@@ -1,0 +1,130 @@
+// Keep the comparison in carry for both the RPM flag and the sampled counter.
+replace {
+    mov dptr,#_knock_rpm_cutoff_raw
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_rpm_axis_code
+    mov _knock_rpm_cutoff_active,c
+    mov dptr,#_startup_exit_rpm_low
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_engine_rpm_10
+    jc %1
+    ljmp %2
+    %1:
+    mov c,_crank_sync_fault_sample
+    clr a
+    rlc a
+    mov r7,a
+    mov dptr,#_crank_fault_samples
+    movx a,@dptr
+    mov r6,a
+    mov a,r7
+    add a,r6
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,#0x0a
+    jc %3
+    ljmp %4
+    %3:
+    mov dptr,#_crank_fault_samples
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %2
+    %4:
+    setb _crank_signal_fault
+    %2:
+    lcall _publish_diagnostic_masks
+    %5:
+    ret
+} by {
+    mov dptr,#_knock_rpm_cutoff_raw
+    clr a
+    movc a,@a+dptr
+    cjne a,_rpm_axis_code,.+3
+    mov _knock_rpm_cutoff_active,c
+    mov dptr,#_startup_exit_rpm_low
+    clr a
+    movc a,@a+dptr
+    cjne a,_engine_rpm_10,.+3
+    jnc %2
+    mov c,_crank_sync_fault_sample
+    mov dptr,#_crank_fault_samples
+    movx a,@dptr
+    addc a,#0x00
+    cjne a,#0x0a,.+3
+    jc %3
+    setb _crank_signal_fault
+    sjmp %2
+    %3:
+    mov dptr,#_crank_fault_samples
+    movx @dptr,a
+    %2:
+}
+
+// Mask the reported phase diagnostic independently from the latched state.
+replace {
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_engine_rpm_10
+    jnc %1
+    ljmp %2
+    %1:
+    anl _reported_diagnostic_latches,#0xef
+    %2:
+    jb _startup_flag_53,%3
+    ljmp %4
+    %3:
+    anl _reported_diagnostic_latches,#0xef
+    %4:
+} by {
+    movc a,@a+dptr
+    cjne a,_engine_rpm_10,.+3
+    jc %2
+    anl _reported_diagnostic_latches,#0xef
+    %2:
+    jnb _startup_flag_53,%4
+    anl _reported_diagnostic_latches,#0xef
+    %4:
+}
+
+replace restart {
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    anl %1,a
+} by {
+    movc a,@a+dptr
+    anl %1,a
+}
+
+replace {
+    jb _tick_1min,%1
+    ljmp %2
+    %1:
+    anl _diagnostic_latches,#0xfe
+    mov dptr,#_crank_fault_samples
+    mov a,#0x00
+    movx @dptr,a
+    %2:
+    lcall _calculate_reported_fuel_usage
+    %3:
+    ret
+} by {
+    jnb _tick_1min,%2
+    mov a,#0xfe
+    anl _diagnostic_latches,a
+    clr a
+    mov dptr,#_crank_fault_samples
+    movx @dptr,a
+    %2:
+}

@@ -1,0 +1,282 @@
+// Keep the schedule pointer in R0 and select the coil reference and cylinder correction.
+replace {
+    mov _stock_r0,#0x80
+    %1:
+    mov r7,_stock_r0
+    mov a,r7
+    add a,#0x80
+    mov r7,a
+    mov a,r7
+    jb acc.2,%2
+    ljmp %3
+    %2:
+    mov r6,#0x11
+    ljmp %4
+    %3:
+    mov r6,#0x2f
+    %4:
+    mov _stock_r3,r6
+    mov b,#0x04
+    mov a,r7
+    div ab
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,_stock_r1
+    add a, #_cylinder_retard
+    mov r1,a
+    mov _B,@r1
+} by {
+    mov r0,#0x80
+    timing_slot_loop:
+    mov r3,#0x2f
+    mov a,r0
+    clr c
+    subb a,#0x80
+    jnb acc.2,%4
+    mov r3,#0x11
+    %4:
+    rr a
+    rr a
+    mov r1,#_cylinder_retard
+    add a,r1
+    mov r1,a
+    mov a,@r1
+    mov _B,a
+}
+
+// Convert the corrected firing angle into a coarse slot and a fine position.
+replace {
+    mov r7,_stock_r2
+    mov a,#0x90
+    clr c
+    subb a,r7
+    mov _ACC,a
+    jb _fuel_mode_flag_5d,%1
+    ljmp %2
+    %1:
+    mov a,_B
+    add a, _ACC
+    mov _ACC,a
+    %2:
+    mov r7,_ACC
+    mov r6,_ACC
+    mov a,r6
+    add a,#0x7c
+    mov _ACC,a
+    cjne r7,#0x84,%3
+    %3:
+    jc %4
+    ljmp %5
+    %4:
+    mov r7,_stock_r3
+    mov a,#0x27
+    add a, r7
+    mov _stock_r3,a
+    mov r7,_ACC
+    mov a,r7
+    add a,#0xfc
+    mov _ACC,a
+    %5:
+    mov r7,_ACC
+    mov b,#0x0c
+    mov a,r7
+    div ab
+    mov r7,b
+    mov r6,_ACC
+    mov b,#0x0c
+    mov a,r6
+    div ab
+    mov r6,a
+    mov r5,_stock_r3
+    mov a,r5
+    add a, r6
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,#0x3c
+    jnc %6
+    ljmp %7
+    %6:
+    mov r6,_ACC
+    mov a,r6
+    add a,#0xc4
+    mov _ACC,a
+    %7:
+    mov _stock_r3,_ACC
+    mov _stock_r4,_ACC
+    mov _stock_r1,r7
+} by {
+    mov a,#0x90
+    clr c
+    subb a,r2
+    jnb _fuel_mode_flag_5d,%2
+    add a,_B
+    %2:
+    clr c
+    subb a,#0x84
+    jnc %5
+    mov _B,a
+    mov a,r3
+    add a,#0x27
+    mov r3,a
+    mov a,_B
+    clr c
+    subb a,#0x04
+    %5:
+    mov _B,#0x0c
+    div ab
+    add a,r3
+    cjne a,#0x3c,.+3
+    jc %7
+    subb a,#0x3c
+    %7:
+    mov r3,a
+    mov r4,a
+    mov r1,_B
+}
+
+// Subtract the fine dwell and borrow one coarse slot when required.
+replace {
+    mov dptr,#_dwell_remainder_half_degrees
+    movx a,@dptr
+    mov _B,a
+    mov a,_stock_r1
+    clr c
+    subb a,_B
+    mov _ACC,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov r7,_ACC
+    mov a,#0x0c
+    add a, r7
+    mov _ACC,a
+    dec _stock_r4
+    %2:
+    mov a,_ACC
+    add a, #_ignition_subslot_ticks_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_ignition_subslot_ticks_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_stock_r1
+    add a, #_ignition_subslot_ticks_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_ignition_subslot_ticks_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+} by {
+    mov dptr,#_dwell_remainder_half_degrees
+    movx a,@dptr
+    mov _B,a
+    mov a,r1
+    clr c
+    subb a,_B
+    jnc %2
+    add a,#0x0c
+    dec r4
+    %2:
+    mov dptr,#_ignition_subslot_ticks_raw
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ignition_subslot_ticks_raw
+    mov a,r1
+    movc a,@a+dptr
+    mov r1,a
+}
+
+// Wrap the start slot and write the four timer bytes with interrupts disabled.
+replace {
+    mov dptr,#_dwell_slots
+    movx a,@dptr
+    mov r7,a
+    mov r6,_stock_r4
+    mov _stock_r4,r7
+    mov a,r6
+    clr c
+    subb a,r7
+    mov _ACC,a
+    clr c
+    mov a,r6
+    subb a,r7
+    jc %1
+    ljmp %2
+    %1:
+    mov r7,_ACC
+    mov a,#0x3c
+    add a, r7
+    mov _ACC,a
+    ljmp %3
+    %2:
+    clr c
+    mov a,_ACC
+    subb a,#0x3c
+    jnc %4
+    ljmp %3
+    %4:
+    mov r7,_ACC
+    mov a,r7
+    add a,#0xc4
+    mov _ACC,a
+    %3:
+    mov r1,_stock_r0
+    clr _interrupts_enabled
+    mov @r1,_ACC
+    inc r1
+    mov @r1,_B
+    inc r1
+    mov @r1,_bank_zero_r3
+    inc r1
+    mov @r1,_bank_zero_r1
+    mov a,r1
+    inc a
+    mov r7,a
+    setb _interrupts_enabled
+    mov _stock_r0,r7
+    mov a,#0x90
+    cjne a,_stock_r0,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    lcall _update_cooling_fan
+    %8:
+    ret
+} by {
+    mov dptr,#_dwell_slots
+    movx a,@dptr
+    xch a,r4
+    clr c
+    subb a,r4
+    jnc %2
+    add a,#0x3c
+    sjmp %3
+    %2:
+    cjne a,#0x3c,.+3
+    jc %3
+    subb a,#0x3c
+    %3:
+    clr _interrupts_enabled
+    mov @r0,a
+    inc r0
+    mov @r0,_B
+    inc r0
+    mov @r0,_bank_zero_r3
+    inc r0
+    mov @r0,_bank_zero_r1
+    setb _interrupts_enabled
+    inc r0
+    cjne r0,#0x90,%7
+    sjmp _update_cooling_fan
+    %7:
+    ljmp timing_slot_loop
+}

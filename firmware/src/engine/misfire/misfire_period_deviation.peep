@@ -1,0 +1,592 @@
+// Subtract the bin-one baseline, round the scaled magnitude, and restore the sign.
+replace {
+    mov dptr,#_bin1_period_ratio
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov dptr,#_selected_period_ratio
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    lcall _subtract_u16_register_pairs
+    mov dptr,#_period_ratio_deviation
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov r7,_stock_r1
+    anl ar7,#0x80
+    mov a,r7
+    cjne a,#0x01,%1
+    %1:
+    mov _update_misfire_period_bin1_sloc0_1_0,c
+    mov c,_update_misfire_period_bin1_sloc0_1_0
+    cpl c
+    clr a
+    rlc a
+    mov _update_misfire_period_bin1_negative_10001_11,a
+    mov _update_misfire_period_bin1_sloc1_1_0,_update_misfire_period_bin1_negative_10001_11
+    mov a,_update_misfire_period_bin1_negative_10001_11
+    jnz %2
+    ljmp %3
+    %2:
+    lcall _negate_u16_register_pair
+    %3:
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov _stock_r2,a
+    mov dptr,#(_period_deviation_weight + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r3,a
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov r7,_mdu_0
+    mov _stock_r0,_mdu_1
+    mov _stock_r1,_mdu_2
+    mov _B,_mdu_3
+    cjne r7,#0x80,%4
+    %4:
+    mov _update_misfire_period_bin1_sloc0_1_0,c
+    cpl _update_misfire_period_bin1_sloc0_1_0
+    mov c,_update_misfire_period_bin1_sloc0_1_0
+    clr a
+    rlc a
+    mov r7,a
+    mov r5,_stock_r01
+    mov r6,(_stock_r01 + 1)
+    mov r4,#0x00
+    mov a,r7
+    add a, r5
+    mov r5,a
+    mov a,r4
+    addc a, r6
+    mov r6,a
+    mov _stock_r01,r5
+    mov (_stock_r01 + 1),r6
+    lcall _shift_right_u16_1
+    mov a,_update_misfire_period_bin1_sloc1_1_0
+    jnz %5
+    ljmp %6
+    %5:
+    lcall _negate_u16_register_pair
+    %6:
+    lcall _filter_primary_period_dev
+    %7:
+    ret
+} by {
+    mov a,#0x02
+    mov dptr,#0xfa41
+    add a,dpl
+    mov dpl,a
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov dptr,#_selected_period_ratio
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    lcall _subtract_u16_register_pairs
+    mov dptr,#_period_ratio_deviation
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov a,r1
+    jnb acc.7,00950$
+    lcall _negate_u16_register_pair
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_period_deviation_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov a,_mdu_0
+    mov r0,_mdu_1
+    mov r1,_mdu_2
+    mov _B,_mdu_3
+    add a,#0x80
+    mov a,r0
+    addc a,#0x00
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    lcall _shift_right_u16_1
+    lcall _negate_u16_register_pair
+    ljmp _filter_primary_period_dev
+    00950$:
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov r2,a
+    mov dptr,#(_period_deviation_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r3,a
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov a,_mdu_0
+    mov r0,_mdu_1
+    mov r1,_mdu_2
+    mov _B,_mdu_3
+    add a,#0x80
+    mov a,r0
+    addc a,#0x00
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    lcall _shift_right_u16_1
+}
+
+// Apply the complementary weight to the primary history and publish its magnitude.
+replace {
+    mov dptr,#_weighted_period_deviation
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov r7,_stock_r1
+    anl ar7,#0x80
+    mov a,r7
+    cjne a,#0x01,%1
+    %1:
+    mov _filter_primary_period_dev_sloc0_1_0,c
+    mov c,_filter_primary_period_dev_sloc0_1_0
+    cpl c
+    clr a
+    rlc a
+    mov _filter_primary_period_dev_was_negative_20000_21,a
+    mov _filter_primary_period_dev_sloc1_1_0,_filter_primary_period_dev_was_negative_20000_21
+    mov a,_filter_primary_period_dev_was_negative_20000_21
+    jnz %2
+    ljmp %3
+    %2:
+    lcall _negate_u16_register_pair
+    %3:
+    mov _bank_one_r23,_stock_r01
+    mov (_bank_one_r23 + 1),(_stock_r01 + 1)
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#(_period_deviation_weight + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    lcall _negate_u16_register_pair
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov _stock_r0,_mdu_2
+    mov _stock_r1,_mdu_3
+    mov a,_filter_primary_period_dev_sloc1_1_0
+    jnz %4
+    ljmp %5
+    %4:
+    lcall _negate_u16_register_pair
+    %5:
+    mov dptr,#_weighted_period_deviation
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _add_u16_register_pairs
+    mov dptr,#_primary_period_dev
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov a,_stock_r1
+    jb acc.7,%6
+    ljmp %7
+    %6:
+    lcall _negate_u16_register_pair
+    %7:
+    mov dptr,#_primary_period_magnitude
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _filter_secondary_period_dev
+    %8:
+    ret
+} by {
+    mov dptr,#_weighted_period_deviation
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_primary_period_dev
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov a,r1
+    jnb acc.7,00951$
+    lcall _negate_u16_register_pair
+    mov _bank_one_r23,r0
+    mov (_bank_one_r23 + 1),r1
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#(_period_deviation_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    lcall _negate_u16_register_pair
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov r0,_mdu_2
+    mov r1,_mdu_3
+    lcall _negate_u16_register_pair
+    ljmp 00952$
+    00951$:
+    mov _bank_one_r23,r0
+    mov (_bank_one_r23 + 1),r1
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#(_period_deviation_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    lcall _negate_u16_register_pair
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov r0,_mdu_2
+    mov r1,_mdu_3
+    00952$:
+    mov dptr,#_weighted_period_deviation
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _add_u16_register_pairs
+    mov dptr,#_primary_period_dev
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov a,r1
+    jnb acc.7,00953$
+    lcall _negate_u16_register_pair
+    00953$:
+    mov dptr,#_primary_period_magnitude
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Apply the complementary weight to the secondary history and publish its magnitude.
+replace {
+    mov dptr,#_secondary_period_dev
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov r7,_stock_r1
+    anl ar7,#0x80
+    mov a,r7
+    cjne a,#0x01,%1
+    %1:
+    mov _filter_secondary_period_dev_sloc0_1_0,c
+    mov c,_filter_secondary_period_dev_sloc0_1_0
+    cpl c
+    clr a
+    rlc a
+    mov _filter_secondary_period_dev_was_negative_20000_32,a
+    mov _filter_secondary_period_dev_sloc1_1_0,_filter_secondary_period_dev_was_negative_20000_32
+    mov a,_filter_secondary_period_dev_was_negative_20000_32
+    jnz %2
+    ljmp %3
+    %2:
+    lcall _negate_u16_register_pair
+    %3:
+    mov _bank_one_r23,_stock_r01
+    mov (_bank_one_r23 + 1),(_stock_r01 + 1)
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov _stock_r0,a
+    mov dptr,#(_period_deviation_weight + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    lcall _negate_u16_register_pair
+    mov _mdu_0,_stock_r2
+    mov _mdu_4,_stock_r0
+    mov _mdu_1,_stock_r3
+    mov _mdu_5,_stock_r1
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov _stock_r0,_mdu_2
+    mov _stock_r1,_mdu_3
+    mov a,_filter_secondary_period_dev_sloc1_1_0
+    jnz %4
+    ljmp %5
+    %4:
+    lcall _negate_u16_register_pair
+    %5:
+    mov dptr,#_weighted_period_deviation
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _add_u16_register_pairs
+    mov dptr,#_secondary_period_dev
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov a,_stock_r1
+    jb acc.7,%6
+    ljmp %7
+    %6:
+    lcall _negate_u16_register_pair
+    %7:
+    mov dptr,#_secondary_period_magnitude
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _compare_period_deviations
+    %8:
+    ret
+} by {
+    mov dptr,#_secondary_period_dev
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov a,r1
+    jnb acc.7,00954$
+    lcall _negate_u16_register_pair
+    mov _bank_one_r23,r0
+    mov (_bank_one_r23 + 1),r1
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#(_period_deviation_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    lcall _negate_u16_register_pair
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov r0,_mdu_2
+    mov r1,_mdu_3
+    lcall _negate_u16_register_pair
+    ljmp 00955$
+    00954$:
+    mov _bank_one_r23,r0
+    mov (_bank_one_r23 + 1),r1
+    mov dptr,#_period_deviation_weight
+    clr a
+    movc a,@a+dptr
+    mov r0,a
+    mov dptr,#(_period_deviation_weight + 1)
+    clr a
+    movc a,@a+dptr
+    mov r1,a
+    lcall _negate_u16_register_pair
+    mov _mdu_0,r2
+    mov _mdu_4,r0
+    mov _mdu_1,r3
+    mov _mdu_5,r1
+    nop
+    nop
+    nop
+    nop
+    mov _B,_mdu_0
+    mov a,_mdu_1
+    mov r0,_mdu_2
+    mov r1,_mdu_3
+    00955$:
+    mov dptr,#_weighted_period_deviation
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _add_u16_register_pairs
+    mov dptr,#_secondary_period_dev
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov a,r1
+    jnb acc.7,00956$
+    lcall _negate_u16_register_pair
+    00956$:
+    mov dptr,#_secondary_period_magnitude
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}
+
+// Retain the larger magnitude and fall through to the limit check.
+replace {
+    mov dptr,#_primary_period_magnitude
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    lcall _subtract_u16_register_pairs
+    jb _CY,%1
+    ljmp %2
+    %1:
+    mov dptr,#_primary_period_magnitude
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    ljmp %3
+    %2:
+    mov dptr,#_secondary_period_magnitude
+    movx a,@dptr
+    mov r6,a
+    inc dptr
+    movx a,@dptr
+    mov r7,a
+    %3:
+    mov _stock_r01,r6
+    mov (_stock_r01 + 1),r7
+    mov dptr,#_peak_period_magnitude
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    lcall _check_period_deviation_limit
+    %4:
+    ret
+} by {
+    mov dptr,#_primary_period_magnitude
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    lcall _subtract_u16_register_pairs
+    jc 00957$
+    mov dptr,#_secondary_period_magnitude
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    sjmp 00958$
+    00957$:
+    mov dptr,#_primary_period_magnitude
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    00958$:
+    mov dptr,#_peak_period_magnitude
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+}

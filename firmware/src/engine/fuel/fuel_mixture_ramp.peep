@@ -1,0 +1,270 @@
+// Recover the unmodified ceiling from the comparison when limiting ALF.
+replace {
+    jb _sensor_batch_ready,%1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_requested_mixture
+    jc %3
+    ljmp %2
+    %3:
+    mov _requested_mixture,r7
+    %2:
+} by {
+    jnb _sensor_batch_ready,%2
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    clr c
+    subb a,_requested_mixture
+    jnc %2
+    add a,_requested_mixture
+    mov _requested_mixture,a
+    %2:
+}
+
+// Keep DPTR on the divider until it has been reset.
+replace {
+    mov dptr,#_fuel_mixture_ramp_ticks
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_B
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_fuel_mixture_ramp_ticks
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    mov dptr,#_fuel_mixture_ramp_ticks
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,%3
+    clr a
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_mixture_ramp
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    inc a
+    jz %2
+    movx @dptr,a
+}
+
+// F833 is the byte immediately after the stock F832 pointer.
+replace {
+    mov dptr,#_mixture_rate_output
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_mixture_ramp
+    mov a,_B
+    movx @dptr,a
+} by {
+    mov dptr,#(_mixture_rate_output - 1)
+    inc dpl
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jc %2
+    mov a,_B
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_fuel_mixture_ramp_ticks
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,_B
+    cjne a,_ACC,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov dptr,#_fuel_mixture_ramp_ticks
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    mov dptr,#_fuel_mixture_ramp_ticks
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,%3
+    clr a
+    movx @dptr,a
+}
+
+replace {
+    mov dptr,#_warmed_engine_coolant_index
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    add a,#_base_mixture_by_coolant
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_base_mixture_by_coolant >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#_warmed_engine_coolant_index
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_base_mixture_by_coolant
+    movc a,@a+dptr
+}
+
+replace restart {
+    mov a,%1
+    add a,#%2
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(%2 >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+} by {
+    mov dptr,#%2
+    mov a,%1
+    movc a,@a+dptr
+}
+
+// Carry from the subtraction selects zero before the Q8 multiply.
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov _B,r7
+    mov dptr,#_base_mixture_temp_correction
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _ACC,a
+    mov r7,_ACC
+    mov r6,_B
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _B,r5
+} by {
+    clr c
+    subb a,_B
+    jnc %3
+    clr a
+    %3:
+    mov _B,a
+    mov dptr,#_base_mixture_temp_correction
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mul ab
+}
+
+// Keep the target in B and reconstruct the decremented ramp only on success.
+replace {
+    mov dptr,#_base_mixture_by_coolant
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov r7,a
+    mov a,_B
+    add a,r7
+    mov _B,a
+    mov dptr,#_fuel_resume_mixture_enrichment
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,_B
+    clr c
+    subb a,r7
+    mov _B,a
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    dec a
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_fuel_mixture_ramp
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#_base_mixture_by_coolant
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    add a,_B
+    mov _B,a
+    mov dptr,#_fuel_resume_mixture_enrichment
+    clr a
+    movc a,@a+dptr
+    xch a,_B
+    clr c
+    subb a,_B
+    mov _B,a
+    mov dptr,#_fuel_mixture_ramp
+    movx a,@dptr
+    dec a
+    clr c
+    subb a,_B
+    jc %2
+    add a,_B
+    movx @dptr,a
+}

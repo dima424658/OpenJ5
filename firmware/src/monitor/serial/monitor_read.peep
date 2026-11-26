@@ -1,0 +1,35 @@
+// Compare the current pointer page and leave the comparison result in CY.
+replace {
+    mov a,#0x100 - 0xf4
+    add a,_DPH
+    jc %1
+    mov a,_stock_r1
+    jnz %1
+} by {
+    mov a,_DPH
+    cjne a,#0xf4,00130$
+    00130$:
+    jnc %1
+    mov a,r1
+    jnz %1
+}
+
+// The pointer is already in DPTR, and A is zero on the CODE branch.
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+} by {
+    movc a,@a+dptr
+}
+
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+} by {
+    movx a,@dptr
+}

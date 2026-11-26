@@ -1,0 +1,109 @@
+// Preserve the short-message check and share the return after status update.
+replace {
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT2,%1
+    ljmp %2
+    %1:
+    jnb _ACC_BIT4,%3
+    ljmp %4
+    %3:
+    mov dptr,#_received_nibble_count
+    movx a,@dptr
+    xrl a,#0x01
+    mov _ACC,a
+    mov a,_ACC
+    jz %5
+    ljmp %4
+    %5:
+    clr _EA
+    mov _ACC,#0xff
+    ljmp %6
+    %4:
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl acc,#0x7f
+    movx @dptr,a
+    ljmp %7
+    %2:
+    jb _ACC_BIT3,%8
+    ljmp %9
+    %8:
+    ljmp %7
+    %9:
+    clr _EA
+    mov _ACC,#0xfe
+    %6:
+    mov dptr,#_received_record_status
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_immobilizer_status
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    jb _ACC_BIT2,%2
+    jnb _ACC_BIT4,%3
+    sjmp %4
+    %3:
+    mov dptr,#_received_nibble_count
+    movx a,@dptr
+    xrl a,#0x01
+    jnz %4
+    clr _EA
+    mov dptr,#_received_record_status
+    mov a,#0xff
+    sjmp %6
+    %4:
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl a,#0x7f
+    movx @dptr,a
+    sjmp %7
+    %2:
+    jb _ACC_BIT3,%7
+    clr _EA
+    mov dptr,#_received_record_status
+    mov a,#0xfe
+    %6:
+    movx @dptr,a
+    mov dptr,#_immobilizer_status
+    movx @dptr,a
+}
+
+replace {
+    mov r6,#_received_record
+    mov r7,#(_received_record >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _store_immobilizer_record_copies
+    setb _EA
+    jb _eeprom_io_failed,%1
+    ljmp %2
+    %1:
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl acc,#0x7f
+    movx @dptr,a
+    ljmp %3
+    %2:
+} by {
+    mov dptr,#_received_record
+    lcall _store_immobilizer_record_copies
+    setb _EA
+    jnb _eeprom_io_failed,%2
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl a,#0x7f
+    movx @dptr,a
+    sjmp %3
+    %2:
+}
+
+replace {
+    orl acc,#0x43
+} by {
+    orl a,#0x43
+}

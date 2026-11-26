@@ -1,0 +1,225 @@
+replace {
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jc %1
+    ljmp %2
+    %1:
+    mov dptr,#_dynamic_fuel_decay
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,.+3
+    jc %1
+    clr a
+    sjmp 00801$
+    %1:
+    mov dptr,#_dynamic_fuel_decay
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+replace {
+    lcall _multiply_stock_u16_u8
+    mov a,_stock_r1
+    jnz %1
+    ljmp %2
+    %1:
+    mov _stock_r0,#0xff
+    %2:
+} by {
+    lcall _multiply_stock_u16_u8
+    mov a,r1
+    jz %2
+    mov r0,#0xff
+    %2:
+}
+
+replace {
+    mov _ACC,_stock_r0
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov _ACC,_B
+    ljmp %2
+    %3:
+    mov _ACC,#0x00
+    %2:
+    mov dptr,#_dynamic_ignition_retard
+    mov a,_ACC
+    movx @dptr,a
+    lcall _check_crank_activity
+    %4:
+    ret
+} by {
+    mov a,r0
+    cjne a,_B,.+3
+    jc %2
+    mov a,_B
+    %2:
+    00801$:
+    mov dptr,#_dynamic_ignition_retard
+    movx @dptr,a
+}
+
+// JBC consumes the crank event atomically. Lay out the no-event path first.
+replace {
+    jb _crank_event,%1
+    ljmp %2
+    %1:
+    clr _crank_event
+    jb _crank_stopped,%3
+    ljmp %4
+    %3:
+    clr c
+    mov a,_ticks_since_crank_event
+    subb a,#0x0b
+    jc %5
+    ljmp %4
+    %5:
+    clr _crank_stopped
+    %4:
+    mov _ticks_since_crank_event,#0x00
+    ljmp %6
+    %2:
+    mov r7,_ticks_since_crank_event
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %7
+    ljmp %8
+    %7:
+    mov _ticks_since_crank_event,_ACC
+    %8:
+    jnb _crank_stopped,%9
+    ljmp %6
+    %9:
+    clr c
+    mov a,_ticks_since_crank_event
+    subb a,#0x16
+    jnc %10
+    ljmp %6
+    %10:
+    setb _crank_stopped
+    clr _event_flag_31
+    mov _engine_rpm_10,#0x00
+    mov _rpm_state_54,#0x00
+    mov _rpm_state_55,#0x00
+    mov _rpm_axis_index_q4,#0x00
+    mov _rpm_half_step_index,#0x00
+    orl _sfr_a5,#0x06
+    setb _output_control_f9
+    setb _output_control_fa
+    anl _sfr_a6,#0xf9
+    lcall _rpm_update_continued
+    ljmp %11
+    %6:
+    lcall _sample_crank_period
+    %11:
+    ret
+} by {
+    jbc _crank_event,%1
+    mov a,_ticks_since_crank_event
+    inc a
+    jz %8
+    mov _ticks_since_crank_event,a
+    %8:
+    jb _crank_stopped,_sample_crank_period
+    mov a,_ticks_since_crank_event
+    cjne a,#0x16,.+3
+    jc _sample_crank_period
+    setb _crank_stopped
+    clr _event_flag_31
+    mov _engine_rpm_10,#0x00
+    mov _rpm_state_54,#0x00
+    mov _rpm_state_55,#0x00
+    mov _rpm_axis_index_q4,#0x00
+    mov _rpm_half_step_index,#0x00
+    orl _sfr_a5,#0x06
+    setb _output_control_f9
+    setb _output_control_fa
+    anl _sfr_a6,#0xf9
+    ljmp _rpm_update_continued
+    %1:
+    jnb _crank_stopped,%4
+    mov a,_ticks_since_crank_event
+    cjne a,#0x0b,.+3
+    jnc %4
+    clr _crank_stopped
+    %4:
+    mov _ticks_since_crank_event,#0x00
+}
+
+replace {
+    mov _stock_r2,_crank_period_low
+    mov _stock_r3,_crank_period_high
+    setb _interrupts_enabled
+    mov a,_stock_r3
+    orl a,_stock_r2
+    jz %1
+    ljmp %2
+    %1:
+    lcall _rpm_update_continued
+    ljmp %3
+    %2:
+    lcall _calculate_rpm_from_period
+    %3:
+    ret
+} by {
+    mov r2,_crank_period_low
+    mov r3,_crank_period_high
+    setb _interrupts_enabled
+    mov a,r2
+    orl a,r3
+    jnz %2
+    ljmp _rpm_update_continued
+    %2:
+}
+
+replace {
+    mov _mdu_4,_stock_r2
+    mov _mdu_5,_stock_r3
+} by {
+    mov _mdu_4,r2
+    mov _mdu_5,r3
+}
+
+// The last two reads finish the MDU transaction, including when interrupted.
+replace {
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov _stock_r2,_mdu_2
+    mov _stock_r3,_mdu_3
+    mov _ACC,_mdu_4
+    mov _ACC,_mdu_5
+    jb _mdu_interrupted,%1
+    ljmp %2
+    %1:
+    lcall _sample_crank_period
+    ljmp %3
+    %2:
+    lcall _scale_crank_rpm_result
+    %3:
+    ret
+} by {
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov r2,_mdu_2
+    mov r3,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jb _mdu_interrupted,_sample_crank_period
+}

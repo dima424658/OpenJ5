@@ -1,0 +1,188 @@
+// Combine the four noise samples without disturbing the carry between rounded terms.
+replace {
+    mov dptr,#_cylinder_noise
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#(_cylinder_noise + 0x0001)
+    movx a,@dptr
+    mov r6,a
+    mov dptr,#(_cylinder_noise + 0x0002)
+    movx a,@dptr
+    mov r5,a
+    mov dptr,#(_cylinder_noise + 0x0003)
+    movx a,@dptr
+    mov r4,a
+    mov r3,#0x00
+    mov r2,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r3
+    addc a, r2
+    mov r2,a
+    mov a,r2
+    clr c
+    rrc a
+    xch a,r7
+    rrc a
+    xch a,r7
+    mov r2,a
+    mov r6,#0x00
+    inc r5
+    cjne r5,#0x00,%1
+    inc r6
+    %1:
+    mov a,r6
+    clr c
+    rrc a
+    xch a,r5
+    rrc a
+    xch a,r5
+    mov r6,a
+    mov r3,#0x00
+    mov a,r5
+    add a, r7
+    mov r5,a
+    mov a,r6
+    addc a, r3
+    mov r6,a
+    mov a,r6
+    clr c
+    rrc a
+    xch a,r5
+    rrc a
+    xch a,r5
+    mov r6,a
+    mov r7,#0x00
+    mov a,#0x02
+    add a, r4
+    mov r4,a
+    mov a,#0x00
+    addc a, r7
+    mov r7,a
+    mov a,r7
+    clr c
+    rrc a
+    xch a,r4
+    rrc a
+    xch a,r4
+    clr c
+    rrc a
+    xch a,r4
+    rrc a
+    xch a,r4
+    mov r7,a
+    mov a,r4
+    add a, r5
+    mov r5,a
+    mov dptr,#_combined_knock_noise
+    mov a,r5
+    movx @dptr,a
+} by {
+    mov dptr,#_cylinder_noise
+    movx a,@dptr
+    mov b,a
+    inc dptr
+    movx a,@dptr
+    add a,b
+    rrc a
+    mov b,a
+    inc dptr
+    movx a,@dptr
+    rrc a
+    anl a,#0x7f
+    addc a,b
+    rrc a
+    mov b,a
+    inc dptr
+    movx a,@dptr
+    rrc a
+    rrc a
+    anl a,#0x3f
+    addc a,b
+    mov b,a
+    mov dptr,#_combined_knock_noise
+    movx @dptr,a
+}
+
+// Keep the saturating fault-counter update and the existing equality path.
+replace {
+    mov a,_rpm_half_step_index
+    add a, #_knock_minimum_noise_by_rpm
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_knock_minimum_noise_by_rpm >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,r5
+    jnc %1
+    ljmp %2
+    %1:
+    mov dptr,#_low_knock_noise_counter
+    movx a,@dptr
+    mov r7,a
+    inc r7
+    mov ar6,r7
+    mov a,r7
+    jz %3
+    ljmp %4
+    %3:
+    setb _knock_low_noise_fault
+    ljmp %5
+    %4:
+    mov dptr,#_low_knock_noise_counter
+    mov a,r6
+    movx @dptr,a
+    ljmp %5
+    %2:
+    mov dptr,#_low_knock_noise_counter
+    movx a,@dptr
+    mov r7,a
+    mov ar6,r7
+    mov a,r7
+    jz %6
+    ljmp %7
+    %6:
+    clr _knock_low_noise_fault
+    ljmp %5
+    %7:
+    mov a,r6
+    dec a
+    mov dptr,#_low_knock_noise_counter
+    movx @dptr,a
+    %5:
+    ret
+} by {
+    mov dptr,#_knock_minimum_noise_by_rpm
+    mov a,_rpm_half_step_index
+    movc a,@a+dptr
+    cjne a,b,00940$
+    00940$:
+    jc 00941$
+    mov dptr,#_low_knock_noise_counter
+    movx a,@dptr
+    inc a
+    jz 00942$
+    mov dptr,#_low_knock_noise_counter
+    movx @dptr,a
+    sjmp 00943$
+    00942$:
+    setb _knock_low_noise_fault
+    sjmp 00943$
+    00941$:
+    mov dptr,#_low_knock_noise_counter
+    movx a,@dptr
+    jz 00944$
+    dec a
+    mov dptr,#_low_knock_noise_counter
+    movx @dptr,a
+    sjmp 00943$
+    00944$:
+    clr _knock_low_noise_fault
+    00943$:
+    ret
+}

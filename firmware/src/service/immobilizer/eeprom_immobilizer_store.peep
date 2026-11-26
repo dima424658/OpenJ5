@@ -1,0 +1,91 @@
+// Use the active register bank for the EEPROM scratch pointer and count.
+replace {
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x04
+    clr _eeprom_io_failed
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _stock_r0
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+} by {
+    mov r0,#0x94
+    mov r1,#0x04
+    clr _eeprom_io_failed
+    %1:
+    movx a,@dptr
+    mov @r0,a
+    inc dptr
+    inc r0
+    djnz r1,%1
+}
+
+// The EEPROM writer reports an error in CY.
+replace {
+    mov _stock_r4,%1
+    mov _stock_r1,%2
+    mov _stock_r0,#0x94
+    lcall _write_eeprom_bytes
+    jb _CARRY,%3
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+} by {
+    mov r4,%1
+    mov r1,%2
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc %4
+    setb _eeprom_io_failed
+    %4:
+}
+
+replace {
+    jb _eeprom_io_failed,%1
+    ljmp %2
+    %1:
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl acc,#0x7f
+    movx @dptr,a
+    %2:
+} by {
+    jnb _eeprom_io_failed,%2
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl a,#0x7f
+    movx @dptr,a
+    %2:
+}
+
+replace {
+    mov _stock_r0,#0x94
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+} by {
+    mov r0,#0x94
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    mov @r0,a
+}

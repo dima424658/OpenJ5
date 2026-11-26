@@ -1,0 +1,558 @@
+// Accumulate charge and preserve the enable and output-mode exits.
+replace {
+    jnb _startup_flag_53,%1
+    ljmp %2
+    %1:
+    mov dptr,#_cylinder_charge
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov dptr,#(_cylinder_charge_sum + 0x0001)
+    movx a,@dptr
+    mov r7,a
+    mov r6,#0x00
+    mov ar6,r7
+    mov r7,#0x00
+    mov dptr,#_cylinder_charge_sum
+    movx a,@dptr
+    mov r5,a
+    mov r4,#0x00
+    mov a,r5
+    orl ar7,a
+    mov a,r4
+    orl ar6,a
+    mov r5,#0x00
+    mov r4,#0x00
+    mov r0,_stock_r01
+    mov r1,(_stock_r01 + 1)
+    mov r2,#0x00
+    mov r3,#0x00
+    mov a,r0
+    add a, r7
+    mov r7,a
+    mov a,r1
+    addc a, r6
+    mov r6,a
+    mov a,r2
+    addc a, r5
+    mov r5,a
+    mov a,r3
+    addc a, r4
+    mov r4,a
+    mov ar3,r7
+    mov dptr,#_cylinder_charge_sum
+    mov a,r3
+    movx @dptr,a
+    mov ar3,r6
+    mov dptr,#(_cylinder_charge_sum + 0x0001)
+    mov a,r3
+    movx @dptr,a
+    mov dptr,#(_cylinder_charge_sum + 0x0002)
+    movx a,@dptr
+    mov r3,a
+    mov ar7,r5
+    mov ar6,r4
+    mov a,r7
+    add a, r3
+    mov r7,a
+    mov a,r6
+    addc a, r2
+    mov r6,a
+    mov ar4,r7
+    mov ar5,r6
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r5
+    jnc %3
+    ljmp %2
+    %3:
+    mov dptr,#(_cylinder_charge_sum + 0x0002)
+    mov a,r7
+    movx @dptr,a
+    %2:
+    jnb _asynchronous_enrichment_enabled,%4
+    ljmp %5
+    %4:
+    lcall _finish_crank_without_fuel
+    ljmp %6
+    %5:
+    jb _output_state_flag_45,%7
+    ljmp %8
+    %7:
+    mov dptr,#_asynchronous_fuel_dose
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    lcall _finish_crank_without_fuel
+    ljmp %6
+    %8:
+    lcall _calculate_async_enrichment
+    %6:
+    ret
+} by {
+    jb _startup_flag_53,00950$
+    mov dptr,#_cylinder_charge
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#_cylinder_charge_sum
+    movx a,@dptr
+    add a,r0
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    addc a,r1
+    movx @dptr,a
+    inc dpl
+    movx a,@dptr
+    addc a,#0x00
+    jc 00950$
+    movx @dptr,a
+    00950$:
+    jnb _asynchronous_enrichment_enabled,00951$
+    jnb _output_state_flag_45,_calculate_async_enrichment
+    clr a
+    mov dptr,#_asynchronous_fuel_dose
+    movx @dptr,a
+    mov dptr,#(_asynchronous_fuel_dose + 1)
+    movx @dptr,a
+    00951$:
+    ljmp _finish_crank_without_fuel
+}
+
+// Compute the asynchronous dose only for an active throttle opening contribution.
+replace {
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_asynchronous_fuel_dose
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    movx @dptr,a
+    mov dptr,#_enrichment_flags
+    movx a,@dptr
+    anl acc,#0xfe
+    movx @dptr,a
+    lcall _schedule_async_enrichment
+    ljmp %3
+    %2:
+    mov dptr,#_enrichment_flags
+    movx a,@dptr
+    orl acc,#0x01
+    movx @dptr,a
+    jb _fuel_configuration_flag_05,%4
+    ljmp %5
+    %4:
+    mov c,_injection_selection_flag_14
+    mov _split_injection_dose,c
+    ljmp %6
+    %5:
+    setb _split_injection_dose
+    %6:
+    jb _split_injection_dose,%7
+    ljmp %8
+    %7:
+    lcall _shift_right_u16_1
+    %8:
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov a,#0x80
+    xrl a,_injection_time_correction
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov a,_injection_time_correction
+    jb acc.7,%9
+    ljmp %10
+    %9:
+    lcall _add_u16_register_pairs
+    jb _CY,%11
+    ljmp %10
+    %11:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %10:
+    mov dptr,#_injector_static_factor
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov _stock_r23,_injector_voltage_offset
+    mov (_stock_r23 + 1),#0x00
+    lcall _add_u16_register_pairs
+    mov dptr,#_asynchronous_fuel_dose
+    mov a,_stock_r01
+    movx @dptr,a
+    mov a,(_stock_r01 + 1)
+    inc dptr
+    movx @dptr,a
+    mov _B,#0x10
+    lcall _multiply_stock_u16_u8
+    mov _mdu_0,_B
+    mov _mdu_1,_stock_r0
+    mov _mdu_2,_stock_r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,#0x0c
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r0,_mdu_0
+    mov _stock_r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+    lcall _schedule_async_enrichment
+    %3:
+    ret
+} by {
+    mov dptr,#_opening_fuel_delta
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    mov a,r0
+    orl a,r1
+    jnz 00952$
+    clr a
+    mov dptr,#_asynchronous_fuel_dose
+    movx @dptr,a
+    mov dptr,#(_asynchronous_fuel_dose + 1)
+    movx @dptr,a
+    mov dptr,#_enrichment_flags
+    movx a,@dptr
+    anl a,#0xfe
+    movx @dptr,a
+    ljmp _schedule_async_enrichment
+    00952$:
+    mov dptr,#_enrichment_flags
+    movx a,@dptr
+    orl a,#0x01
+    movx @dptr,a
+    jb _fuel_configuration_flag_05,00953$
+    setb _split_injection_dose
+    sjmp 00954$
+    00953$:
+    mov c,_injection_selection_flag_14
+    mov _split_injection_dose,c
+    00954$:
+    jnb _split_injection_dose,00955$
+    lcall _shift_right_u16_1
+    00955$:
+    mov _bank_one_r23,_bank_one_r01
+    mov (_bank_one_r23 + 1),(_bank_one_r01 + 1)
+    mov _B,_injection_time_correction
+    cpl b.7
+    lcall _multiply_stock_u16_u8
+    mov a,_injection_time_correction
+    jnb acc.7,00956$
+    lcall _add_u16_register_pairs
+    jnc 00956$
+    mov r0,#0xff
+    mov r1,#0xff
+    00956$:
+    mov dptr,#_injector_static_factor
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov r2,_injector_voltage_offset
+    mov r3,#0x00
+    lcall _add_u16_register_pairs
+    mov dptr,#_asynchronous_fuel_dose
+    mov a,r0
+    movx @dptr,a
+    inc dpl
+    mov a,r1
+    movx @dptr,a
+    mov _B,#0x10
+    lcall _multiply_stock_u16_u8
+    mov _mdu_0,_B
+    mov _mdu_1,r0
+    mov _mdu_2,r1
+    mov _mdu_3,#0x00
+    mov _mdu_4,#0x0c
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    mov r0,_mdu_0
+    mov r1,_mdu_1
+    mov a,_mdu_2
+    mov a,_mdu_3
+    mov a,_mdu_4
+    mov a,_mdu_5
+}
+
+// Skip compare programming when the resulting pulse duration is zero.
+replace {
+    mov a,_stock_r01
+    orl a,(_stock_r01 + 1)
+    jnz %1
+    ljmp %2
+    %1:
+} by {
+    mov a,r0
+    orl a,r1
+    jnz 00957$
+    ljmp _finish_crank_without_fuel
+}
+
+// Rearm compare channel 0 only for a selected active port and unmasked output.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.0,%1
+    ljmp %2
+    %1:
+    jb _injector_output_0,%3
+    ljmp %2
+    %3:
+    anl _CMEN,#0xfe
+    clr _EA
+    clr _injector_output_0
+    mov _CCL1,#0x00
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH0,a
+    mov _CML0,_stock_r2
+    orl _CMEN,#0x01
+    setb _injector_output_0
+    %2:
+} by {
+    00957$:
+    mov a,_output_flags_7c
+    anl a,#0x01
+    jnz 00958$
+    jnb _injector_output_0,00958$
+    anl _CMEN,#0xfe
+    clr _EA
+    clr _injector_output_0
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH0,a
+    mov _CML0,r2
+    orl _CMEN,#0x01
+    setb _injector_output_0
+}
+
+// Rearm compare channel 1 only for a selected active port and unmasked output.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.1,%1
+    ljmp %2
+    %1:
+    jb _injector_output_1,%3
+    ljmp %2
+    %3:
+    anl _CMEN,#0xfd
+    clr _EA
+    clr _injector_output_1
+    mov _CCL1,#0x00
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH1,a
+    mov _CML1,_stock_r2
+    orl _CMEN,#0x02
+    setb _injector_output_1
+    %2:
+} by {
+    00958$:
+    mov a,_output_flags_7c
+    anl a,#0x02
+    jnz 00959$
+    jnb _injector_output_1,00959$
+    anl _CMEN,#0xfd
+    clr _EA
+    clr _injector_output_1
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH1,a
+    mov _CML1,r2
+    orl _CMEN,#0x02
+    setb _injector_output_1
+}
+
+// Rearm compare channel 2 only for a selected active port and unmasked output.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+    jb _injector_output_2,%3
+    ljmp %2
+    %3:
+    anl _CMEN,#0xfb
+    clr _EA
+    clr _injector_output_2
+    mov _CCL1,#0x00
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH2,a
+    mov _CML2,_stock_r2
+    orl _CMEN,#0x04
+    setb _injector_output_2
+    %2:
+} by {
+    00959$:
+    mov a,_output_flags_7c
+    anl a,#0x04
+    jnz 00960$
+    jnb _injector_output_2,00960$
+    anl _CMEN,#0xfb
+    clr _EA
+    clr _injector_output_2
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH2,a
+    mov _CML2,r2
+    orl _CMEN,#0x04
+    setb _injector_output_2
+}
+
+// Rearm compare channel 3 only for a selected active port and unmasked output.
+replace {
+    mov a,_output_flags_7c
+    jnb acc.3,%1
+    ljmp %2
+    %1:
+    jb _injector_output_3,%3
+    ljmp %2
+    %3:
+    anl _CMEN,#0xf7
+    clr _EA
+    clr _injector_output_3
+    mov _CCL1,#0x00
+    setb _EA
+    mov r7,_CCL1
+    mov r6,_stock_r0
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    mov _stock_r2,r7
+    mov a,_stock_r1
+    add a, _CCH1
+    mov r6,a
+    mov ar7,r5
+    mov a,r7
+    add a, r6
+    mov _CMH3,a
+    mov _CML3,_stock_r2
+    orl _CMEN,#0x08
+    setb _injector_output_3
+    %2:
+    lcall _finish_crank_without_fuel
+    %4:
+    ret
+} by {
+    00960$:
+    mov a,_output_flags_7c
+    anl a,#0x08
+    jnz 00999$
+    jnb _injector_output_3,00999$
+    anl _CMEN,#0xf7
+    clr _EA
+    clr _injector_output_3
+    mov _CCL1,a
+    setb _EA
+    mov a,_CCL1
+    add a,r0
+    mov r2,a
+    mov a,_CCH1
+    addc a,r1
+    mov _CMH3,a
+    mov _CML3,r2
+    orl _CMEN,#0x08
+    setb _injector_output_3
+    00999$:
+}

@@ -1,0 +1,153 @@
+// Preserve carry when advancing the free-running sequence.
+replace {
+    mov dptr,#_sensor_tick_sequence
+    movx a,@dptr
+    add a,#0x01
+    movx @dptr,a
+} by {
+    mov dptr,#_sensor_tick_sequence
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+}
+
+// Keep the counter address loaded through the comparison and reset.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#%2
+    cjne a,_ACC,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    mov dptr,#%1
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,#%2,%5
+    clr a
+    movx @dptr,a
+}
+
+replace {
+    jb _oxygen_threshold_set_4f,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _oxygen_threshold_set_4f,%2
+}
+
+replace {
+    jnb _crank_stopped,%1
+    ljmp %2
+    %1:
+} by {
+    jb _crank_stopped,%2
+}
+
+replace {
+    jb _air_conditioning_active,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _air_conditioning_active,%2
+}
+
+// Saturate at 255 by dropping the store after wrap.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %2
+    ljmp %3
+    %2:
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+    %3:
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    inc a
+    jz %3
+    movx @dptr,a
+    %3:
+}
+
+// Clamp the subtraction at zero and compare the result with the idle-speed floor.
+replace {
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %3
+    %2:
+    mov r7,#0x00
+    %3:
+    mov _B,r7
+    mov dptr,#_ac_idle_rpm_offset_min
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %4
+    ljmp %5
+    %4:
+    mov _ACC,_B
+    %5:
+    mov dptr,#_idle_rpm_correction
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#_idle_rpm_correction
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc %1
+    clr a
+    %1:
+    mov _B,a
+    mov dptr,#_ac_idle_rpm_offset_min
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,.+3
+    jnc %5
+    mov a,_B
+    %5:
+    mov dptr,#_idle_rpm_correction
+    movx @dptr,a
+}
+
+// Both tick branches converge at the next section.
+replace {
+    lcall _update_engine_stop_counters
+    %1:
+    ret
+} by {
+}

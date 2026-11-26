@@ -1,0 +1,182 @@
+// Fuel cut skips the low-signal test, and the low threshold is inclusive.
+replace {
+    jnb _deceleration_fuel_cut,%1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_diagnostic_limits
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_stock_r0
+    jnc %3
+    ljmp %2
+    %3:
+    jnb _oxygen_adc_low,%4
+    ljmp %5
+    %4:
+    jb _tick_1s,%6
+    ljmp %5
+    %6:
+} by {
+    jb _deceleration_fuel_cut,%2
+    mov dptr,#_oxygen_diagnostic_limits
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,r0
+    jc %2
+    jb _oxygen_adc_low,%5
+    jnb _tick_1s,%5
+}
+
+// The high-signal path requires a reading strictly above the high threshold.
+replace {
+    mov dptr,#(_oxygen_diagnostic_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_stock_r0
+    jc %1
+    ljmp %2
+    %1:
+    jnb _oxygen_adc_high,%3
+    ljmp %4
+    %3:
+    jb _tick_1s,%5
+    ljmp %4
+    %5:
+} by {
+    mov dptr,#(_oxygen_diagnostic_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,r0
+    jnc %2
+    jb _oxygen_adc_high,%4
+    jnb _tick_1s,%4
+}
+
+// Both diagnostic paths compare the counter from before the increment.
+replace {
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT2,%1
+    ljmp %2
+    %1:
+    jb _ACC_BIT1,%3
+    ljmp %4
+    %3:
+    %2:
+    jb _oxygen_test_condition_5c,%5
+    ljmp %6
+    %5:
+    mov dptr,#_oxygen_fault_seconds
+    movx a,@dptr
+    mov _B,a
+    mov r7,_B
+    mov a,r7
+    inc a
+    movx @dptr,a
+    mov dptr,#_oxygen_fault_delay
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %7
+    ljmp %8
+    %7:
+    ljmp %9
+    %4:
+    jb _oxygen_test_condition_56,%10
+    ljmp %9
+    %10:
+    mov dptr,#_oxygen_fault_seconds
+    movx a,@dptr
+    mov _B,a
+    mov r7,_B
+    mov a,r7
+    inc a
+    movx @dptr,a
+    mov dptr,#%11
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %12
+    ljmp %9
+    %12:
+    %8:
+    setb %13
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    anl acc,#0xfe
+    movx @dptr,a
+    %9:
+    lcall _continue_without_oxygen
+    ljmp %14
+    %6:
+    lcall %15
+    %14:
+    ret
+} by {
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    jb _ACC_BIT2,%2
+    jnb _ACC_BIT1,%4
+    %2:
+    jnb _oxygen_test_condition_5c,%6
+    mov dptr,#_oxygen_fault_seconds
+    movx a,@dptr
+    mov _B,a
+    inc a
+    movx @dptr,a
+    mov dptr,#_oxygen_fault_delay
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,.+3
+    jnc %9
+    sjmp %8
+    %4:
+    jnb _oxygen_test_condition_56,%9
+    mov dptr,#_oxygen_fault_seconds
+    movx a,@dptr
+    mov _B,a
+    inc a
+    movx @dptr,a
+    mov dptr,#%11
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,.+3
+    jnc %9
+    %8:
+    setb %13
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    anl a,#0xfe
+    movx @dptr,a
+    %9:
+    ljmp _continue_without_oxygen
+    %6:
+}
+
+replace {
+    mov dptr,#_oxygen_fault_seconds
+    mov a,#0x00
+    movx @dptr,a
+    lcall _update_oxygen_monitor_state
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#_oxygen_fault_seconds
+    movx @dptr,a
+}

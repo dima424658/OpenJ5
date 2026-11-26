@@ -1,0 +1,244 @@
+// Read the accumulated sample word into the active register bank.
+replace {
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+// Compare the delay and the two diagnostic boundaries without clobbering A.
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+} by {
+    cjne a,_B,.+3
+    jc %2
+}
+
+replace {
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    lcall _set_low_coolant_adc_fault
+    ljmp %3
+    %2:
+} by {
+    mov a,r1
+    cjne a,_B,.+3
+    jc _set_low_coolant_adc_fault
+}
+
+replace {
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _set_high_coolant_adc_fault
+    ljmp %3
+    %2:
+    lcall _convert_measured_coolant
+    %3:
+    ret
+} by {
+    mov a,r1
+    cjne a,_B,.+3
+    jnc _set_high_coolant_adc_fault
+    %2:
+}
+
+// Pass the ADC index and fraction using the stock interpolation ABI.
+replace {
+    mov a,_stock_r1
+    swap a
+    rl a
+    anl a,#0xe0
+    mov _stock_r3,a
+    mov a,_stock_r1
+    swap a
+    rl a
+    anl a,#0x1f
+    mov _stock_r2,a
+    mov r6,#_coolant_transfer_raw
+    mov r7,#(_coolant_transfer_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_curve_u8
+} by {
+    mov a,r1
+    swap a
+    rl a
+    anl a,#0xe0
+    mov r3,a
+    mov a,r1
+    rr a
+    rr a
+    rr a
+    anl a,#0x1f
+    mov r2,a
+    mov dptr,#_coolant_transfer_raw
+    lcall _interp_curve_u8
+}
+
+replace {
+    clr c
+    mov a,_ACC
+    subb a,#0x14
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x00
+    mov r7,#0x00
+    ljmp %3
+    %2:
+    mov r5,_ACC
+    mov a,r5
+    add a,#0xec
+    mov r5,a
+    mov ar6,r5
+    mov a,r5
+    rlc a
+    subb a,acc
+    mov r7,a
+    %3:
+    mov _ACC,r6
+    mov _coolant_temperature_raw,_ACC
+    mov dptr,#_measured_coolant_raw
+    mov a,_ACC
+    movx @dptr,a
+    clr _coolant_adc_low
+    clr _coolant_adc_high
+    mov _B,_ACC
+} by {
+    clr c
+    subb a,#0x14
+    jnc %3
+    mov a,#0x00
+    %3:
+    mov _coolant_temperature_raw,a
+    mov dptr,#_measured_coolant_raw
+    movx @dptr,a
+    clr _coolant_adc_low
+    clr _coolant_adc_high
+    mov _B,a
+}
+
+// Every exit from the rise check proceeds to the common temperature axis.
+replace {
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    jnz _update_coolant_axis
+}
+
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+} by {
+    cjne a,_B,.+3
+    jnc _update_coolant_axis
+}
+
+replace {
+    mov r7,a
+    mov a,_B
+    clr c
+    subb a,r7
+    mov _B,a
+} by {
+    xch a,_B
+    clr c
+    subb a,_B
+    mov _B,a
+}
+
+replace {
+    mov dptr,#_coolant_rise_latched
+    mov a,#0x01
+    movx @dptr,a
+    %1:
+    lcall _update_coolant_axis
+    %2:
+    ret
+} by {
+    mov a,#0x01
+    mov dptr,#_coolant_rise_latched
+    movx @dptr,a
+    sjmp coolant_samples_end
+    %1:
+}
+
+replace {
+    setb _coolant_adc_low
+    clr _coolant_adc_high
+    lcall _use_fallback_coolant_temp
+    %1:
+    ret
+} by {
+    setb _coolant_adc_low
+    clr _coolant_adc_high
+    sjmp _use_fallback_coolant_temp
+}
+
+replace {
+    clr _coolant_adc_low
+    setb _coolant_adc_high
+    lcall _use_fallback_coolant_temp
+    %1:
+    ret
+} by {
+    clr _coolant_adc_low
+    setb _coolant_adc_high
+}
+
+// Use the upper nibble of the running-time counter as the table index.
+replace {
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0x0f
+    mov _B,a
+    mov a,_B
+    add a,#_coolant_fallback_temperature
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_coolant_fallback_temperature >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _coolant_temperature_raw,a
+    lcall _update_coolant_axis
+    %1:
+    ret
+} by {
+    anl a,#0xf0
+    swap a
+    mov _B,a
+    mov dptr,#_coolant_fallback_temperature
+    mov a,_B
+    movc a,@a+dptr
+    mov _coolant_temperature_raw,a
+    coolant_samples_end:
+}

@@ -1,0 +1,292 @@
+// Keep the four cylinder indications in the high nibble of B.
+replace {
+    mov dptr,#_misfire_control_fa6c
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    rrc a
+    mov r7,a
+    mov a,#0x70
+    anl a,r7
+    mov _B,a
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_ACC_BIT0
+    mov _B_BIT7,c
+} by {
+    mov dptr,#_misfire_control_fa6c
+    movx a,@dptr
+    rr a
+    anl a,#0x70
+    mov _B,a
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    mov c,_ACC_BIT0
+    mov _B_BIT7,c
+}
+
+// Publish the retained status and add the companion-cylinder bits when requested.
+replace {
+    mov a,_B
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    orl acc,#0x80
+    movx @dptr,a
+    mov dptr,#_retained_misfire_flags
+    movx a,@dptr
+    orl a,_B
+    mov _ACC,a
+    jb _report_misfire_in_pairs,%3
+    ljmp %4
+    %3:
+    jnb _B_BIT4,%5
+    ljmp %6
+    %5:
+    jb _B_BIT6,%7
+    ljmp %8
+    %7:
+    %6:
+    orl _ACC,#0x50
+    %8:
+    jnb _B_BIT5,%9
+    ljmp %10
+    %9:
+    jb _B_BIT7,%11
+    ljmp %4
+    %11:
+    %10:
+    orl _ACC,#0xa0
+    ljmp %4
+    %2:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    anl acc,#0x7f
+    movx @dptr,a
+    mov dptr,#_retained_misfire_flags
+    movx a,@dptr
+    anl a,#0x0f
+    mov _ACC,a
+    %4:
+    mov dptr,#_retained_misfire_flags
+    mov a,_ACC
+    movx @dptr,a
+    lcall _update_misfire_outputs
+    %12:
+    ret
+} by {
+    mov a,_B
+    jz %2
+    mov dptr,#_retained_status
+    movx a,@dptr
+    orl a,#0x80
+    movx @dptr,a
+    mov dptr,#_retained_misfire_flags
+    movx a,@dptr
+    orl a,_B
+    jnb _report_misfire_in_pairs,%4
+    mov c,_B_BIT4
+    orl c,_B_BIT6
+    jnc %8
+    orl a,#0x50
+    %8:
+    mov c,_B_BIT5
+    orl c,_B_BIT7
+    jnc %4
+    orl a,#0xa0
+    sjmp %4
+    %2:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    anl a,#0x7f
+    movx @dptr,a
+    mov dptr,#_retained_misfire_flags
+    movx a,@dptr
+    anl a,#0x0f
+    %4:
+    movx @dptr,a
+}
+
+// Move the enabled indications to their companion outputs through carry.
+replace {
+    mov dptr,#_misfire_control_fa6c
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    clr c
+    rrc a
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0xf0
+    mov r7,a
+    mov a,r7
+    anl _B,a
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    anl a,#0x0f
+    mov r7,a
+    mov r6,_B
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    mov _B,_ACC
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    jb _report_misfire_in_pairs,%3
+    ljmp %2
+    %3:
+    jb _ACC_BIT7,%4
+    ljmp %5
+    %4:
+    setb _B_BIT5
+    %5:
+    jb _ACC_BIT6,%6
+    ljmp %7
+    %6:
+    setb _B_BIT4
+    %7:
+    jb _ACC_BIT5,%8
+    ljmp %9
+    %8:
+    setb _B_BIT7
+    %9:
+    jb _ACC_BIT4,%10
+    ljmp %2
+    %10:
+    setb _B_BIT6
+    %2:
+    lcall _map_misfire_outputs
+    %11:
+    ret
+} by {
+    mov dptr,#_misfire_control_fa6c
+    movx a,@dptr
+    rr a
+    anl a,#0x0f
+    swap a
+    anl a,_B
+    mov _B,a
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    anl a,#0x0f
+    orl a,_B
+    mov _B,a
+    jz %2
+    jnb _report_misfire_in_pairs,%2
+    rlc a
+    jnc %5
+    setb _B_BIT5
+    %5:
+    rlc a
+    jnc %7
+    setb _B_BIT4
+    %7:
+    rlc a
+    jnc %9
+    setb _B_BIT7
+    %9:
+    rlc a
+    jnc %2
+    setb _B_BIT6
+    %2:
+}
+
+// Rotate the four high bits into carry in firing-output order.
+replace {
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    anl a,#0x0f
+    mov r7,a
+    mov r6,_B
+    mov a,r6
+    orl a,r7
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,#0x00
+    mov c,_ACC_BIT4
+    mov _B_BIT0,c
+    mov c,_ACC_BIT5
+    mov _B_BIT2,c
+    mov c,_ACC_BIT6
+    mov _B_BIT3,c
+    mov c,_ACC_BIT7
+    mov _B_BIT1,c
+    mov a,_B
+    orl _output_flags_7c,a
+    mov a,_B
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    orl acc,#0x04
+    movx @dptr,a
+    %2:
+    lcall _continue_after_misfire
+    %3:
+    ret
+} by {
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    anl a,#0x0f
+    orl a,_B
+    movx @dptr,a
+    swap a
+    anl a,#0x0f
+    mov _B,#0x00
+    rrc a
+    jnc .+4
+    setb _B_BIT0
+    rrc a
+    jnc .+4
+    setb _B_BIT2
+    rrc a
+    jnc .+4
+    setb _B_BIT3
+    rrc a
+    jnc .+4
+    setb _B_BIT1
+    mov a,_output_flags_7c
+    orl a,_B
+    mov _output_flags_7c,a
+    mov a,_B
+    jz %2
+    mov dptr,#_misfire_control_fa6d
+    movx a,@dptr
+    orl a,#0x04
+    movx @dptr,a
+    %2:
+}
+
+// Carry the ADC reading in A and the sum address in DPTR.
+replace {
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+    mov r6,#%2
+    mov r7,#(%2 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _accumulate_u8_xdata_u16
+} by {
+    mov dptr,#%1
+    movx @dptr,a
+    mov dptr,#%2
+    lcall _accumulate_u8_xdata_u16
+}
+
+replace {
+    lcall _sample_ignition_supply
+    %1:
+    ret
+} by {
+    %1:
+}

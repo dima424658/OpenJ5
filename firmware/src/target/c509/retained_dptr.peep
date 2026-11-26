@@ -1,0 +1,78 @@
+// The same SFR addresses refer to the selected hardware pointer bank.
+replace {
+    mov r6,#%1
+    mov r7,#(%1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#%1
+}
+
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+} by {
+}
+
+replace {
+    mov a,#0x01
+    add a,((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a,((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+} by {
+    inc dptr
+}
+
+replace {
+    mov _ACC,a
+    inc dptr
+} by {
+    inc dptr
+}
+
+replace {
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    movx @dptr,a
+}
+
+replace {
+    mov _stock_r0,#0x00
+} by {
+    mov r0,#0x00
+}
+
+replace {
+    mov _stock_r2,#0x40
+} by {
+    mov r2,#0x40
+}
+
+replace {
+    mov a,_stock_r0
+    dec a
+    mov r7,a
+    mov _stock_r0,r7
+    mov a,r7
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    djnz r0,%2
+}
+
+replace {
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    djnz r2,%2
+}

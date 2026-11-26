@@ -1,0 +1,350 @@
+// Compute the throttle excess, preserve the MDU transaction and blend both targets.
+replace {
+    mov a,_rpm_half_bin
+    add a, #_power_transition_width
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_power_transition_width >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_rpm_half_bin
+    add a, #_economy_throttle_boundary
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_economy_throttle_boundary >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _stock_r1,a
+    mov r7,_throttle_position
+    clr c
+    mov a,r7
+    subb a,_stock_r1
+    mov _blend_power_mode_mixture_sloc0_1_0,c
+    mov c,_blend_power_mode_mixture_sloc0_1_0
+    cpl c
+    mov _at_or_above_power_boundary,c
+    clr c
+    mov a,_stock_r1
+    subb a,r7
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _correct_transition_ignition
+    ljmp %3
+    %2:
+    mov a,r7
+    clr c
+    subb a,_stock_r1
+    mov _stock_r1,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jnc %4
+    ljmp %5
+    %4:
+    lcall _select_full_power_mixture
+    ljmp %3
+    %5:
+    clr _mdu_interrupted
+    mov _mdu_0,#0x00
+    mov _mdu_1,_stock_r1
+    mov _mdu_4,_B
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov _stock_r3,_mdu_0
+    mov _ACC,_mdu_1
+    mov _ACC,_mdu_4
+    mov _ACC,_mdu_5
+    jnb _mdu_interrupted,%6
+    ljmp %5
+    %6:
+    mov dptr,#_power_mode_weight
+    mov a,_stock_r3
+    movx @dptr,a
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.2,%7
+    ljmp %8
+    %7:
+    mov r6,#_power_ignition_raw
+    mov r7,#(_power_ignition_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _stock_r2,_ACC
+    mov _stock_r0,_requested_ignition
+    mov dptr,#_power_mode_weight
+    movx a,@dptr
+    mov _stock_r3,a
+    lcall _blend_u8_q8
+    mov _requested_ignition,_ACC
+    %8:
+    mov r6,#_power_mixture_raw
+    mov r7,#(_power_mixture_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _stock_r2,_ACC
+    mov _stock_r0,_requested_mixture
+    mov dptr,#_power_mode_weight
+    movx a,@dptr
+    mov _stock_r3,a
+    lcall _blend_u8_q8
+    mov _requested_mixture,_ACC
+    lcall _correct_transition_ignition
+    %3:
+    ret
+} by {
+    mov dptr,#_power_transition_width
+    mov a,_rpm_half_bin
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_economy_throttle_boundary
+    mov a,_rpm_half_bin
+    movc a,@a+dptr
+    mov r1,a
+    mov a,_throttle_position
+    clr c
+    subb a,r1
+    cpl c
+    mov _at_or_above_power_boundary,c
+    jnc _correct_transition_ignition
+    jz _correct_transition_ignition
+    mov r1,a
+    clr c
+    subb a,_B
+    jc 00970$
+    ljmp _select_full_power_mixture
+    00970$:
+    clr _mdu_interrupted
+    mov _mdu_0,#0x00
+    mov _mdu_1,r1
+    mov _mdu_4,_B
+    mov _mdu_5,#0x00
+    nop
+    nop
+    nop
+    nop
+    mov r3,_mdu_0
+    mov a,_mdu_1
+    mov a,_mdu_4
+    mov a,_mdu_5
+    jb _mdu_interrupted,00970$
+    mov a,r3
+    mov dptr,#_power_mode_weight
+    movx @dptr,a
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x04
+    jnz 00971$
+    mov dptr,#_power_ignition_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov r2,a
+    mov r0,_requested_ignition
+    mov dptr,#_power_mode_weight
+    movx a,@dptr
+    mov r3,a
+    lcall _blend_u8_q8
+    mov _requested_ignition,a
+    00971$:
+    mov dptr,#_power_mixture_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov r2,a
+    mov r0,_requested_mixture
+    mov dptr,#_power_mode_weight
+    movx a,@dptr
+    mov r3,a
+    lcall _blend_u8_q8
+    mov _requested_mixture,a
+}
+
+// Apply the two warmup offsets in the stock order.
+replace {
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+    mov a,_coolant_index
+    add a, #_coolant_ignition_correction_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_coolant_ignition_correction_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_load_warmup_correction_raw
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    add a, _B
+    mov _B,a
+    mov a,_requested_ignition
+    clr c
+    subb a,_B
+    mov _B,a
+    mov dptr,#_warmup_flags
+    movx a,@dptr
+    jb acc.1,%3
+    ljmp %4
+    %3:
+    mov a,_operating_point_index
+    add a, #_cold_power_ignition_corr_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cold_power_ignition_corr_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    add a, _B
+    mov _B,a
+    %4:
+    mov _requested_ignition,_B
+    %2:
+    ret
+} by {
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x04
+    jnz 00972$
+    mov dptr,#_coolant_ignition_correction_raw
+    mov a,_coolant_index
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_load_warmup_correction_raw
+    movx a,@dptr
+    add a,_B
+    mov _B,a
+    mov a,_requested_ignition
+    clr c
+    subb a,_B
+    mov _B,a
+    mov dptr,#_warmup_flags
+    movx a,@dptr
+    jnb acc.1,00973$
+    mov dptr,#_cold_power_ignition_corr_raw
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    add a,_B
+    mov _B,a
+    00973$:
+    mov _requested_ignition,_B
+    00972$:
+    ret
+}
+
+// Select the full-power ignition and mixture targets.
+replace {
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.2,%1
+    ljmp %2
+    %1:
+    mov r6,#_power_ignition_raw
+    mov r7,#(_power_ignition_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _requested_ignition,_ACC
+    mov a,_coolant_index
+    add a, #_coolant_ignition_correction_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_coolant_ignition_correction_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_load_warmup_correction_raw
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    add a, _B
+    mov _B,a
+    mov a,_requested_ignition
+    clr c
+    subb a,_B
+    mov _B,a
+    mov dptr,#_warmup_flags
+    movx a,@dptr
+    jb acc.1,%3
+    ljmp %4
+    %3:
+    mov a,_operating_point_index
+    add a, #_cold_power_ignition_corr_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_cold_power_ignition_corr_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    add a, _B
+    mov _B,a
+    %4:
+    mov _requested_ignition,_B
+    %2:
+    mov r6,#_power_mixture_raw
+    mov r7,#(_power_mixture_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _requested_mixture,_ACC
+    %5:
+    ret
+} by {
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x04
+    jnz 00974$
+    mov dptr,#_power_ignition_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _requested_ignition,a
+    mov dptr,#_coolant_ignition_correction_raw
+    mov a,_coolant_index
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_load_warmup_correction_raw
+    movx a,@dptr
+    add a,_B
+    mov _B,a
+    mov a,_requested_ignition
+    clr c
+    subb a,_B
+    mov _B,a
+    mov dptr,#_warmup_flags
+    movx a,@dptr
+    jnb acc.1,00975$
+    mov dptr,#_cold_power_ignition_corr_raw
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    add a,_B
+    mov _B,a
+    00975$:
+    mov _requested_ignition,_B
+    00974$:
+    mov dptr,#_power_mixture_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _requested_mixture,a
+    ret
+}

@@ -1,0 +1,443 @@
+// Preserve the ADC sampling and four compare updates within the crank interrupt.
+replace {
+    mov a,_knock_begin_pair_1
+    cjne a,_half_turn_tooth,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    setb _knock_latch
+    %3:
+    mov a,_knock_end_pair_1
+    cjne a,_half_turn_tooth,%4
+    sjmp %5
+    %4:
+    ljmp %6
+    %5:
+    clr _knock_latch
+    %6:
+    mov a,#0x06
+    cjne a,_half_turn_tooth,%7
+    sjmp %8
+    %7:
+    ljmp %9
+    %8:
+    setb _adc_interrupted_by_iac
+    mov _adc_channel,#0x07
+    mov _adc_start,#0x00
+    %10:
+    jnb _adc_busy,%11
+    ljmp %10
+    %11:
+    mov r7,_adc_result_high
+    mov _knock_adc_raw,r7
+    clr c
+    mov a,r7
+    subb a,_knock_noise_floor
+    jc %12
+    ljmp %13
+    %12:
+    mov r6,#0x00
+    ljmp %14
+    %13:
+    mov a,r7
+    clr c
+    subb a,_knock_noise_floor
+    mov r7,a
+    mov ar6,r7
+    %14:
+    mov _knock_adc_sample,r6
+    %9:
+    mov a,#0x0b
+    cjne a,_half_turn_tooth,%15
+    sjmp %16
+    %15:
+    ljmp %17
+    %16:
+    clr _tooth_marker_output
+    %17:
+    mov a,#0x01
+    cjne a,_half_turn_tooth,%18
+    sjmp %19
+    %18:
+    ljmp %20
+    %19:
+    setb _tooth_marker_output
+    %20:
+    mov a,_coil_1_dwell_tooth
+    cjne a,_crank_tooth,%21
+    sjmp %22
+    %21:
+    ljmp %23
+    %22:
+    mov a,_previous_tooth_period
+    add a,acc
+    mov r6,a
+    mov a,(_previous_tooth_period + 1)
+    rlc a
+    mov r7,a
+    mov r5,#0x00
+    mov r4,#0x00
+    mov __mullong_PARM_2,_coil_1_dwell_fraction
+    mov (__mullong_PARM_2 + 1),r5
+    mov (__mullong_PARM_2 + 2),r5
+    mov (__mullong_PARM_2 + 3),r5
+    mov dpl, r6
+    mov dph, r7
+    mov b, r5
+    mov a, r4
+    lcall __mullong
+    mov r4, dpl
+    mov r5, dph
+    mov r6, b
+    mov r7, a
+    mov ar4,r5
+    mov ar5,r6
+    mov r6,_last_crank_capture
+    mov r7,(_last_crank_capture + 1)
+    mov a,r4
+    add a, r6
+    mov r4,a
+    mov a,r5
+    addc a, r7
+    mov r5,a
+    anl _dwell_compare_control,#0xf9
+    anl _spark_compare_control,#0xfd
+    mov _dwell_compare_high,r5
+    mov _dwell_compare_low,r4
+    orl _dwell_compare_control,#0x02
+    %23:
+    mov a,_coil_1_spark_tooth
+    cjne a,_crank_tooth,%24
+    sjmp %25
+    %24:
+    ljmp %26
+    %25:
+    setb _primary_spark_pending
+    mov a,_previous_tooth_period
+    add a,acc
+    mov r6,a
+    mov a,(_previous_tooth_period + 1)
+    rlc a
+    mov r7,a
+    mov r5,#0x00
+    mov r4,#0x00
+    mov __mullong_PARM_2,_coil_1_spark_fraction
+    mov (__mullong_PARM_2 + 1),r5
+    mov (__mullong_PARM_2 + 2),r5
+    mov (__mullong_PARM_2 + 3),r5
+    mov dpl, r6
+    mov dph, r7
+    mov b, r5
+    mov a, r4
+    lcall __mullong
+    mov r4, dpl
+    mov r5, dph
+    mov r6, b
+    mov r7, a
+    mov ar4,r5
+    mov ar5,r6
+    mov r6,_last_crank_capture
+    mov r7,(_last_crank_capture + 1)
+    mov a,r4
+    add a, r6
+    mov r4,a
+    mov a,r5
+    addc a, r7
+    mov r5,a
+    anl _spark_compare_control,#0xf9
+    anl _dwell_compare_control,#0xfd
+    mov _spark_compare_high,r5
+    mov _spark_compare_low,r4
+    orl _spark_compare_control,#0x02
+    clr _second_ignition_coil
+    %26:
+    mov a,_coil_2_dwell_tooth
+    cjne a,_crank_tooth,%27
+    sjmp %28
+    %27:
+    ljmp %29
+    %28:
+    mov a,_previous_tooth_period
+    add a,acc
+    mov r6,a
+    mov a,(_previous_tooth_period + 1)
+    rlc a
+    mov r7,a
+    mov r5,#0x00
+    mov r4,#0x00
+    mov __mullong_PARM_2,_coil_2_dwell_fraction
+    mov (__mullong_PARM_2 + 1),r5
+    mov (__mullong_PARM_2 + 2),r5
+    mov (__mullong_PARM_2 + 3),r5
+    mov dpl, r6
+    mov dph, r7
+    mov b, r5
+    mov a, r4
+    lcall __mullong
+    mov r4, dpl
+    mov r5, dph
+    mov r6, b
+    mov r7, a
+    mov ar4,r5
+    mov ar5,r6
+    mov r6,_last_crank_capture
+    mov r7,(_last_crank_capture + 1)
+    mov a,r4
+    add a, r6
+    mov r4,a
+    mov a,r5
+    addc a, r7
+    mov r5,a
+    anl _dwell_compare_control,#0xf9
+    anl _spark_compare_control,#0xfb
+    mov _dwell_compare_high,r5
+    mov _dwell_compare_low,r4
+    orl _dwell_compare_control,#0x04
+    %29:
+    mov a,_coil_2_spark_tooth
+    cjne a,_crank_tooth,%30
+    sjmp %31
+    %30:
+    ljmp %32
+    %31:
+    setb _primary_spark_pending
+    mov a,_previous_tooth_period
+    add a,acc
+    mov r6,a
+    mov a,(_previous_tooth_period + 1)
+    rlc a
+    mov r7,a
+    mov r5,#0x00
+    mov r4,#0x00
+    mov __mullong_PARM_2,_coil_2_spark_fraction
+    mov (__mullong_PARM_2 + 1),r5
+    mov (__mullong_PARM_2 + 2),r5
+    mov (__mullong_PARM_2 + 3),r5
+    mov dpl, r6
+    mov dph, r7
+    mov b, r5
+    mov a, r4
+    lcall __mullong
+    mov r4, dpl
+    mov r5, dph
+    mov r6, b
+    mov r7, a
+    mov ar4,r5
+    mov ar5,r6
+    mov r6,_last_crank_capture
+    mov r7,(_last_crank_capture + 1)
+    mov a,r4
+    add a, r6
+    mov r4,a
+    mov a,r5
+    addc a, r7
+    mov r5,a
+    anl _spark_compare_control,#0xf9
+    anl _dwell_compare_control,#0xfb
+    mov _spark_compare_high,r5
+    mov _spark_compare_low,r4
+    orl _spark_compare_control,#0x04
+    setb _second_ignition_coil
+    %32:
+    lcall _irq_crank_epilogue
+    %33:
+    ret
+} by {
+    mov a,r7
+    cjne a,_knock_begin_pair_1,00970$
+    setb _knock_latch
+    mov a,r7
+    00970$:
+    cjne a,_knock_end_pair_1,00971$
+    clr _knock_latch
+    mov a,r7
+    00971$:
+    cjne a,#0x06,00972$
+    setb _adc_interrupted_by_iac
+    mov _adc_channel,#0x07
+    mov _adc_start,#0x00
+    00973$:
+    jb _adc_busy,00973$
+    mov a,_adc_result_high
+    mov _knock_adc_raw,a
+    subb a,_knock_noise_floor
+    jnc 00974$
+    clr a
+    00974$:
+    mov _knock_adc_sample,a
+    mov a,r7
+    00972$:
+    cjne a,#0x0b,00975$
+    clr _tooth_marker_output
+    00975$:
+    cjne a,#0x01,00976$
+    setb _tooth_marker_output
+    00976$:
+    mov a,r6
+    cjne a,_coil_1_dwell_tooth,00977$
+    mov b,_coil_1_dwell_fraction
+    clr c
+    mov a,r4
+    rlc a
+    mov r0,a
+    mov a,r5
+    rlc a
+    jz 00978$
+    mul ab
+    xch a,r0
+    mov r1,b
+    mov b,_coil_1_dwell_fraction
+    mul ab
+    mov a,r0
+    add a,b
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    sjmp 00979$
+    00978$:
+    mov a,r0
+    mul ab
+    mov r0,b
+    mov r1,#0x00
+    00979$:
+    anl _dwell_compare_control,#0xf9
+    anl _spark_compare_control,#0xfd
+    mov a,r2
+    add a,r0
+    mov r0,a
+    mov a,r3
+    addc a,r1
+    mov _dwell_compare_high,a
+    mov _dwell_compare_low,r0
+    orl _dwell_compare_control,#0x02
+    mov a,r6
+    00977$:
+    cjne a,_coil_1_spark_tooth,00980$
+    setb _primary_spark_pending
+    mov b,_coil_1_spark_fraction
+    clr c
+    mov a,r4
+    rlc a
+    mov r0,a
+    mov a,r5
+    rlc a
+    jz 00981$
+    mul ab
+    xch a,r0
+    mov r1,b
+    mov b,_coil_1_spark_fraction
+    mul ab
+    mov a,r0
+    add a,b
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    sjmp 00982$
+    00981$:
+    mov a,r0
+    mul ab
+    mov r0,b
+    mov r1,#0x00
+    00982$:
+    anl _spark_compare_control,#0xf9
+    anl _dwell_compare_control,#0xfd
+    mov a,r2
+    add a,r0
+    mov r0,a
+    mov a,r3
+    addc a,r1
+    mov _spark_compare_high,a
+    mov _spark_compare_low,r0
+    orl _spark_compare_control,#0x02
+    clr _second_ignition_coil
+    mov a,r6
+    00980$:
+    cjne a,_coil_2_dwell_tooth,00983$
+    mov b,_coil_2_dwell_fraction
+    clr c
+    mov a,r4
+    rlc a
+    mov r0,a
+    mov a,r5
+    rlc a
+    jz 00984$
+    mul ab
+    xch a,r0
+    mov r1,b
+    mov b,_coil_2_dwell_fraction
+    mul ab
+    mov a,r0
+    add a,b
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    sjmp 00985$
+    00984$:
+    mov a,r0
+    mul ab
+    mov r0,b
+    mov r1,#0x00
+    00985$:
+    anl _dwell_compare_control,#0xf9
+    anl _spark_compare_control,#0xfb
+    mov a,r2
+    add a,r0
+    mov r0,a
+    mov a,r3
+    addc a,r1
+    mov _dwell_compare_high,a
+    mov _dwell_compare_low,r0
+    orl _dwell_compare_control,#0x04
+    mov a,r6
+    00983$:
+    cjne a,_coil_2_spark_tooth,_irq_crank_epilogue
+    setb _primary_spark_pending
+    mov b,_coil_2_spark_fraction
+    clr c
+    mov a,r4
+    rlc a
+    mov r0,a
+    mov a,r5
+    rlc a
+    jz 00986$
+    mul ab
+    xch a,r0
+    mov r1,b
+    mov b,_coil_2_spark_fraction
+    mul ab
+    mov a,r0
+    add a,b
+    mov r0,a
+    mov a,r1
+    addc a,#0x00
+    mov r1,a
+    sjmp 00987$
+    00986$:
+    mov a,r0
+    mul ab
+    mov r0,b
+    mov r1,#0x00
+    00987$:
+    anl _spark_compare_control,#0xf9
+    anl _dwell_compare_control,#0xfb
+    mov a,r2
+    add a,r0
+    mov r0,a
+    mov a,r3
+    addc a,r1
+    mov _spark_compare_high,a
+    mov _spark_compare_low,r0
+    orl _spark_compare_control,#0x04
+    setb _second_ignition_coil
+}
+
+// Fall through from register restoration to RETI.
+replace {
+    lcall _irq_crank_reti
+    %1:
+} by {
+}

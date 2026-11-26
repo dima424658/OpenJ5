@@ -1,0 +1,91 @@
+// A lower-bound hit keeps the borrow set by SUBB and returns R0.
+// Otherwise, adding R0 back recovers the original input in A.
+replace {
+    mov r7,_ACC
+    mov r6,_stock_r0
+    clr c
+    mov a,r7
+    subb a,r6
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,r6
+    setb _CY
+    ljmp %3
+    %2:
+} by {
+    clr c
+    subb a,r0
+    jnc %2
+    mov a,r0
+    ret
+    %2:
+    add a,r0
+    clr c
+}
+
+// Choose the sign-specific bound with carry cleared for either subtraction.
+replace {
+    mov r7,_ACC
+    mov a,r7
+    jb acc.7,%1
+    ljmp %2
+    %1:
+} by {
+    clr c
+    jnb acc.7,%2
+}
+
+// Negative inputs return with CY set whether or not they hit the lower bound.
+replace {
+    mov r6,_stock_r0
+    clr c
+    mov a,r7
+    subb a,r6
+    jc %1
+    ljmp %2
+    %1:
+    mov _ACC,r6
+    setb _CY
+    ljmp %3
+    %2:
+    mov _ACC,r7
+    setb _CY
+    ljmp %3
+} by {
+    subb a,r0
+    jnc %2
+    mov a,r0
+    ret
+    %2:
+    add a,r0
+    setb c
+    ret
+}
+
+// For the upper bound, CY is set on equality as well as on saturation.
+// An in-range byte is recovered from the subtraction before clearing carry.
+replace {
+    mov r6,_stock_r1
+    clr c
+    mov a,r7
+    subb a,r6
+    jnc %1
+    ljmp %2
+    %1:
+    mov _ACC,r6
+    setb _CY
+    ljmp %3
+    %2:
+    mov _ACC,r7
+    clr _CY
+} by {
+    subb a,r1
+    jc %2
+    mov a,r1
+    setb c
+    ret
+    %2:
+    add a,r1
+    clr c
+}

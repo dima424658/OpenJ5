@@ -1,0 +1,240 @@
+replace {
+    mov _stock_r0,a
+} by {
+    mov r0,a
+}
+replace {
+    mov _stock_r1,a
+} by {
+    mov r1,a
+}
+replace {
+    mov _ACC,a
+    lcall _clamp_stock_u8
+    mov dptr,#_retained_barometric_correction
+    mov a,_ACC
+} by {
+    lcall _clamp_stock_u8
+    mov dptr,#_retained_barometric_correction
+}
+
+// A pending reset takes precedence over the retained-data configuration bit.
+replace {
+    mov _ACC,a
+    jnb _startup_mode_15,%1
+    ljmp %2
+    %1:
+    jnb _ACC_BIT1,%3
+    ljmp %2
+    %3:
+    jnb _retained_ram_checksum_failed,%4
+    ljmp %2
+    %4:
+    mov dptr,#_retain_startup_data_config
+    clr a
+    movc a,@a+dptr
+    mov _ACC,a
+    jnb _ACC_BIT0,%5
+    ljmp %6
+    %5:
+    %2:
+} by {
+    mov c,_startup_mode_15
+    orl c,_ACC_BIT1
+    orl c,_retained_ram_checksum_failed
+    jc %2
+    mov dptr,#_retain_startup_data_config
+    clr a
+    movc a,@a+dptr
+    jb _ACC_BIT0,_init_startup_baro_history
+    %2:
+}
+
+replace {
+    mov r6,#_retained_entries
+    mov r7,#(_retained_entries >> 8)
+    %1:
+    mov dpl,r6
+    mov dph,r7
+    mov a,#0x00
+    movx @dptr,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    mov a,_B
+    dec a
+    mov r5,a
+    mov _B,r5
+    mov a,r5
+    jz %2
+    ljmp %1
+    %2:
+    lcall _clear_retained_words_ce94
+    %3:
+    lcall _init_startup_baro_history
+    %4:
+    ret
+} by {
+    mov dptr,#_retained_entries
+    clr a
+    %1:
+    movx @dptr,a
+    inc dptr
+    djnz _B,%1
+    lcall _clear_retained_words_ce94
+}
+
+replace {
+    mov _ACC,#0x00
+    mov dptr,#(_retained_entries + 0x0006)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_retained_field_f518
+    mov a,_ACC
+} by {
+    clr a
+    mov dptr,#(_retained_entries + 0x0006)
+    movx @dptr,a
+    mov dptr,#_retained_field_f518
+}
+
+replace {
+    mov _ACC,a
+    mov r6,#_barometric_history
+    mov r7,#(_barometric_history >> 8)
+    %1:
+    mov dpl,r6
+    mov dph,r7
+    mov a,_ACC
+    movx @dptr,a
+    inc dptr
+    mov r6,dpl
+    mov r7,dph
+    mov a,_B
+    dec a
+    mov r5,a
+    mov _B,r5
+    mov a,r5
+    jz %2
+    ljmp %1
+    %2:
+    lcall _sample_startup_coolant
+    %3:
+    ret
+} by {
+    mov dptr,#_barometric_history
+    %1:
+    movx @dptr,a
+    inc dptr
+    djnz _B,%1
+}
+
+replace {
+    mov dptr,#_coolant_adc_raw
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r1,_ACC
+    mov a,_stock_r1
+    swap a
+    rl a
+    anl a,#0xe0
+    mov _stock_r3,a
+    mov a,_stock_r1
+    swap a
+    rl a
+    anl a,#0x1f
+    mov _stock_r2,a
+    mov r6,#_coolant_transfer_raw
+    mov r7,#(_coolant_transfer_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#_coolant_adc_raw
+    movx @dptr,a
+    mov r1,a
+    swap a
+    rl a
+    anl a,#0xe0
+    mov r3,a
+    mov a,r1
+    rr a
+    rr a
+    rr a
+    anl a,#0x1f
+    mov r2,a
+    mov dptr,#_coolant_transfer_raw
+}
+
+replace {
+    lcall _interp_curve_u8
+    clr c
+    mov a,_ACC
+    subb a,#0x14
+    jc %1
+    ljmp %2
+    %1:
+    mov r6,#0x00
+    mov r7,#0x00
+    ljmp %3
+    %2:
+    mov r5,_ACC
+    mov a,r5
+    add a,#0xec
+    mov r5,a
+    mov ar6,r5
+    mov a,r5
+    rlc a
+    subb a,acc
+    mov r7,a
+    %3:
+    mov _ACC,r6
+    mov _coolant_temperature_raw,_ACC
+    mov dptr,#_startup_coolant_raw
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    lcall _interp_curve_u8
+    clr c
+    subb a,#0x14
+    jnc %3
+    mov a,#0x00
+    %3:
+    mov _coolant_temperature_raw,a
+    mov dptr,#_startup_coolant_raw
+    movx @dptr,a
+}
+
+// Preserve the byte wrap before rounding to the nearest temperature bin.
+replace {
+    mov a,#0x02
+    add a,_coolant_temperature_raw
+    mov r7,a
+    mov b,#0x05
+    mov a,r7
+    div ab
+    mov r7,a
+    mov _ACC,r7
+    clr c
+    mov a,_ACC
+    subb a,#0x24
+    jnc %1
+    ljmp %2
+    %1:
+    mov _ACC,#0x24
+    %2:
+    mov _coolant_nearest_index,_ACC
+    lcall _set_warmup_duration
+    %3:
+    ret
+} by {
+    mov a,_coolant_temperature_raw
+    add a,#0x02
+    mov b,#0x05
+    div ab
+    cjne a,#0x24,%1
+    %1:
+    jc %2
+    mov a,#0x24
+    %2:
+    mov _coolant_nearest_index,a
+}

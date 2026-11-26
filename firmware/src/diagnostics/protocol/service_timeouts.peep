@@ -1,0 +1,268 @@
+// Keep the generic negative reply and alternate diagnostic status path.
+replace {
+    jb _service_inhibit_69,%1
+    ljmp %2
+    %1:
+    mov _stock_r3,#0x11
+    lcall _build_serial_probe_status
+    ljmp %3
+    %2:
+    lcall _reset_serial_transmit_buffer
+    mov r6,#_serial_tx_buffer
+    mov r7,#(_serial_tx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _handle_unrecognized_service_fields_40001_9,#0x83
+    mov r0,#_serial_response_address
+    mov (_handle_unrecognized_service_fields_40001_9 + 0x0001),@r0
+    mov (_handle_unrecognized_service_fields_40001_9 + 0x0002),#0x10
+    mov (_handle_unrecognized_service_fields_40001_9 + 0x0003),#0x7f
+    mov r0,#_serial_request_service
+    mov (_handle_unrecognized_service_fields_40001_9 + 0x0004),@r0
+    mov _stock_r4,#0x00
+    mov r7,#0x00
+    %4:
+    cjne r7,#0x05,%5
+    %5:
+    jc %6
+    ljmp %7
+    %6:
+    mov a,r7
+    add a, #_handle_unrecognized_service_fields_40001_9
+    mov r1,a
+    mov ar6,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,r6
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,r6
+    add a, _stock_r4
+    mov _stock_r4,a
+    inc r7
+    ljmp %4
+    %7:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,#0x11
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r7,_stock_r4
+    mov a,#0x11
+    add a, r7
+    mov _ACC,a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov _serial_tx_count,#0x07
+    setb _service_dispatch_7c
+    %3:
+    ret
+} by {
+    jb _service_inhibit_69,00970$
+    lcall _reset_serial_transmit_buffer
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x83
+    movx @dptr,a
+    mov r4,a
+    mov r0,#_serial_response_address
+    mov a,@r0
+    inc dptr
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    inc dptr
+    mov a,#0x7f
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    mov r0,#_serial_request_service
+    mov a,@r0
+    inc dptr
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    inc dptr
+    mov a,#0x11
+    movx @dptr,a
+    add a,r4
+    inc dptr
+    movx @dptr,a
+    mov _serial_tx_count,#0x07
+    setb _service_dispatch_7c
+    sjmp 00971$
+    00970$:
+    mov r3,#0x11
+    lcall _build_serial_probe_status
+    00971$:
+    ret
+}
+
+// Keep both timing boundaries and the original serial cursor reset order.
+replace {
+    clr c
+    mov a,_service_event_timer
+    subb a,#0x19
+    jc %1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    clr c
+    mov a,_service_event_timer
+    subb a,#0x33
+    jc %4
+    ljmp %5
+    %4:
+    lcall _start_serial_transmission
+    lcall _reset_serial_receive_buffer
+    ljmp %3
+    %5:
+    lcall _handle_late_service_event
+    %3:
+    ret
+} by {
+    mov a,_service_event_timer
+    clr c
+    subb a,#0x19
+    jc 00970$
+    mov a,_service_event_timer
+    clr c
+    subb a,#0x33
+    jnc 00971$
+    lcall _start_serial_transmission
+    lcall _reset_serial_receive_buffer
+    sjmp 00970$
+    00971$:
+    lcall _handle_late_service_event
+    00970$:
+    ret
+}
+
+// Queue the busy response and resume reception only in an active link.
+replace {
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    lcall _reset_serial_transmit_buffer
+    mov r6,#_serial_tx_buffer
+    mov r7,#(_serial_tx_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _handle_late_service_event_fields_40001_9,#0x83
+    mov r0,#_serial_response_address
+    mov (_handle_late_service_event_fields_40001_9 + 0x0001),@r0
+    mov (_handle_late_service_event_fields_40001_9 + 0x0002),#0x10
+    mov (_handle_late_service_event_fields_40001_9 + 0x0003),#0x7f
+    mov r0,#_serial_request_service
+    mov (_handle_late_service_event_fields_40001_9 + 0x0004),@r0
+    mov _stock_r4,#0x00
+    mov r7,#0x00
+    %3:
+    cjne r7,#0x05,%4
+    %4:
+    jc %5
+    ljmp %6
+    %5:
+    mov a,r7
+    add a, #_handle_late_service_event_fields_40001_9
+    mov r1,a
+    mov ar6,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,r6
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,r6
+    add a, _stock_r4
+    mov _stock_r4,a
+    inc r7
+    ljmp %3
+    %6:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,#0x21
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r7,_stock_r4
+    mov a,#0x21
+    add a, r7
+    mov _ACC,a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov _serial_tx_count,#0x07
+    setb _service_dispatch_7c
+    lcall _start_serial_transmission
+    lcall _reset_serial_receive_buffer
+    %2:
+    ret
+} by {
+    jnb _service_session_active,00970$
+    lcall _reset_serial_transmit_buffer
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x83
+    movx @dptr,a
+    mov r4,a
+    mov r0,#_serial_response_address
+    mov a,@r0
+    inc dptr
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    inc dptr
+    mov a,#0x7f
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    mov r0,#_serial_request_service
+    mov a,@r0
+    inc dptr
+    movx @dptr,a
+    add a,r4
+    mov r4,a
+    inc dptr
+    mov a,#0x21
+    movx @dptr,a
+    add a,r4
+    inc dptr
+    movx @dptr,a
+    mov _serial_tx_count,#0x07
+    setb _service_dispatch_7c
+    lcall _start_serial_transmission
+    lcall _reset_serial_receive_buffer
+    00970$:
+    ret
+}

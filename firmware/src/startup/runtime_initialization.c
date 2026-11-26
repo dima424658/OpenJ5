@@ -1,0 +1,200 @@
+#include "stock_registers.h"
+
+static __sfr __at (0x80) P0;
+static __sfr __at (0x81) SP;
+static __sfr __at (0x86) sfr_86;
+static __sfr __at (0x87) PCON;
+static __sfr __at (0x88) TCON;
+static __sfr __at (0x89) TMOD;
+static __sfr __at (0x8a) TL0;
+static __sfr __at (0x8b) TL1;
+static __sfr __at (0x8c) TH0;
+static __sfr __at (0x8d) TH1;
+static __sfr __at (0x90) P1;
+static __sfr __at (0x98) SCON;
+static __sfr __at (0x99) SBUF;
+static __sfr __at (0x9c) sfr_9c;
+static __sfr __at (0xa0) P2;
+static __sfr __at (0xa9) sfr_a9;
+static __sfr __at (0xb0) P3;
+static __sfr __at (0xb1) sfr_b1;
+static __sfr __at (0xb4) sfr_b4;
+static __sfr __at (0xb9) sfr_b9;
+static __sfr __at (0xbc) sfr_bc;
+static __sfr __at (0xbe) sfr_be;
+static __sfr __at (0xc1) sfr_c1;
+static __sfr __at (0xc2) sfr_c2;
+static __sfr __at (0xc3) sfr_c3;
+static __sfr __at (0xc4) sfr_c4;
+static __sfr __at (0xc5) sfr_c5;
+static __sfr __at (0xc6) sfr_c6;
+static __sfr __at (0xc7) sfr_c7;
+static __sfr __at (0xc8) T2CON;
+static __sfr __at (0xc9) sfr_c9;
+static __sfr __at (0xca) RCAP2L;
+static __sfr __at (0xcb) RCAP2H;
+static __sfr __at (0xcc) TL2;
+static __sfr __at (0xcd) TH2;
+static __sfr __at (0xce) sfr_ce;
+static __sfr __at (0xcf) sfr_cf;
+static __sfr __at (0xd0) PSW;
+static __sfr __at (0xd2) sfr_d2;
+static __sfr __at (0xd3) sfr_d3;
+static __sfr __at (0xd4) sfr_d4;
+static __sfr __at (0xd5) sfr_d5;
+static __sfr __at (0xd6) sfr_d6;
+static __sfr __at (0xd7) sfr_d7;
+static __sfr __at (0xd8) sfr_d8;
+static __sfr __at (0xd9) sfr_d9;
+static __sfr __at (0xda) sfr_da;
+static __sfr __at (0xdc) sfr_dc;
+static __sfr __at (0xde) sfr_de;
+static __sfr __at (0xdf) sfr_df;
+static __sfr __at (0xe1) sfr_e1;
+static __sfr __at (0xe2) sfr_e2;
+static __sfr __at (0xe3) sfr_e3;
+static __sfr __at (0xe4) sfr_e4;
+static __sfr __at (0xe5) sfr_e5;
+static __sfr __at (0xe6) sfr_e6;
+static __sfr __at (0xe7) sfr_e7;
+static __sfr __at (0xe8) P4;
+static __sfr __at (0xef) sfr_ef;
+static __sfr __at (0xf2) sfr_f2;
+static __sfr __at (0xf3) sfr_f3;
+static __sfr __at (0xf4) sfr_f4;
+static __sfr __at (0xf5) sfr_f5;
+static __sfr __at (0xf6) sfr_f6;
+static __sfr __at (0xf7) sfr_f7;
+static __sfr __at (0xf8) P5;
+static __sfr __at (0xf9) P9;
+static __sfr __at (0xfa) P6;
+
+static __sbit __at (0x88) external_irq0_edge_triggered;
+static __sbit __at (0x8a) external_irq1_edge_triggered;
+static __sbit __at (0xaa) external_irq1_enabled;
+static __sbit __at (0xae) iac_tick_interrupt_enabled;
+static __sbit __at (0xaf) EA;
+static __sbit __at (0xb9) external_irq0_high_priority;
+static __sbit __at (0xbe) iac_tick_high_priority;
+static __sbit __at (0x15) reset_adaptive_state;
+
+static volatile __data __at (0x2d) uint8_t retained_flags;
+static volatile __xdata __at (0xf9a3) uint8_t service_save_marker;
+
+extern void initialize_serial_interface(void);
+extern void check_startup_ram(void);
+
+void restart_runtime_init(void)
+{
+    sfr_86 = 0xe2;
+    iac_tick_interrupt_enabled = 1;
+    iac_tick_high_priority = 1;
+    EA = 0;
+    SP = 0xc2;
+    sfr_b1 = 0;
+    PSW = 0;
+    sfr_c1 = 0;
+    sfr_f6 = 0;
+    sfr_c9 = 0;
+
+    /* Preserve only the retained bits and initialize the rest of indirect RAM. */
+    retained_flags &= 0x1f;
+    stock_r0 = 0x2c;
+    do {
+        *((volatile __idata uint8_t *)stock_r0) = 0;
+    } while (--stock_r0);
+
+    stock_r0 = 0x2e;
+    do {
+        *((volatile __idata uint8_t *)stock_r0) = 0;
+    } while (++stock_r0);
+
+    sfr_b9 |= 0x80;
+    P0 = 0xff;
+    sfr_b9 |= 0x80;
+    P1 = 0x0f;
+    sfr_b9 |= 0x80;
+    P2 = 0x00;
+    sfr_b9 |= 0x80;
+    P3 = 0x35;
+    sfr_b9 |= 0x80;
+    P4 = 0x00;
+    sfr_b9 |= 0x80;
+    P5 = 0x90;
+    sfr_b9 |= 0x80;
+    P6 = 0x2e;
+    sfr_b9 |= 0x80;
+    P9 = 0x40;
+    sfr_b1 |= 0x40;
+    sfr_d8 = 0;
+    sfr_dc = 0;
+    sfr_da = 0;
+    sfr_d9 = 0;
+    sfr_ef = 0;
+    sfr_c2 = 0;
+    sfr_c3 = 0;
+    sfr_c4 = 0;
+    sfr_c5 = 0;
+    sfr_c6 = 0;
+    sfr_c7 = 0;
+    sfr_ce = 0;
+    sfr_cf = 0;
+    sfr_f6 = 0;
+    sfr_d2 = 0;
+    sfr_d3 = 0;
+    sfr_d4 = 0;
+    sfr_d5 = 0;
+    sfr_d6 = 0;
+    sfr_d7 = 0;
+    sfr_e2 = 0;
+    sfr_e3 = 0;
+    sfr_e4 = 0;
+    sfr_e5 = 0;
+    sfr_e6 = 0;
+    sfr_e7 = 0;
+    sfr_f2 = 0;
+    sfr_f3 = 0;
+    sfr_f4 = 0;
+    sfr_f5 = 0;
+    RCAP2L = 0;
+    RCAP2H = 0;
+    PCON = 0;
+    SBUF = 0;
+    sfr_9c = 0;
+    SCON = 0;
+    TCON = 0;
+    TL0 = 0;
+    TH0 = 0;
+    TL1 = 0;
+    TH1 = 0;
+    TL2 = 0;
+    TH2 = 0;
+
+    sfr_b4 = 0xd5;
+    TMOD = 0x11;
+    external_irq1_edge_triggered = 1;
+    external_irq0_edge_triggered = 1;
+    T2CON = 0x85;
+    sfr_be = 0;
+    sfr_e1 = 0xc3;
+    sfr_bc = 0x43;
+    sfr_df = 0;
+    sfr_de = 0;
+    sfr_b1 |= 0x10;
+    sfr_df = 0xfe;
+    sfr_de = 0x0c;
+    sfr_b1 &= 0xef;
+    sfr_f7 = 0xc0;
+    sfr_c1 = 0x4c;
+    sfr_c9 = 0xf8;
+    external_irq1_enabled = 0;
+    external_irq0_high_priority = 0;
+
+    if ((sfr_a9 & 0x40) && service_save_marker != 0x55) {
+        reset_adaptive_state = 1;
+    }
+    sfr_b9 = 0x28;
+    sfr_a9 = 0x30;
+    initialize_serial_interface();
+    check_startup_ram();
+}

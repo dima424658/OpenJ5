@@ -1,0 +1,13 @@
+// ACC is the SFR at E0h in the translation units using these rules.
+// Use accumulator opcodes for the same operations and flag effects.
+replace {
+    xrl _ACC,#0xff
+} by {
+    cpl a
+}
+
+replace {
+    inc _ACC
+} by {
+    inc a
+}

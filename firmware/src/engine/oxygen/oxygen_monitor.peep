@@ -1,0 +1,366 @@
+// Apply the heater wait and keep the counter address in DPTR.
+replace {
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT2,%1
+    ljmp %2
+    %1:
+    jb _ACC_BIT1,%3
+    ljmp %2
+    %3:
+    jb _tick_1s,%4
+    ljmp %2
+    %4:
+    mov dptr,#(_oxygen_heater_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_heater_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %5
+    ljmp %2
+    %5:
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    orl acc,#0x04
+    movx @dptr,a
+    %2:
+    jb _oxygen_monitor_reset_53,%6
+    ljmp %7
+    %6:
+    mov dptr,#_oxygen_diagnostic_status
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_oxygen_heater_count
+    movx @dptr,a
+    lcall _continue_sensor_diagnostics
+    ljmp %8
+    %7:
+    lcall _check_oxygen_readiness
+    %8:
+    ret
+} by {
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    jb _ACC_BIT2,%2
+    jnb _ACC_BIT1,%2
+    jnb _tick_1s,%2
+    mov dptr,#(_oxygen_heater_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_heater_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,_B,.+3
+    jc %2
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    orl a,#0x04
+    movx @dptr,a
+    %2:
+    jnb _oxygen_monitor_reset_53,%7
+    clr a
+    mov dptr,#_oxygen_diagnostic_status
+    movx @dptr,a
+    mov dptr,#_oxygen_heater_count
+    movx @dptr,a
+    ljmp _continue_sensor_diagnostics
+    %7:
+}
+
+// Combine both unsigned window comparisons in carry before dispatch.
+replace {
+    mov dptr,#_oxygen_ready_limits
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_stock_r0
+    mov _CY,c
+    mov c,_CY
+    mov _B_BIT0,c
+    mov dptr,#(_oxygen_ready_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_stock_r0
+    mov _CY,c
+    jnb _CY,%1
+    ljmp %2
+    %1:
+    jnb _B_BIT0,%3
+    ljmp %4
+    %3:
+    %2:
+    clr _check_oxygen_readiness_sloc0_1_0
+    ljmp %5
+    %4:
+    setb _check_oxygen_readiness_sloc0_1_0
+    %5:
+    mov c,_check_oxygen_readiness_sloc0_1_0
+    mov _CY,c
+    jb _CY,%6
+    ljmp %7
+    %6:
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    mov _ACC,a
+    jb _ACC_BIT0,%8
+    ljmp %9
+    %8:
+    lcall _check_oxygen_inactivity
+    ljmp %10
+    %9:
+    lcall _clear_oxygen_readiness
+    ljmp %10
+    %7:
+} by {
+    mov dptr,#_oxygen_ready_limits
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,r0
+    mov _B_BIT0,c
+    mov dptr,#(_oxygen_ready_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    clr c
+    subb a,r0
+    orl c,/_B_BIT0
+    cpl c
+    jnc %7
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    jb _ACC_BIT0,_check_oxygen_inactivity
+    sjmp _clear_oxygen_readiness
+    %7:
+}
+
+// Use the wrapped value for comparison, while suppressing the wrapped store.
+replace {
+    mov dptr,#_oxygen_inactive_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#(_oxygen_ready_limits + 0x0002)
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_ready_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_ready_count
+    mov a,_ACC
+    movx @dptr,a
+    %2:
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %3
+    ljmp %4
+    %3:
+    clr _oxygen_heater_fault
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    orl acc,#0x01
+    movx @dptr,a
+    %4:
+    lcall _continue_without_oxygen
+    %5:
+    ret
+} by {
+    clr a
+    mov dptr,#_oxygen_inactive_count
+    movx @dptr,a
+    mov dptr,#(_oxygen_ready_limits + 0x0002)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_ready_count
+    movx a,@dptr
+    inc a
+    jz %2
+    movx @dptr,a
+    %2:
+    cjne a,_B,.+3
+    jc _continue_without_oxygen
+    clr _oxygen_heater_fault
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    orl a,#0x01
+    movx @dptr,a
+    sjmp _continue_without_oxygen
+}
+
+// Clear the ready counter and flag before the common continuation.
+replace {
+    mov dptr,#_oxygen_ready_count
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    anl acc,#0xfe
+    movx @dptr,a
+    lcall _continue_without_oxygen
+    %1:
+    ret
+} by {
+    clr a
+    mov dptr,#_oxygen_ready_count
+    movx @dptr,a
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    anl a,#0xfe
+    movx @dptr,a
+    sjmp _continue_without_oxygen
+}
+
+// Keep the inactivity counter paths and the backward jump to clear readiness.
+replace {
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    mov _ACC,a
+    jb _ACC_BIT2,%1
+    ljmp %2
+    %1:
+    jb _oxygen_test_condition_5c,%3
+    ljmp %2
+    %3:
+    jnb _inhibit_oxygen_diagnostics_62,%4
+    ljmp %2
+    %4:
+    jnb _oxygen_threshold_set_4f,%5
+    ljmp %6
+    %5:
+    %2:
+    mov dptr,#_oxygen_inactive_count
+    mov a,#0x00
+    movx @dptr,a
+    ljmp %7
+    %6:
+    jb _tick_1s,%8
+    ljmp %7
+    %8:
+    mov dptr,#_oxygen_heater_limits
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_inactive_count
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %9
+    ljmp %10
+    %9:
+    mov dptr,#_oxygen_inactive_count
+    mov a,_ACC
+    movx @dptr,a
+    %10:
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %11
+    ljmp %7
+    %11:
+    setb _oxygen_heater_fault
+    lcall _clear_oxygen_readiness
+    ljmp %12
+    %7:
+    lcall _continue_without_oxygen
+    %12:
+    ret
+} by {
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    jnb _ACC_BIT2,%2
+    jnb _oxygen_test_condition_5c,%2
+    jb _inhibit_oxygen_diagnostics_62,%2
+    jnb _oxygen_threshold_set_4f,%2
+    jnb _tick_1s,_continue_without_oxygen
+    mov dptr,#_oxygen_heater_limits
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_oxygen_inactive_count
+    movx a,@dptr
+    inc a
+    jz %10
+    movx @dptr,a
+    %10:
+    cjne a,_B,.+3
+    jc _continue_without_oxygen
+    setb _oxygen_heater_fault
+    sjmp _clear_oxygen_readiness
+    %2:
+    clr a
+    mov dptr,#_oxygen_inactive_count
+    movx @dptr,a
+}
+
+// Preserve carry through the status read and combine the two readiness bits.
+replace {
+    jnb _inhibit_oxygen_diagnostics_62,%1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_learning_temperature
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    mov _CY,c
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    mov _ACC,a
+    jb _CY,%3
+    ljmp %2
+    %3:
+    jb _ACC_BIT2,%4
+    ljmp %2
+    %4:
+    jnb _ACC_BIT0,%5
+    ljmp %2
+    %5:
+    setb _oxygen_heater_fault
+    %2:
+    lcall _continue_sensor_diagnostics
+    %6:
+    ret
+} by {
+    jb _inhibit_oxygen_diagnostics_62,oxygen_monitor_end
+    mov dptr,#_oxygen_learning_temperature
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,.+3
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    anl c,_ACC_BIT2
+    anl c,/_ACC_BIT0
+    jnc oxygen_monitor_end
+    setb _oxygen_heater_fault
+    oxygen_monitor_end:
+}

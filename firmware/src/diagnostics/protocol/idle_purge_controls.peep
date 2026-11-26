@@ -1,0 +1,290 @@
+// Keep the position-override action codes and the received-byte cursor.
+replace {
+    mov r7,_stock_r3
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    cjne r7,#0x01,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x07,%5
+    ljmp %6
+    %5:
+    ljmp %7
+    %2:
+    anl _idle_control_override,#0xdf
+    ljmp %4
+    %6:
+    orl _idle_control_override,#0x20
+    jb _serial_extended_length,%8
+    ljmp %9
+    %8:
+    mov r7,#0x01
+    ljmp %10
+    %9:
+    mov r7,#0x00
+    %10:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov _iac_target,a
+    ljmp %4
+    %7:
+    mov _stock_r2,#0x12
+    ljmp %11
+    %4:
+    mov _stock_r2,#0x00
+    %11:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00970$
+    anl _idle_control_override,#0xdf
+    mov r2,#0x00
+    sjmp 00971$
+    00970$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00972$
+    mov r2,#0x00
+    sjmp 00971$
+    00972$:
+    mov a,r3
+    xrl a,#0x07
+    jnz 00973$
+    orl _idle_control_override,#0x20
+    jnb _serial_extended_length,00974$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00975$
+    00974$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00975$:
+    mov _iac_target,a
+    mov r2,#0x00
+    sjmp 00971$
+    00973$:
+    mov r2,#0x12
+    00971$:
+    ret
+}
+
+// Keep the idle-speed override and the original response register.
+replace {
+    mov r7,_stock_r3
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    cjne r7,#0x01,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x07,%5
+    ljmp %6
+    %5:
+    ljmp %7
+    %2:
+    anl _idle_control_override,#0xbf
+    ljmp %4
+    %6:
+    orl _idle_control_override,#0x40
+    jb _serial_extended_length,%8
+    ljmp %9
+    %8:
+    mov r7,#0x01
+    ljmp %10
+    %9:
+    mov r7,#0x00
+    %10:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_idle_rpm_target
+    mov a,r7
+    movx @dptr,a
+    ljmp %4
+    %7:
+    mov _stock_r2,#0x12
+    ljmp %11
+    %4:
+    mov _stock_r2,#0x00
+    %11:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00976$
+    anl _idle_control_override,#0xbf
+    mov r2,#0x00
+    sjmp 00977$
+    00976$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00978$
+    mov r2,#0x00
+    sjmp 00977$
+    00978$:
+    mov a,r3
+    xrl a,#0x07
+    jnz 00979$
+    orl _idle_control_override,#0x40
+    jnb _serial_extended_length,00980$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00981$
+    00980$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00981$:
+    mov dptr,#_idle_rpm_target
+    movx @dptr,a
+    mov r2,#0x00
+    sjmp 00977$
+    00979$:
+    mov r2,#0x12
+    00977$:
+    ret
+}
+
+// Keep the purge override command and return its on/off state.
+replace {
+    mov r7,_stock_r3
+    mov a,r7
+    jnz %1
+    ljmp %2
+    %1:
+    cjne r7,#0x01,%3
+    ljmp %4
+    %3:
+    cjne r7,#0x06,%5
+    ljmp %6
+    %5:
+    ljmp %7
+    %2:
+    anl _purge_override_flags,#0xfb
+    mov dptr,#_purge_duty
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%8
+    %8:
+    mov _apply_output_control_0d_sloc0_1_0,c
+    cpl _apply_output_control_0d_sloc0_1_0
+    mov c,_apply_output_control_0d_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %4:
+    mov dptr,#_purge_duty
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    cjne a,#0x01,%10
+    %10:
+    mov _apply_output_control_0d_sloc0_1_0,c
+    cpl _apply_output_control_0d_sloc0_1_0
+    mov c,_apply_output_control_0d_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %9
+    %6:
+    orl _purge_override_flags,#0x04
+    jb _serial_extended_length,%11
+    ljmp %12
+    %11:
+    mov r7,#0x01
+    ljmp %13
+    %12:
+    mov r7,#0x00
+    %13:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    jnz %14
+    ljmp %15
+    %14:
+    mov dptr,#_purge_duty
+    mov a,#0x40
+    movx @dptr,a
+    mov _stock_r2,#0x01
+    ljmp %9
+    %15:
+    mov dptr,#_purge_duty
+    mov a,#0x00
+    movx @dptr,a
+    mov _stock_r2,a
+    ljmp %9
+    %7:
+    mov _stock_r2,#0x12
+    %9:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00970$
+    anl _purge_override_flags,#0xfb
+    sjmp 00971$
+    00970$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00972$
+    00971$:
+    mov r2,#0x00
+    mov dptr,#_purge_duty
+    movx a,@dptr
+    jz 00973$
+    mov r2,#0x01
+    sjmp 00973$
+    00972$:
+    mov a,r3
+    xrl a,#0x06
+    jnz 00974$
+    orl _purge_override_flags,#0x04
+    jnb _serial_extended_length,00975$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00976$
+    00975$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00976$:
+    jnz 00977$
+    mov a,#0x00
+    mov dptr,#_purge_duty
+    movx @dptr,a
+    mov r2,#0x00
+    sjmp 00973$
+    00977$:
+    mov a,#0x40
+    mov dptr,#_purge_duty
+    movx @dptr,a
+    mov r2,#0x01
+    sjmp 00973$
+    00974$:
+    mov r2,#0x12
+    00973$:
+    ret
+}

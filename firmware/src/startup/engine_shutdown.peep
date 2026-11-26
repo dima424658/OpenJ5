@@ -1,0 +1,261 @@
+// The 1 Hz counters retain 255 when the byte increment wraps.
+replace {
+    jb _tick_1s,%1
+    ljmp %2
+    %1:
+} by {
+    jnb _tick_1s,%2
+}
+
+replace {
+    jnb _condition_flag_53,%1
+    ljmp %2
+    %1:
+} by {
+    jb _condition_flag_53,%2
+}
+
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %2
+    ljmp %3
+    %2:
+    mov dptr,#%1
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    inc a
+    jz %3
+    movx @dptr,a
+}
+
+replace {
+    lcall _dispatch_engine_shutdown
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    jb _shutdown_pending,%1
+    ljmp %2
+    %1:
+    lcall _service_pending_shutdown
+    ljmp %3
+    %2:
+    jb _ignition_supply_low,%4
+    ljmp %5
+    %4:
+    lcall _begin_ignition_shutdown
+    ljmp %3
+    %5:
+    lcall _clear_shutdown_request
+    %3:
+    ret
+} by {
+    jb _shutdown_pending,_service_pending_shutdown
+    jb _ignition_supply_low,_begin_ignition_shutdown
+    sjmp _clear_shutdown_request
+}
+
+replace {
+    lcall _clear_sensor_sample_sums
+    mov dptr,#_sensor_sample_count
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    lcall _clear_sensor_sample_sums
+    clr a
+    mov dptr,#_sensor_sample_count
+    movx @dptr,a
+}
+
+replace {
+    setb _idle_transition_hold
+    lcall _clear_shutdown_request
+    %1:
+    ret
+} by {
+    setb _idle_transition_hold
+}
+
+replace {
+    mov dptr,#_shutdown_elapsed
+    mov a,#0x00
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#_shutdown_elapsed
+    movx @dptr,a
+}
+
+// Carry from SUBB gates both the key-analysis and final shutdown delays.
+replace {
+    mov dptr,#_shutdown_elapsed
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+} by {
+    mov dptr,#_shutdown_elapsed
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    clr c
+    subb a,_B
+    jc %2
+}
+
+replace {
+    lcall _read_supply_during_shutdown
+    %1:
+    ret
+} by {
+    %1:
+}
+
+replace {
+    lcall _read_adc_8bit
+    clr c
+    mov a,_ACC
+    subb a,_bank_zero_supply_threshold
+    jnc %1
+    ljmp %2
+    %1:
+    lcall _begin_power_down
+    ljmp %3
+    %2:
+    lcall _continue_engine_stop_cycle
+    %3:
+    ret
+} by {
+    lcall _read_adc_8bit
+    cjne a,_bank_zero_supply_threshold,%1
+    %1:
+    jc %2
+    sjmp _begin_power_down
+    %2:
+    ljmp _continue_engine_stop_cycle
+}
+
+replace {
+    jb _ignition_supply_low,%1
+    ljmp %2
+    %1:
+    mov dptr,#_shutdown_service_countdown
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    dec a
+    mov _ACC,a
+    mov a,_ACC
+    jnz %3
+    ljmp %4
+    %3:
+    mov dptr,#_shutdown_service_countdown
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %2
+    %4:
+} by {
+    jb _ignition_supply_low,%1
+    sjmp _read_supply_during_shutdown
+    %1:
+    mov dptr,#_shutdown_service_countdown
+    movx a,@dptr
+    dec a
+    jz %4
+    movx @dptr,a
+    sjmp _read_supply_during_shutdown
+    %4:
+}
+
+replace {
+    mov dptr,#_shutdown_options
+    movx a,@dptr
+    jnb acc.3,%1
+    ljmp %2
+    %1:
+    mov dptr,#_shutdown_mode
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x02,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    lcall _begin_power_down
+    ljmp %6
+    %5:
+} by {
+    mov dptr,#_shutdown_options
+    movx a,@dptr
+    anl a,#0x08
+    jnz _read_supply_during_shutdown
+    mov dptr,#_shutdown_mode
+    movx a,@dptr
+    xrl a,#0x02
+    jz _begin_power_down
+}
+
+replace {
+    jc %1
+    mov dptr,#_shutdown_options
+    movx a,@dptr
+    orl acc,#0x08
+    movx @dptr,a
+    mov _status_2f,#0x00
+    setb _shutdown_serial_mode
+    lcall _initialize_serial_interface
+    lcall _mix_shutdown_timer_samples
+    lcall _continue_engine_stop_cycle
+    ljmp %2
+    %1:
+    %2:
+} by {
+    jc _read_supply_during_shutdown
+    mov dptr,#_shutdown_options
+    movx a,@dptr
+    orl a,#0x08
+    movx @dptr,a
+    mov _status_2f,#0x00
+    setb _shutdown_serial_mode
+    lcall _initialize_serial_interface
+    lcall _mix_shutdown_timer_samples
+    ljmp _continue_engine_stop_cycle
+}
+
+replace {
+    clr _interrupts_enabled
+    lcall _save_shutdown_state
+    %1:
+    ret
+} by {
+    clr _interrupts_enabled
+}
+
+replace {
+    lcall _continue_engine_stop_cycle
+    %1:
+    ret
+} by {
+    ljmp _continue_engine_stop_cycle
+}

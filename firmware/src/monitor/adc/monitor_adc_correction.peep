@@ -1,0 +1,273 @@
+// Read and validate the calibration block before capturing ADC samples.
+replace {
+    mov _stock_r0,#0x00
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r1,#0x42
+    lcall _monitor_eeprom_read_fragment
+    jnb _CY,%1
+    ljmp %2
+    %1:
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,#0x21
+    lcall _verify_monitor_word_checksum
+    %2:
+    jb _CY,%3
+    ljmp %4
+    %3:
+    setb _monitor_checksum_failed
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    ljmp %5
+    %4:
+    mov r6,#_monitor_adc_channels
+    mov r7,#(_monitor_adc_channels >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _select_monitor_adc_channel
+    lcall _capture_monitor_adc_samples
+    lcall _summarize_monitor_adc_samples
+} by {
+    mov r0,#0x00
+    mov dptr,#_monitor_eeprom_buffer
+    mov r1,#0x42
+    lcall _monitor_eeprom_read_fragment
+    jc 00970$
+    mov dptr,#_monitor_eeprom_buffer
+    mov r2,#0x21
+    lcall _verify_monitor_word_checksum
+    jnc 00971$
+    00970$:
+    setb _monitor_checksum_failed
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+    00971$:
+    mov dptr,#_monitor_adc_channels
+    lcall _select_monitor_adc_channel
+    lcall _capture_monitor_adc_samples
+    lcall _summarize_monitor_adc_samples
+}
+
+// Apply the two signed extrema corrections and recompute the span.
+replace {
+    mov a,_stock_r4
+    add a, #_monitor_adc_corrections
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_monitor_adc_corrections >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov _stock_r4,a
+    mov _ACC,_stock_r4
+    mov _B,_monitor_adc_minimum
+    lcall _multiply_monitor_i8_u8
+    mov _ACC,_B
+    mov _B,#0x20
+    lcall _multiply_monitor_i8_u8
+    mov r7,_monitor_adc_minimum
+    mov r6,_B
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    clr c
+    mov a,_B
+    subb a,#0x80
+    jc %1
+    ljmp %2
+    %1:
+    mov ar4,r7
+    mov ar6,r5
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r6
+    jc %3
+    ljmp %2
+    %3:
+    mov r6,#0xff
+    ljmp %4
+    %2:
+    mov ar6,r7
+    %4:
+    mov _ACC,r6
+    mov _monitor_adc_minimum,_ACC
+    mov _ACC,_stock_r4
+    mov _B,_monitor_adc_maximum
+    lcall _multiply_monitor_i8_u8
+    mov _ACC,_B
+    mov _B,#0x20
+    lcall _multiply_monitor_i8_u8
+    mov r7,_monitor_adc_maximum
+    mov r6,_B
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r6
+    add a, r7
+    mov r7,a
+    mov a,r4
+    addc a, r5
+    mov r5,a
+    clr c
+    mov a,_B
+    subb a,#0x80
+    jc %5
+    ljmp %6
+    %5:
+    mov ar4,r7
+    mov ar6,r5
+    clr c
+    mov a,#0xff
+    subb a,r4
+    mov a,#0x00
+    subb a,r6
+    jc %7
+    ljmp %6
+    %7:
+    mov r6,#0xff
+    ljmp %8
+    %6:
+    mov ar6,r7
+    %8:
+    mov _ACC,r6
+    mov _monitor_adc_maximum,_ACC
+    mov a,_monitor_adc_maximum
+    clr c
+    subb a,_monitor_adc_minimum
+    mov _monitor_adc_span,a
+} by {
+    mov dptr,#_monitor_adc_corrections
+    mov a,r4
+    add a,dpl
+    mov dpl,a
+    mov a,dph
+    addc a,#0x00
+    mov dph,a
+    movx a,@dptr
+    mov r4,a
+    mov a,r4
+    mov _B,_monitor_adc_minimum
+    lcall _multiply_monitor_i8_u8
+    mov a,_B
+    mov _B,#0x20
+    lcall _multiply_monitor_i8_u8
+    mov a,_monitor_adc_minimum
+    add a,_B
+    jb b.7,00972$
+    jnc 00972$
+    mov a,#0xff
+    00972$:
+    mov _monitor_adc_minimum,a
+    mov a,r4
+    mov _B,_monitor_adc_maximum
+    lcall _multiply_monitor_i8_u8
+    mov a,_B
+    mov _B,#0x20
+    lcall _multiply_monitor_i8_u8
+    mov a,_monitor_adc_maximum
+    add a,_B
+    jb b.7,00973$
+    jnc 00973$
+    mov a,#0xff
+    00973$:
+    mov _monitor_adc_maximum,a
+    mov a,_monitor_adc_maximum
+    clr c
+    subb a,_monitor_adc_minimum
+    mov _monitor_adc_span,a
+}
+
+// Apply the mean correction and preserve the unsigned saturation flag.
+replace {
+    mov _stock_r0,_monitor_adc_mean_low
+    mov _stock_r1,_monitor_adc_mean_high
+    mov _B,_stock_r4
+    lcall _multiply_monitor_u16_u8
+    mov a,_stock_r4
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    mov r7,_monitor_adc_mean_low
+    mov r5,_monitor_adc_mean_high
+    mov r6,#0x00
+    mov ar6,r5
+    mov r5,#0x00
+    mov r4,#0x00
+    mov a,r7
+    orl ar5,a
+    mov a,r4
+    orl ar6,a
+    mov a,_stock_r01
+    clr c
+    subb a,r5
+    mov _stock_r01,a
+    mov a,(_stock_r01 + 1)
+    subb a,r6
+    mov (_stock_r01 + 1),a
+    %2:
+    mov _B,#0x20
+    lcall _multiply_monitor_i16_u8
+    mov _stock_r2,_monitor_adc_mean_low
+    mov _stock_r3,_monitor_adc_mean_high
+    lcall _add_monitor_register_pairs
+    mov a,_stock_r4
+    jnb acc.7,%3
+    ljmp %4
+    %3:
+    jb _CY,%5
+    ljmp %4
+    %5:
+    mov _stock_r01,#0xff
+    mov (_stock_r01 + 1),#0xff
+    %4:
+    mov _monitor_adc_mean_low,_stock_r0
+    mov _monitor_adc_mean_high,_stock_r1
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    %6:
+    ret
+} by {
+    mov r0,_monitor_adc_mean_low
+    mov r1,_monitor_adc_mean_high
+    mov _B,r4
+    lcall _multiply_monitor_u16_u8
+    mov a,r4
+    jnb acc.7,00974$
+    clr c
+    mov a,r0
+    subb a,_monitor_adc_mean_low
+    mov r0,a
+    mov a,r1
+    subb a,_monitor_adc_mean_high
+    mov r1,a
+    00974$:
+    mov _B,#0x20
+    lcall _multiply_monitor_i16_u8
+    mov r2,_monitor_adc_mean_low
+    mov r3,_monitor_adc_mean_high
+    lcall _add_monitor_register_pairs
+    mov a,r4
+    jb acc.7,00975$
+    jnc 00975$
+    mov r0,#0xff
+    mov r1,#0xff
+    00975$:
+    mov _monitor_adc_mean_low,r0
+    mov _monitor_adc_mean_high,r1
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+}

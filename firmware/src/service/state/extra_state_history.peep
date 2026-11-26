@@ -1,0 +1,54 @@
+// Preserve the direct R2 access and the indirect pointer in the active R0.
+replace {
+    mov _stock_r0,_stock_r2
+    mov _ACC,(_state_history + 0x0003)
+    mov r7,(_state_history + 0x0002)
+    mov (_state_history + 0x0003),r7
+    mov r7,(_state_history + 0x0001)
+    mov (_state_history + 0x0002),r7
+    mov r7,_state_history
+    mov (_state_history + 0x0001),r7
+    mov a,_ACC
+    mov a,_ACC
+    rr a
+    mov _ACC,a
+    mov a,_state_mask
+    xrl _ACC,a
+    mov r1,_stock_r0
+    mov ar7,@r1
+    mov a,r7
+    xrl _ACC,a
+    mov _state_history,_ACC
+} by {
+    mov a,_stock_r2
+    mov r0,a
+    mov a,(_state_history + 0x0003)
+    mov (_state_history + 0x0003),(_state_history + 0x0002)
+    mov (_state_history + 0x0002),(_state_history + 0x0001)
+    mov (_state_history + 0x0001),_state_history
+    rr a
+    xrl a,_state_mask
+    xrl a,@r0
+    mov _state_history,a
+}
+
+replace {
+    mov a,#0x70
+    cjne a,_stock_r0,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _stock_r2,#0x54
+    ljmp %4
+    %3:
+    inc _stock_r2
+    %4:
+} by {
+    cjne r0,#0x70,%3
+    mov _stock_r2,#0x54
+    sjmp %4
+    %3:
+    inc _stock_r2
+    %4:
+}

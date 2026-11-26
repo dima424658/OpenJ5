@@ -1,0 +1,229 @@
+// Load the sample sums into the active register bank.
+replace {
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+} by {
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+}
+
+// Keep the stock borrow checks for both adaptation boundaries.
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+} by {
+    clr c
+    subb a,_B
+    jc %2
+}
+
+replace {
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_stock_r1
+    jnc %1
+    ljmp %2
+    %1:
+    mov _ACC,_stock_r1
+    mov dptr,#_throttle_zero_reference
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_throttle_position_baseline
+    mov a,_ACC
+    movx @dptr,a
+    lcall _diagnose_throttle_samples
+    ljmp %3
+    %2:
+    lcall _drift_throttle_baseline
+    %3:
+    ret
+} by {
+    clr c
+    subb a,r1
+    jc %2
+    mov a,r1
+    mov dptr,#_throttle_zero_reference
+    movx @dptr,a
+    mov dptr,#_throttle_position_baseline
+    movx @dptr,a
+    sjmp _diagnose_throttle_samples
+    %2:
+}
+
+replace {
+    jb _throttle_zero_adaptation_enabled,%1
+    ljmp %2
+    %1:
+    mov dptr,#_throttle_zero_drift_timer
+    movx a,@dptr
+    jz %3
+    ljmp %2
+    %3:
+} by {
+    jnb _throttle_zero_adaptation_enabled,%2
+    mov dptr,#_throttle_zero_drift_timer
+    movx a,@dptr
+    jnz %2
+}
+
+// A+B recovers the old baseline after the threshold subtraction.
+replace {
+    mov _ACC,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov r7,_ACC
+    mov dptr,#_throttle_position_baseline
+    mov a,r7
+    inc a
+    movx @dptr,a
+    %2:
+    lcall _diagnose_throttle_samples
+    %3:
+    ret
+} by {
+    clr c
+    subb a,_B
+    jnc %2
+    add a,_B
+    inc a
+    mov dptr,#_throttle_position_baseline
+    movx @dptr,a
+    %2:
+}
+
+replace {
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    setb _throttle_adc_low
+    clr _throttle_adc_high
+    ljmp %3
+    %2:
+    mov dptr,#(_throttle_adc_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    clr c
+    mov a,_stock_r1
+    subb a,_B
+    jnc %4
+    ljmp %5
+    %4:
+    clr _throttle_adc_low
+    setb _throttle_adc_high
+    ljmp %6
+    %5:
+    clr _throttle_adc_low
+    clr _throttle_adc_high
+    %6:
+    lcall _publish_rpm_sample_increase
+    %7:
+    ret
+} by {
+    mov a,r1
+    clr c
+    subb a,_B
+    jc %1
+    mov dptr,#(_throttle_adc_limits + 0x0001)
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,r1
+    clr c
+    subb a,_B
+    jnc %4
+    clr _throttle_adc_low
+    clr _throttle_adc_high
+    sjmp %6
+    %1:
+    setb _throttle_adc_low
+    clr _throttle_adc_high
+    sjmp %6
+    %4:
+    clr _throttle_adc_low
+    setb _throttle_adc_high
+    %6:
+}
+
+// Update the previous RPM sum high byte first, keeping both operands in registers.
+replace {
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov dptr,#_previous_rpm_high
+    mov a,_stock_r1
+    movx @dptr,a
+    mov dptr,#_previous_rpm_low
+    mov a,_stock_r0
+    movx @dptr,a
+} by {
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov a,r1
+    movx @dptr,a
+    dec dpl
+    mov a,r0
+    movx @dptr,a
+}
+
+replace {
+    jb _CY,%1
+    ljmp %2
+    %1:
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    %2:
+    mov a,_stock_r1
+    jnz %3
+    ljmp %4
+    %3:
+    mov _stock_r0,#0xff
+    %4:
+    mov dptr,#_rpm_sum_increase
+    mov a,_stock_r0
+    movx @dptr,a
+    lcall _clear_sensor_sample_sums
+    setb _sensor_batch_ready
+    lcall _continue_after_sample_batch
+    %5:
+    ret
+} by {
+    jnc %2
+    mov r0,#0x00
+    mov r1,#0x00
+    %2:
+    mov a,r1
+    jz %4
+    mov r0,#0xff
+    %4:
+    mov a,r0
+    mov dptr,#_rpm_sum_increase
+    movx @dptr,a
+    lcall _clear_sensor_sample_sums
+    setb _sensor_batch_ready
+}

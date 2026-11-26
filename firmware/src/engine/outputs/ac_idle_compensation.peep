@@ -1,0 +1,188 @@
+// Keep an energized clutch latched and reset the timers on a fresh request.
+replace {
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov _ACC,a
+    jb _ACC_BIT0,%1
+    ljmp %2
+    %1:
+    lcall _continue_after_ac_control
+    ljmp %3
+    %2:
+    mov dptr,#_ac_throttle_off_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_ac_release_seconds
+    movx @dptr,a
+    lcall _prepare_ac_idle_compensation
+    %3:
+    ret
+} by {
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    jb _ACC_BIT0,_continue_after_ac_control
+    clr a
+    mov dptr,#_ac_throttle_off_ticks
+    movx @dptr,a
+    mov dptr,#_ac_release_seconds
+    movx @dptr,a
+}
+
+// Apply the idle offsets once, then advance the adaptation delay.
+replace {
+    jb _idle_regulating,%1
+    ljmp %2
+    %1:
+    mov dptr,#_ac_idle_adaptation_delay
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ac_idle_delay_ticks
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jz %3
+    ljmp %4
+    %3:
+    mov dptr,#_ac_iac_offset_steps
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    add a, _iac_target
+    mov _iac_target,a
+    mov dptr,#_ac_hot_iac_threshold
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_coolant_temperature_raw
+    jc %5
+    ljmp %6
+    %5:
+    mov dptr,#_ac_hot_iac_extra_steps
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    add a, _iac_target
+    mov _iac_target,a
+    %6:
+    mov dptr,#_ac_initial_idle_rpm_offset
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_idle_rpm_correction
+    movx @dptr,a
+    lcall _clear_iac_history
+    mov _ACC,#0x00
+    %4:
+    inc _ACC
+    mov dptr,#_ac_idle_delay_ticks
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,_B
+    jc %7
+    ljmp %2
+    %7:
+    lcall _continue_after_ac_control
+    ljmp %8
+    %2:
+    lcall _engage_air_conditioning
+    %8:
+    ret
+} by {
+    jnb _idle_regulating,_engage_air_conditioning
+    mov dptr,#_ac_idle_adaptation_delay
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_ac_idle_delay_ticks
+    movx a,@dptr
+    jnz %4
+    mov dptr,#_ac_iac_offset_steps
+    clr a
+    movc a,@a+dptr
+    add a,_iac_target
+    mov _iac_target,a
+    mov dptr,#_ac_hot_iac_threshold
+    clr a
+    movc a,@a+dptr
+    cjne a,_coolant_temperature_raw,.+3
+    jnc %6
+    mov dptr,#_ac_hot_iac_extra_steps
+    clr a
+    movc a,@a+dptr
+    add a,_iac_target
+    mov _iac_target,a
+    %6:
+    mov dptr,#_ac_initial_idle_rpm_offset
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_idle_rpm_correction
+    movx @dptr,a
+    lcall _clear_iac_history
+    clr a
+    %4:
+    inc a
+    mov dptr,#_ac_idle_delay_ticks
+    movx @dptr,a
+    cjne a,_B,.+3
+    jc _continue_after_ac_control
+}
+
+// Check vehicle speed outside idle, then publish the relay and active flag.
+replace {
+    jnb _idle_regulating,%1
+    ljmp %2
+    %1:
+    mov dptr,#_ac_engage_speed_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %3
+    ljmp %2
+    %3:
+    lcall _continue_after_ac_control
+    ljmp %4
+    %2:
+    mov dptr,#_ac_idle_delay_ticks
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    orl acc,#0x01
+    movx @dptr,a
+    setb _air_conditioning_active
+    lcall _continue_after_ac_control
+    %4:
+    ret
+} by {
+    jb _idle_regulating,%2
+    mov dptr,#_ac_engage_speed_threshold
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_vehicle_speed
+    movx a,@dptr
+    cjne a,_B,.+3
+    jc _continue_after_ac_control
+    %2:
+    clr a
+    mov dptr,#_ac_idle_delay_ticks
+    movx @dptr,a
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    orl a,#0x01
+    mov dptr,#_relay_output_latch
+    movx @dptr,a
+    setb _air_conditioning_active
+}

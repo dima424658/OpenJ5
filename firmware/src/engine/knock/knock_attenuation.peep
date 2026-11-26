@@ -1,0 +1,333 @@
+// Retain the gain-state byte in R0 and the noise accumulator in R3:R2.
+replace {
+    mov _stock_r0,_knock_attenuation
+    mov dptr,#_knock_noise_accumulator
+    movx a,@dptr
+    mov _stock_r23,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r23 + 1),a
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mov _B,a
+} by {
+    mov r0,_knock_attenuation
+    mov dptr,#_knock_noise_accumulator
+    movx a,@dptr
+    mov r2,a
+    inc dpl
+    movx a,@dptr
+    mov r3,a
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mov _B,a
+}
+
+// Retain the gain thresholds and the fixed-point rescaling on each transition.
+replace {
+    mov dptr,#_attenuation_decrease_noise
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %1
+    ljmp %2
+    %1:
+    mov a,#0x10
+    cjne a,_stock_r0,%3
+    sjmp %4
+    %3:
+    ljmp %5
+    %4:
+    ljmp %6
+    %5:
+    mov r7,_stock_r0
+    mov a,#0x08
+    add a, r7
+    mov _knock_attenuation,a
+    mov a,_B
+    clr c
+    rrc a
+    mov _ACC,a
+    mov dptr,#_retained_knock_noise
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_knock_average_noise
+    mov a,_ACC
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    clr c
+    rrc a
+    xch a,_stock_r23
+    rrc a
+    xch a,_stock_r23
+    mov (_stock_r23 + 1),a
+    mov dptr,#_knock_noise_accumulator
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    ljmp %6
+    %2:
+    mov dptr,#_attenuation_increase_noise
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %7
+    ljmp %6
+    %7:
+    clr c
+    mov a,_stock_r0
+    subb a,#0x08
+    jc %8
+    ljmp %9
+    %8:
+    ljmp %6
+    %9:
+    mov r7,_stock_r0
+    mov a,r7
+    add a,#0xf8
+    mov _knock_attenuation,a
+    mov a,_B
+    add a, _B
+    mov _ACC,a
+    mov dptr,#_retained_knock_noise
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_knock_average_noise
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,#0xff
+    subb a,_stock_r23
+    mov a,#0x7f
+    subb a,(_stock_r23 + 1)
+    jc %10
+    ljmp %11
+    %10:
+    mov r6,#0xff
+    mov r7,#0xff
+    ljmp %12
+    %11:
+    mov a,_stock_r23
+    add a, _stock_r23
+    mov r4,a
+    mov a,(_stock_r23 + 1)
+    addc a, (_stock_r23 + 1)
+    mov r5,a
+    mov ar6,r4
+    mov ar7,r5
+    %12:
+    mov _stock_r23,r6
+    mov (_stock_r23 + 1),r7
+    mov dptr,#_knock_noise_accumulator
+    mov a,_stock_r23
+    movx @dptr,a
+    mov a,(_stock_r23 + 1)
+    inc dptr
+    movx @dptr,a
+    %6:
+    ret
+} by {
+    mov dptr,#_attenuation_decrease_noise
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,00940$
+    00940$:
+    jc 00941$
+    mov dptr,#_attenuation_increase_noise
+    clr a
+    movc a,@a+dptr
+    cjne a,_B,00942$
+    00942$:
+    jnc 00943$
+    ret
+    00941$:
+    cjne r0,#0x10,00944$
+    ret
+    00944$:
+    mov a,r0
+    add a,#0x08
+    mov _knock_attenuation,a
+    mov a,_B
+    clr c
+    rrc a
+    mov dptr,#_retained_knock_noise
+    movx @dptr,a
+    mov dptr,#_knock_average_noise
+    movx @dptr,a
+    clr c
+    mov a,r3
+    rrc a
+    mov r3,a
+    mov a,r2
+    rrc a
+    mov r2,a
+    mov dptr,#_knock_noise_accumulator
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    ret
+    00943$:
+    cjne r0,#0x08,00945$
+    00945$:
+    jnc 00946$
+    ret
+    00946$:
+    mov a,r0
+    clr c
+    subb a,#0x08
+    mov _knock_attenuation,a
+    mov a,_B
+    add a,_B
+    mov dptr,#_retained_knock_noise
+    movx @dptr,a
+    mov dptr,#_knock_average_noise
+    movx @dptr,a
+    mov a,r2
+    add a,r2
+    mov r2,a
+    mov a,r3
+    addc a,r3
+    mov r3,a
+    jnc 00947$
+    mov r2,#0xff
+    mov r3,#0xff
+    00947$:
+    mov dptr,#_knock_noise_accumulator
+    mov a,r2
+    movx @dptr,a
+    inc dpl
+    mov a,r3
+    movx @dptr,a
+    ret
+}
+
+// Select the hysteresis threshold at the end stop and publish the fault bit.
+replace {
+    mov a,_knock_attenuation
+    anl a,#0x1f
+    mov _ACC,a
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+    jb _knock_noise_low,%3
+    ljmp %4
+    %3:
+    mov dptr,#_knock_low_noise_clear
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %5
+    %4:
+    mov dptr,#_knock_low_noise_set
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %5:
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jc %6
+    ljmp %7
+    %6:
+    setb _knock_noise_low
+    ljmp %8
+    %7:
+    clr _knock_noise_low
+    ljmp %8
+    %2:
+    mov a,#0x10
+    cjne a,_ACC,%9
+    sjmp %10
+    %9:
+    ljmp %8
+    %10:
+    jb _knock_noise_high,%11
+    ljmp %12
+    %11:
+    mov dptr,#_knock_high_noise_clear
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %13
+    %12:
+    mov dptr,#_knock_high_noise_set
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %13:
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %14
+    ljmp %15
+    %14:
+    setb _knock_noise_high
+    ljmp %8
+    %15:
+    clr _knock_noise_high
+    %8:
+    ret
+} by {
+    mov a,_knock_attenuation
+    anl a,#0x1f
+    cjne a,#0x01,00948$
+    00948$:
+    jc 00949$
+    cjne a,#0x10,00950$
+    jb _knock_noise_high,00951$
+    mov dptr,#_knock_high_noise_set
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp 00952$
+    00951$:
+    mov dptr,#_knock_high_noise_clear
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    00952$:
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    cjne a,_B,00953$
+    00953$:
+    cpl c
+    mov _knock_noise_high,c
+    00950$:
+    ret
+    00949$:
+    jb _knock_noise_low,00954$
+    mov dptr,#_knock_low_noise_set
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp 00955$
+    00954$:
+    mov dptr,#_knock_low_noise_clear
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    00955$:
+    mov dptr,#_retained_knock_noise
+    movx a,@dptr
+    cjne a,_B,00956$
+    00956$:
+    mov _knock_noise_low,c
+    ret
+}

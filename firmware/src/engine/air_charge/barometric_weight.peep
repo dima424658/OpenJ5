@@ -1,0 +1,182 @@
+// Keep the two fractional distances in the active register bank.
+replace {
+    mov r7,_stock_r4
+    mov a,r7
+    add a,#0xf8
+    mov r7,a
+    mov a,#0x0f
+    anl a,r7
+    mov _stock_r0,a
+    mov r7,_rpm_index_q4
+    mov a,#0x07
+    clr c
+    subb a,r7
+    mov r7,a
+    mov a,#0x0f
+    anl a,r7
+    mov _stock_r1,a
+} by {
+    mov a,r4
+    clr c
+    subb a,#0x08
+    anl a,#0x0f
+    mov r0,a
+    mov a,#0x07
+    clr c
+    subb a,_rpm_index_q4
+    anl a,#0x0f
+    mov r1,a
+}
+
+// Share the two weight choices and dispatch the zero weight to the unlimited path.
+replace {
+    clr c
+    mov a,_stock_r1
+    subb a,_stock_r0
+    jc %1
+    ljmp %2
+    %1:
+    jnb _B_BIT1,%3
+    ljmp %4
+    %3:
+    mov _ACC,_stock_r1
+    ljmp %5
+    %4:
+    mov _ACC,_stock_r0
+    ljmp %5
+    %2:
+    jb _B_BIT0,%6
+    ljmp %7
+    %6:
+    mov _ACC,_stock_r1
+    ljmp %5
+    %7:
+    mov _ACC,_stock_r0
+    %5:
+    clr _full_barometric_correction
+    mov a,_ACC
+    swap a
+    anl a,#0xf0
+    mov _stock_r4,a
+    mov a,_stock_r4
+    jz %8
+    ljmp %9
+    %8:
+    lcall _use_air_charge_without_limit
+    ljmp %10
+    %9:
+    lcall _apply_reverse_flow_correction
+    %10:
+    ret
+} by {
+    mov a,r1
+    clr c
+    subb a,r0
+    jnc %2
+    jnb _B_BIT1,%3
+    sjmp %4
+    %2:
+    jnb _B_BIT0,%4
+    %3:
+    mov a,r1
+    sjmp %5
+    %4:
+    mov a,r0
+    %5:
+    clr _full_barometric_correction
+    swap a
+    mov r4,a
+    jnz %9
+    ljmp _use_air_charge_without_limit
+    %9:
+}
+
+// Pass the full product to the word multiply, and index the gain through MOVC.
+replace {
+    mov r7,_stock_r3
+    mov dptr,#_retained_barometric_correction
+    movx a,@dptr
+    mov r6,a
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r01,r7
+    mov (_stock_r01 + 1),r5
+    mov a,_coolant_nearest_index
+    add a,#_reverse_flow_coolant_gain
+    mov dpl,a
+    mov a,#0x00
+    addc a,#(_reverse_flow_coolant_gain >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+} by {
+    mov _B,r3
+    mov dptr,#_retained_barometric_correction
+    movx a,@dptr
+    mul ab
+    mov r0,a
+    mov r1,_B
+    mov dptr,#_reverse_flow_coolant_gain
+    mov a,_coolant_nearest_index
+    movc a,@a+dptr
+    mov _B,a
+}
+
+// Preserve the physical bank-zero read and the interrupt boundary.
+replace {
+    mov a,#0xff
+    cjne a,_stock_r4,%1
+    ljmp %2
+    %1:
+    mov _B,_stock_r4
+    lcall _multiply_stock_u16_u8
+    mov _stock_r2,_bank_zero_r0
+    mov _stock_r3,_bank_zero_r1
+    clr _interrupts_enabled
+    mov dptr,#_measured_air_charge
+    movx a,@dptr
+    mov _stock_r01,a
+    inc dptr
+    movx a,@dptr
+    mov (_stock_r01 + 1),a
+    setb _interrupts_enabled
+    clr c
+    clr a
+    subb a,_stock_r4
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _add_u16_register_pairs
+    %2:
+    lcall _publish_air_charge_limit
+    %3:
+    ret
+} by {
+    mov a,r4
+    inc a
+    jz %2
+    dec a
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    mov r2,_bank_zero_r0
+    mov r3,_bank_zero_r1
+    clr _interrupts_enabled
+    mov dptr,#_measured_air_charge
+    movx a,@dptr
+    mov r0,a
+    inc dpl
+    movx a,@dptr
+    mov r1,a
+    setb _interrupts_enabled
+    mov a,r4
+    cpl a
+    inc a
+    mov _B,a
+    lcall _multiply_stock_u16_u8
+    lcall _add_u16_register_pairs
+    %2:
+    ljmp _publish_air_charge_limit
+}

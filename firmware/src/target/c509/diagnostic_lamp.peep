@@ -1,0 +1,219 @@
+// Use short branches for override and route the pre-run request through the shared output block.
+replace {
+    mov a,_output_override_flags
+    jnb acc.0,%1
+    ljmp %2
+    %1:
+    setb _CY
+    jnb _fuel_mode_flag_56,%3
+    ljmp %4
+    %3:
+    setb _lamp_off_request
+    cpl _CY
+    ljmp %5
+    %4:
+} by {
+    mov a,_output_override_flags
+    anl a,#0x01
+    jnz 00970$
+    setb c
+    jnb _fuel_mode_flag_56,00971$
+}
+
+// Keep the delayed fault check in carry and test the two misfire flags in ACC.
+replace {
+    mov dptr,#_engine_run_seconds
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %1
+    ljmp %2
+    %1:
+    setb _lamp_off_request
+    lcall _has_confirmed_fault
+    jc %3
+    ljmp %2
+    %3:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jb acc.7,%4
+    ljmp %5
+    %4:
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    anl a,#0xf0
+    jnz %6
+    sjmp %7
+    %6:
+    ljmp %5
+    %7:
+} by {
+    mov dptr,#_engine_run_seconds
+    movx a,@dptr
+    cjne a,_B,.+3
+    jc 00970$
+    setb _lamp_off_request
+    lcall _has_confirmed_fault
+    jnc 00970$
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jnb acc.7,00973$
+    mov dptr,#_misfire_status
+    movx a,@dptr
+    anl a,#0xf0
+    jnz 00973$
+}
+
+// Leave the flash counter in ACC and retain its XDATA address in DPTR.
+replace {
+    mov dptr,#_lamp_flash_counter
+    movx a,@dptr
+    mov r7,a
+    inc r7
+    mov _B,r7
+    mov a,r7
+    jb acc.7,%1
+    ljmp %2
+    %1:
+    clr _lamp_off_request
+    mov ar6,r7
+    anl ar6,#0x7f
+    cjne r6,#0x19,%3
+    %3:
+    jnc %4
+    ljmp %5
+    %4:
+    mov _B,#0x00
+    ljmp %5
+    %2:
+    cjne r7,#0x19,%6
+    %6:
+    jnc %7
+    ljmp %5
+    %7:
+    mov _B,#0x80
+    %5:
+    mov dptr,#_lamp_flash_counter
+    mov a,_B
+    movx @dptr,a
+    ljmp %8
+    %9:
+    mov dptr,#_lamp_flash_counter
+    mov a,#0x00
+    movx @dptr,a
+    clr _lamp_off_request
+    %8:
+} by {
+    mov dptr,#_lamp_flash_counter
+    movx a,@dptr
+    inc a
+    mov _B,a
+    jb acc.7,%1
+    cjne a,#0x19,.+3
+    jc %5
+    mov _B,#0x80
+    sjmp %5
+    %1:
+    clr _lamp_off_request
+    anl a,#0x7f
+    cjne a,#0x19,.+3
+    jc %5
+    mov _B,#0x00
+    %5:
+    mov a,_B
+    movx @dptr,a
+    sjmp 00970$
+    00973$:
+    clr a
+    mov dptr,#_lamp_flash_counter
+    movx @dptr,a
+    clr _lamp_off_request
+    sjmp 00970$
+    00971$:
+    setb _lamp_off_request
+    cpl c
+    sjmp 00972$
+    00970$:
+}
+
+// Write the inverted lamp bit from carry and fall through to the next stock block.
+replace {
+    mov c,_lamp_off_request
+    mov _CY,c
+    %1:
+    cpl _CY
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov _ACC,a
+    mov c,_CY
+    mov _ACC_LAMP_OUTPUT,c
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_sensor_state_current
+    movx a,@dptr
+    mov dptr,#_sensor_state_previous
+    movx @dptr,a
+    lcall _continue_shutdown_outputs
+    %2:
+    ret
+} by {
+    mov c,_lamp_off_request
+    00972$:
+    cpl c
+    mov dptr,#_relay_output_latch
+    movx a,@dptr
+    mov _ACC_LAMP_OUTPUT,c
+    movx @dptr,a
+    mov dptr,#_sensor_state_current
+    movx a,@dptr
+    mov dptr,#_sensor_state_previous
+    movx @dptr,a
+}
+
+// Scan the contiguous history with DPTR and return the confirmation flag in carry.
+replace {
+    mov r7,#0x00
+    %1:
+    cjne r7,#0x40,%2
+    %2:
+    jc %3
+    ljmp %4
+    %3:
+    mov a,r7
+    add a, #_fault_history
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_fault_history >> 8)
+    mov dph,a
+    movx a,@dptr
+    mov r6,a
+    mov a,r6
+    jb acc.7,%5
+    ljmp %6
+    %5:
+    setb c
+    ljmp %7
+    %6:
+    inc r7
+    ljmp %1
+    %4:
+    clr c
+    %7:
+    ret
+} by {
+    mov dptr,#_fault_history
+    mov r2,#0x40
+    %1:
+    movx a,@dptr
+    jb acc.7,%5
+    inc dptr
+    djnz r2,%1
+    clr c
+    sjmp %7
+    %5:
+    setb c
+    %7:
+    ret
+}
