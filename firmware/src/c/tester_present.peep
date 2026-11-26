@@ -1,0 +1,87 @@
+// Preserve the tester-present transaction and the zero checksum byte.
+replace {
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    setb _service_request_seen
+    jb _serial_extended_length,%3
+    ljmp %4
+    %3:
+    mov r7,#0x01
+    ljmp %5
+    %4:
+    mov r7,#0x00
+    %5:
+    mov a,#0x04
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x01,%6
+    ljmp %7
+    %6:
+    mov r0,#_serial_tx_state
+    mov @r0,#0x00
+    mov _service_event_timer,#0x00
+    lcall _restart_serial_receive
+    ljmp %8
+    %7:
+    lcall _reset_serial_transmit_buffer
+    mov r6,#_tester_present_reply
+    mov r7,#(_tester_present_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    mov _stock_r2,#0x05
+    lcall _append_code_bytes_to_serial
+    ljmp %9
+    %2:
+    lcall _reset_serial_transmit_buffer
+    mov r6,#_service_3e_inactive_reply
+    mov r7,#(_service_3e_inactive_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %9:
+    setb _service_dispatch_7c
+    %8:
+    ret
+} by {
+    jnb _service_session_active,00970$
+    setb _service_request_seen
+    jnb _serial_extended_length,00971$
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    sjmp 00972$
+    00971$:
+    mov dptr,#(_serial_rx_buffer + 4)
+    movx a,@dptr
+    00972$:
+    dec a
+    jnz 00973$
+    lcall _reset_serial_transmit_buffer
+    mov r3,#(_tester_present_reply >> 8)
+    mov r4,#_tester_present_reply
+    mov r2,#0x05
+    lcall _append_code_bytes_to_serial
+    setb _service_dispatch_7c
+    sjmp 00974$
+    00973$:
+    mov r0,#_serial_tx_state
+    clr a
+    mov @r0,a
+    mov _service_event_timer,a
+    lcall _restart_serial_receive
+    sjmp 00974$
+    00970$:
+    lcall _reset_serial_transmit_buffer
+    mov r3,#(_service_3e_inactive_reply >> 8)
+    mov r4,#_service_3e_inactive_reply
+    lcall _append_code_string_to_serial
+    setb _service_dispatch_7c
+    00974$:
+    ret
+}
