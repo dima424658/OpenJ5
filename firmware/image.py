@@ -901,6 +901,10 @@ SYMBOLS = {
     "_update_crank_angular_outputs": 0x0390,
     "_irq_crank_epilogue": 0x04AD,
     "_irq_crank_reti": 0x04B3,
+    "_uart0_interrupt": 0x5A25,
+    "_service_uart0_transmit": 0x5A92,
+    "_uart0_restore_context": 0x5AB6,
+    "_uart0_reti": 0x5ABC,
     "_timer1_interrupt_entry": 0x04B4,
     "_service_timer1_serial": 0x0525,
     "_service_timer1_coil_test": 0x05CA,
@@ -925,6 +929,7 @@ SYMBOLS = {
     "_alternate_throttle_breakpoints": 0x8DFA,
 }
 C_SECTIONS = {
+    "code_5a25": 152,
     "code_00e0": 359,
     "code_0247": 122,
     "code_02c1": 207,

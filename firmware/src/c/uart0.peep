@@ -1,0 +1,218 @@
+// Preserve the UART receive register context and original frame-length transitions.
+replace {
+    jnb _serial_receive_pending,%1
+    ljmp %2
+    %1:
+    lcall _service_uart0_transmit
+    ljmp %3
+    %2:
+    clr _serial_receive_pending
+    push psw
+    push acc
+    push _DPSEL
+    mov _service_event_timer,#0x00
+    mov a,_serial_rx_count
+    jz %4
+    ljmp %5
+    %4:
+    clr _service_request_79
+    orl _serial_control_be,#0x08
+    %5:
+    mov a,#0x80
+    cjne a,_serial_rx_count,%6
+    ljmp %7
+    %6:
+    mov _DPSEL,#0x06
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_SBUF
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    inc _serial_rx_count
+    jnb _serial_length_latched,%8
+    ljmp %9
+    %8:
+    clr c
+    mov a,_serial_rx_count
+    subb a,#0x04
+    jnc %10
+    ljmp %11
+    %10:
+    setb _serial_length_latched
+    mov r6,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r7,((_STOCK_DPTR >> 8) & 0xFF)
+    mov dptr,#_serial_rx_buffer
+    movx a,@dptr
+    mov r5,a
+    anl ar5,#0x3f
+    mov ar4,r5
+    mov a,r5
+    jnz %12
+    ljmp %13
+    %12:
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov a,#0x04
+    add a, r4
+    mov _serial_expected_length,a
+    clr _serial_extended_length
+    ljmp %11
+    %13:
+    mov dptr,#(_serial_rx_buffer + 0x0003)
+    movx a,@dptr
+    mov r5,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov a,#0x05
+    add a, r5
+    mov _serial_expected_length,a
+    setb _serial_extended_length
+    ljmp %11
+    %9:
+    clr c
+    mov a,_serial_rx_count
+    subb a,_serial_expected_length
+    jnc %14
+    ljmp %11
+    %14:
+    %7:
+    clr _serial_receive_enabled
+    anl _serial_control_be,#0xf7
+    clr _serial_length_latched
+    mov _service_event_timer,#0x00
+    setb _service_event_pending
+    %11:
+    lcall _uart0_restore_context
+    %3:
+} by {
+    jnb _serial_receive_pending,_service_uart0_transmit
+    clr _serial_receive_pending
+    push psw
+    push acc
+    push _DPSEL
+    clr a
+    mov _service_event_timer,a
+    mov a,_serial_rx_count
+    jnz 00970$
+    clr _service_request_79
+    orl _serial_control_be,#0x08
+    00970$:
+    xrl a,#0x80
+    jz 00971$
+    mov _DPSEL,#0x06
+    mov a,_SBUF
+    movx @dptr,a
+    inc dptr
+    inc _serial_rx_count
+    jb _serial_length_latched,00972$
+    mov a,_serial_rx_count
+    clr c
+    subb a,#0x04
+    jc _uart0_restore_context
+    setb _serial_length_latched
+    push dph
+    push dpl
+    mov dptr,#_serial_rx_buffer
+    movx a,@dptr
+    anl a,#0x3f
+    jnz 00973$
+    mov dptr,#(_serial_rx_buffer + 3)
+    movx a,@dptr
+    pop dpl
+    pop dph
+    add a,#0x05
+    mov _serial_expected_length,a
+    setb _serial_extended_length
+    sjmp _uart0_restore_context
+    00973$:
+    pop dpl
+    pop dph
+    add a,#0x04
+    mov _serial_expected_length,a
+    clr _serial_extended_length
+    sjmp _uart0_restore_context
+    00972$:
+    mov a,_serial_rx_count
+    clr c
+    subb a,_serial_expected_length
+    jc _uart0_restore_context
+    00971$:
+    clr _serial_receive_enabled
+    anl _serial_control_be,#0xf7
+    clr _serial_length_latched
+    mov _service_event_timer,#0x00
+    setb _service_event_pending
+    sjmp _uart0_restore_context
+}
+
+// Preserve the transmit cursor and return paths with and without saved context.
+replace {
+    jb _serial_transmit_pending,%1
+    ljmp %2
+    %1:
+    clr _serial_transmit_pending
+    jnb _serial_transmit_done,%3
+    ljmp %2
+    %3:
+    push psw
+    push acc
+    push _DPSEL
+    mov a,_serial_tx_count
+    jnz %4
+    ljmp %5
+    %4:
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _SBUF,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    dec _serial_tx_count
+    ljmp %6
+    %5:
+    setb _serial_transmit_done
+    mov _service_event_timer,#0x00
+    setb _service_request_79
+    %6:
+    lcall _uart0_restore_context
+    ljmp %7
+    %2:
+    lcall _uart0_reti
+    %7:
+} by {
+    jnb _serial_transmit_pending,_uart0_reti
+    clr _serial_transmit_pending
+    jb _serial_transmit_done,_uart0_reti
+    push psw
+    push acc
+    push _DPSEL
+    mov a,_serial_tx_count
+    jz 00974$
+    mov _DPSEL,#0x07
+    movx a,@dptr
+    mov _SBUF,a
+    inc dptr
+    dec _serial_tx_count
+    sjmp _uart0_restore_context
+    00974$:
+    setb _serial_transmit_done
+    mov _service_event_timer,#0x00
+    setb _service_request_79
+}
+
+// Fall through after restoring the context.
+replace {
+    lcall _uart0_reti
+    %1:
+} by {
+}

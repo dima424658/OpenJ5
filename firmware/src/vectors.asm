@@ -8,7 +8,7 @@
         .globl _restart_firmware
 
         .globl _timer1_interrupt_entry
-serial0_handler_5a25 = 0x5a25
+        .globl _uart0_interrupt
         .globl _crank_capture_interrupt
 
         .org 0x0000
@@ -29,7 +29,7 @@ irq_vector_001b:
         ljmp    _timer1_interrupt_entry
         .db 0x00,0x00,0x00,0x00,0x00
 irq_vector_0023:
-        ljmp    serial0_handler_5a25
+        ljmp    _uart0_interrupt
         .db 0x00,0x00,0x00,0x00,0x00
 ; RETI at 0x002b comes from src/c/unused_vector.c.
         .org 0x002c
