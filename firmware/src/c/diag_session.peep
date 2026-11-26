@@ -1,0 +1,316 @@
+// Keep the link start and already-open recovery paths.
+replace {
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    lcall _restart_serial_receive
+    ljmp %3
+    %2:
+    setb _service_session_active
+    lcall _reset_serial_transmit_buffer
+    mov r6,#_link_start_reply
+    mov r7,#(_link_start_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    setb _service_dispatch_7c
+    %3:
+    ret
+} by {
+    jb _service_session_active,00970$
+    setb _service_session_active
+    lcall _reset_serial_transmit_buffer
+    mov r3,#(_link_start_reply >> 8)
+    mov r4,#_link_start_reply
+    lcall _append_code_string_to_serial
+    setb _service_dispatch_7c
+    sjmp 00971$
+    00970$:
+    lcall _restart_serial_receive
+    00971$:
+    ret
+}
+
+// Clear the output overrides and terminate the active link.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    mov _output_override_flags,#0x00
+    mov _ignition_override,#0x00
+    mov _knock_override,#0x00
+    mov _output_flags,#0x00
+    mov _sensor_override,#0x00
+    mov r6,#_link_stop_reply
+    mov r7,#(_link_stop_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    clr _service_session_active
+    ljmp %3
+    %2:
+    mov r6,#_link_stop_inactive_reply
+    mov r7,#(_link_stop_inactive_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %3:
+    setb _service_dispatch_7c
+    %4:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,00972$
+    clr a
+    mov _output_override_flags,a
+    mov _ignition_override,a
+    mov _knock_override,a
+    mov _output_flags,a
+    mov _sensor_override,a
+    mov r3,#(_link_stop_reply >> 8)
+    mov r4,#_link_stop_reply
+    lcall _append_code_string_to_serial
+    clr _service_session_active
+    sjmp 00973$
+    00972$:
+    mov r3,#(_link_stop_inactive_reply >> 8)
+    mov r4,#_link_stop_inactive_reply
+    lcall _append_code_string_to_serial
+    00973$:
+    setb _service_dispatch_7c
+    ret
+}
+
+// Read the session mode and baud code from the selected header form.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    jb _service_request_seen,%3
+    ljmp %4
+    %3:
+    %2:
+    mov r6,#_session_start_denied_reply
+    mov r7,#(_session_start_denied_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %5
+    %4:
+    jb _serial_extended_length,%6
+    ljmp %7
+    %6:
+    mov r7,#0x01
+    ljmp %8
+    %7:
+    mov r7,#0x00
+    %8:
+    mov a,#0x05
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov _stock_r2,a
+    mov a,#0x04
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov dpl,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov dph,a
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0x81,%9
+    ljmp %10
+    %9:
+    mov r6,#_session_mode_invalid_reply
+    mov r7,#(_session_mode_invalid_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    ljmp %5
+    %10:
+    setb _service_request_seen
+    mov r6,#_session_start_reply
+    mov r7,#(_session_start_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov a,#0x26
+    cjne a,_stock_r2,%11
+    sjmp %12
+    %11:
+    ljmp %13
+    %12:
+    mov r0,#_serial_default_reload
+    mov @r0,#0xf3
+    ljmp %5
+    %13:
+    mov a,#0x39
+    cjne a,_stock_r2,%14
+    sjmp %15
+    %14:
+    ljmp %5
+    %15:
+    mov r0,#_serial_default_reload
+    mov @r0,#0xf7
+    %5:
+    setb _service_dispatch_7c
+    %16:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,00974$
+    jb _service_request_seen,00974$
+    jnb _serial_extended_length,00975$
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    mov r2,a
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    sjmp 00976$
+    00975$:
+    mov dptr,#(_serial_rx_buffer + 5)
+    movx a,@dptr
+    mov r2,a
+    mov dptr,#(_serial_rx_buffer + 4)
+    movx a,@dptr
+    00976$:
+    xrl a,#0x81
+    jnz 00977$
+    setb _service_request_seen
+    mov r3,#(_session_start_reply >> 8)
+    mov r4,#_session_start_reply
+    lcall _append_code_string_to_serial
+    mov a,r2
+    xrl a,#0x26
+    jnz 00978$
+    mov r0,#_serial_default_reload
+    mov @r0,#0xf3
+    sjmp 00979$
+    00978$:
+    mov a,r2
+    xrl a,#0x39
+    jnz 00979$
+    mov r0,#_serial_default_reload
+    mov @r0,#0xf7
+    sjmp 00979$
+    00977$:
+    mov r3,#(_session_mode_invalid_reply >> 8)
+    mov r4,#_session_mode_invalid_reply
+    lcall _append_code_string_to_serial
+    sjmp 00979$
+    00974$:
+    mov r3,#(_session_start_denied_reply >> 8)
+    mov r4,#_session_start_denied_reply
+    lcall _append_code_string_to_serial
+    00979$:
+    setb _service_dispatch_7c
+    ret
+}
+
+// Clear the session overrides and restore the default UART reload.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    clr _service_request_seen
+    mov _output_override_flags,#0x00
+    mov _ignition_override,#0x00
+    mov _knock_override,#0x00
+    mov _output_flags,#0x00
+    mov _sensor_override,#0x00
+    mov r6,#_session_stop_reply
+    mov r7,#(_session_stop_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r0,#_serial_default_reload
+    mov @r0,#0xd0
+    ljmp %3
+    %2:
+    mov r6,#_session_stop_inactive_reply
+    mov r7,#(_session_stop_inactive_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %3:
+    setb _service_dispatch_7c
+    %4:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,00980$
+    clr _service_request_seen
+    clr a
+    mov _output_override_flags,a
+    mov _ignition_override,a
+    mov _knock_override,a
+    mov _output_flags,a
+    mov _sensor_override,a
+    mov r3,#(_session_stop_reply >> 8)
+    mov r4,#_session_stop_reply
+    lcall _append_code_string_to_serial
+    mov r0,#_serial_default_reload
+    mov @r0,#0xd0
+    sjmp 00981$
+    00980$:
+    mov r3,#(_session_stop_inactive_reply >> 8)
+    mov r4,#_session_stop_inactive_reply
+    lcall _append_code_string_to_serial
+    00981$:
+    setb _service_dispatch_7c
+    ret
+}
+
+// Keep the response and the deferred service 11 marker.
+replace {
+    lcall _reset_serial_transmit_buffer
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    mov r6,#_service_11_reply
+    mov r7,#(_service_11_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    mov r0,#_serial_rx_state
+    mov a,@r0
+    orl a,#0x20
+    mov @r0,a
+    ljmp %3
+    %2:
+    mov r6,#_service_11_inactive_reply
+    mov r7,#(_service_11_inactive_reply >> 8)
+    mov _stock_r3,r7
+    mov _stock_r4,r6
+    lcall _append_code_string_to_serial
+    %3:
+    setb _service_dispatch_7c
+    %4:
+    ret
+} by {
+    lcall _reset_serial_transmit_buffer
+    jnb _service_session_active,00982$
+    mov r3,#(_service_11_reply >> 8)
+    mov r4,#_service_11_reply
+    lcall _append_code_string_to_serial
+    mov r0,#_serial_rx_state
+    mov a,@r0
+    orl a,#0x20
+    mov @r0,a
+    sjmp 00983$
+    00982$:
+    mov r3,#(_service_11_inactive_reply >> 8)
+    mov r4,#_service_11_inactive_reply
+    lcall _append_code_string_to_serial
+    00983$:
+    setb _service_dispatch_7c
+    ret
+}
