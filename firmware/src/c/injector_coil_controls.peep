@@ -1,0 +1,588 @@
+// Keep the injector status, inhibit and timed-output paths.
+replace {
+    mov r7,_stock_r4
+    mov a,_stock_r3
+    jz %1
+    ljmp %2
+    %1:
+    anl _output_override_flags,#0xf7
+    anl _output_flags,#0xf0
+    %2:
+    mov a,_stock_r3
+    jnz %3
+    ljmp %4
+    %3:
+    mov a,#0x01
+    cjne a,_stock_r3,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    %4:
+    cjne r7,#0x01,%8
+    %8:
+    jnc %9
+    ljmp %10
+    %9:
+    clr c
+    mov a,#0x04
+    subb a,r7
+    jc %11
+    ljmp %12
+    %11:
+    %10:
+    mov _stock_r2,#0x12
+    ljmp %13
+    %12:
+    mov ar6,r7
+    mov a,r6
+    dec a
+    mov b,a
+    inc b
+    mov a,#0x01
+    sjmp %14
+    %15:
+    add a,acc
+    %14:
+    djnz b,%15
+    mov r6,a
+    mov a,_injector_port
+    anl ar6,a
+    cjne r6,#0x00,%16
+    mov a,#0x01
+    sjmp %17
+    %16:
+    mov a,#0x00
+    %17:
+    mov _stock_r2,a
+    %13:
+    ljmp %18
+    %7:
+    mov a,#0x06
+    cjne a,_stock_r3,%19
+    ljmp %20
+    %19:
+    mov _stock_r2,#0x12
+    ljmp %18
+    %20:
+    jnb _fuel_mode_flag_56,%21
+    ljmp %22
+    %21:
+    orl _output_override_flags,#0x08
+    clr _service_pump_output
+    %22:
+    cjne r7,#0x01,%23
+    %23:
+    jnc %24
+    ljmp %25
+    %24:
+    clr c
+    mov a,#0x04
+    subb a,r7
+    jc %26
+    ljmp %27
+    %26:
+    %25:
+    mov _stock_r2,#0x12
+    ljmp %18
+    %27:
+    mov ar6,r7
+    mov a,r6
+    dec a
+    mov b,a
+    inc b
+    mov a,#0x01
+    sjmp %28
+    %29:
+    add a,acc
+    %28:
+    djnz b,%29
+    mov r6,a
+    mov a,r6
+    orl _output_flags,a
+    cjne r7,#0x01,%30
+    sjmp %31
+    %30:
+    ljmp %32
+    %31:
+    mov r7,#0x7e
+    ljmp %33
+    %32:
+    mov a,#0xff
+    xrl a,r6
+    mov r5,a
+    mov ar7,r5
+    %33:
+    mov a,r7
+    anl _injector_compare_control,a
+    jb _serial_extended_length,%34
+    ljmp %35
+    %34:
+    mov r7,#0x01
+    ljmp %36
+    %35:
+    mov r7,#0x00
+    %36:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov r5,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov r7,a
+    mov dpl,r5
+    mov dph,r7
+    movx a,@dptr
+    jz %37
+    ljmp %38
+    %37:
+    mov a,r6
+    orl _injector_port,a
+    mov _stock_r2,#0x00
+    ljmp %18
+    %38:
+    jb _fuel_mode_flag_56,%39
+    ljmp %40
+    %39:
+    anl _output_flags,#0xf0
+    mov _stock_r2,#0x31
+    ljmp %18
+    %40:
+    mov a,r6
+    swap a
+    anl a,#0xf0
+    mov r6,a
+    mov a,#0xff
+    xrl a,r6
+    anl _service_output_phases,a
+    mov _stock_r2,#0x01
+    mov dptr,#_injector_test_delay
+    mov a,#0x64
+    movx @dptr,a
+    %18:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 00970$
+    anl _output_override_flags,#0xf7
+    anl _output_flags,#0xfe
+    anl _output_flags,#0xfd
+    anl _output_flags,#0xfb
+    anl _output_flags,#0xf7
+    sjmp 00971$
+    00970$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 00972$
+    00971$:
+    mov r2,#0x01
+    setb c
+    mov a,r4
+    xrl a,#0x01
+    jnz 00973$
+    anl c,0xe8
+    sjmp 00974$
+    00973$:
+    mov a,r4
+    xrl a,#0x02
+    jnz 00975$
+    anl c,0xe9
+    sjmp 00974$
+    00975$:
+    mov a,r4
+    xrl a,#0x03
+    jnz 00976$
+    anl c,0xea
+    sjmp 00974$
+    00976$:
+    mov a,r4
+    xrl a,#0x04
+    jnz 00977$
+    anl c,0xeb
+    00974$:
+    jnc 00978$
+    mov r2,#0x00
+    sjmp 00978$
+    00972$:
+    mov a,r3
+    xrl a,#0x06
+    00977$:
+    jz 00979$
+    ljmp 00980$
+    00979$:
+    jb _fuel_mode_flag_56,00981$
+    orl _output_override_flags,#0x08
+    clr _service_pump_output
+    00981$:
+    mov a,r4
+    xrl a,#0x01
+    jnz 00982$
+    orl _output_flags,#0x01
+    anl _injector_compare_control,#0x7e
+    sjmp 00983$
+    00982$:
+    mov a,r4
+    xrl a,#0x02
+    jnz 00984$
+    orl _output_flags,#0x02
+    anl _injector_compare_control,#0xfd
+    sjmp 00983$
+    00984$:
+    mov a,r4
+    xrl a,#0x03
+    jnz 00985$
+    orl _output_flags,#0x04
+    anl _injector_compare_control,#0xfb
+    sjmp 00983$
+    00985$:
+    mov a,r4
+    xrl a,#0x04
+    jnz 00980$
+    orl _output_flags,#0x08
+    anl _injector_compare_control,#0xf7
+    00983$:
+    jnb _serial_extended_length,00986$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 00987$
+    00986$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    00987$:
+    mov r2,a
+    sjmp 00988$
+    00992$:
+    mov r2,#0x00
+    00978$:
+    sjmp 00989$
+    00988$:
+    mov a,r4
+    xrl a,#0x01
+    jnz 00990$
+    mov a,r2
+    jnz 00991$
+    setb 0xe8
+    sjmp 00992$
+    00991$:
+    jb _fuel_mode_flag_56,00993$
+    clr 0x74
+    mov r2,#0x01
+    sjmp 00994$
+    00990$:
+    mov a,r4
+    xrl a,#0x02
+    jnz 00995$
+    mov a,r2
+    jnz 00996$
+    setb 0xe9
+    sjmp 00992$
+    00996$:
+    jb _fuel_mode_flag_56,00993$
+    clr 0x75
+    mov r2,#0x01
+    sjmp 00994$
+    00995$:
+    mov a,r4
+    xrl a,#0x03
+    jnz 00997$
+    mov a,r2
+    jnz 00998$
+    setb 0xea
+    sjmp 00992$
+    00998$:
+    jb _fuel_mode_flag_56,00993$
+    clr 0x76
+    mov r2,#0x01
+    sjmp 00994$
+    00997$:
+    mov a,r4
+    xrl a,#0x04
+    jnz 00980$
+    mov a,r2
+    jnz 00999$
+    setb 0xeb
+    sjmp 00992$
+    00999$:
+    jb _fuel_mode_flag_56,00993$
+    clr 0x77
+    mov r2,#0x01
+    00994$:
+    mov dptr,#_injector_test_delay
+    mov a,#0x64
+    movx @dptr,a
+    sjmp 00989$
+    00980$:
+    mov r2,#0x12
+    sjmp 00989$
+    00993$:
+    anl _output_flags,#0xfe
+    anl _output_flags,#0xfd
+    anl _output_flags,#0xfb
+    anl _output_flags,#0xf7
+    mov r2,#0x31
+    00989$:
+    ret
+}
+
+// Retain the first coil channel and compare masks.
+replace {
+    mov a,_stock_r3
+    jz %1
+    ljmp %2
+    %1:
+    anl _output_flags,#0xef
+    %2:
+    mov a,_stock_r3
+    jnz %3
+    ljmp %4
+    %3:
+    mov a,#0x01
+    cjne a,_stock_r3,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    %4:
+    mov c,_coil_1_level
+    cpl c
+    mov _apply_output_control_05_sloc0_1_0,c
+    mov c,_apply_output_control_05_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %8
+    %7:
+    mov a,#0x06
+    cjne a,_stock_r3,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    anl _spark_compare_control,#0xbf
+    anl _dwell_compare_control,#0xbf
+    orl _output_flags,#0x10
+    jb _serial_extended_length,%12
+    ljmp %13
+    %12:
+    mov r7,#0x01
+    ljmp %14
+    %13:
+    mov r7,#0x00
+    %14:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    jz %15
+    ljmp %16
+    %15:
+    orl _ignition_port,#0x02
+    mov _stock_r2,#0x00
+    ljmp %8
+    %16:
+    mov _stock_r2,#0x01
+    mov dptr,#_coil_test_duration
+    mov a,#0xc8
+    movx @dptr,a
+    mov dptr,#_coil_test_period
+    mov a,#0x06
+    movx @dptr,a
+    anl _ignition_port,#0xfd
+    ljmp %8
+    %11:
+    mov _stock_r2,#0x12
+    %8:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 01000$
+    anl _output_flags,#0xef
+    mov r2,#0x01
+    setb c
+    anl c,_coil_1_level
+    jnc 01001$
+    mov r2,#0x00
+    sjmp 01001$
+    01000$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 01002$
+    mov r2,#0x01
+    setb c
+    anl c,_coil_1_level
+    jnc 01001$
+    mov r2,#0x00
+    sjmp 01001$
+    01002$:
+    mov a,r3
+    xrl a,#0x06
+    jnz 01003$
+    anl _spark_compare_control,#0xbf
+    anl _dwell_compare_control,#0xbf
+    orl _output_flags,#0x10
+    jnb _serial_extended_length,01004$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 01005$
+    01004$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    01005$:
+    jnz 01006$
+    orl _ignition_port,#0x02
+    mov r2,#0x00
+    sjmp 01001$
+    01006$:
+    mov r2,#0x01
+    mov dptr,#_coil_test_duration
+    mov a,#0xc8
+    movx @dptr,a
+    mov dptr,#_coil_test_period
+    mov a,#0x06
+    movx @dptr,a
+    anl _ignition_port,#0xfd
+    sjmp 01001$
+    01003$:
+    mov r2,#0x12
+    01001$:
+    ret
+}
+
+// Retain the second coil channel and compare masks.
+replace {
+    mov a,_stock_r3
+    jz %1
+    ljmp %2
+    %1:
+    anl _output_flags,#0xdf
+    %2:
+    mov a,_stock_r3
+    jnz %3
+    ljmp %4
+    %3:
+    mov a,#0x01
+    cjne a,_stock_r3,%5
+    sjmp %6
+    %5:
+    ljmp %7
+    %6:
+    %4:
+    mov c,_coil_2_level
+    cpl c
+    mov _apply_output_control_06_sloc0_1_0,c
+    mov c,_apply_output_control_06_sloc0_1_0
+    clr a
+    rlc a
+    mov _stock_r2,a
+    ljmp %8
+    %7:
+    mov a,#0x06
+    cjne a,_stock_r3,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    anl _spark_compare_control,#0xdf
+    anl _dwell_compare_control,#0xdf
+    orl _output_flags,#0x20
+    jb _serial_extended_length,%12
+    ljmp %13
+    %12:
+    mov r7,#0x01
+    ljmp %14
+    %13:
+    mov r7,#0x00
+    %14:
+    mov a,#0x06
+    add a, r7
+    add a, #_serial_rx_buffer
+    mov r6,a
+    mov a,#(_serial_rx_buffer >> 8)
+    addc a, #0x00
+    mov r7,a
+    mov dpl,r6
+    mov dph,r7
+    movx a,@dptr
+    jz %15
+    ljmp %16
+    %15:
+    orl _ignition_port,#0x04
+    mov _stock_r2,#0x00
+    ljmp %8
+    %16:
+    mov _stock_r2,#0x01
+    mov dptr,#_coil_test_duration
+    mov a,#0xc8
+    movx @dptr,a
+    mov dptr,#_coil_test_period
+    mov a,#0x06
+    movx @dptr,a
+    anl _ignition_port,#0xfb
+    ljmp %8
+    %11:
+    mov _stock_r2,#0x12
+    %8:
+    ret
+} by {
+    mov a,r3
+    xrl a,#0x00
+    jnz 01007$
+    anl _output_flags,#0xdf
+    mov r2,#0x01
+    setb c
+    anl c,_coil_2_level
+    jnc 01008$
+    mov r2,#0x00
+    sjmp 01008$
+    01007$:
+    mov a,r3
+    xrl a,#0x01
+    jnz 01009$
+    mov r2,#0x01
+    setb c
+    anl c,_coil_2_level
+    jnc 01008$
+    mov r2,#0x00
+    sjmp 01008$
+    01009$:
+    mov a,r3
+    xrl a,#0x06
+    jnz 01010$
+    anl _spark_compare_control,#0xdf
+    anl _dwell_compare_control,#0xdf
+    orl _output_flags,#0x20
+    jnb _serial_extended_length,01011$
+    mov dptr,#(_serial_rx_buffer + 7)
+    movx a,@dptr
+    sjmp 01012$
+    01011$:
+    mov dptr,#(_serial_rx_buffer + 6)
+    movx a,@dptr
+    01012$:
+    jnz 01013$
+    orl _ignition_port,#0x04
+    mov r2,#0x00
+    sjmp 01008$
+    01013$:
+    mov r2,#0x01
+    mov dptr,#_coil_test_duration
+    mov a,#0xc8
+    movx @dptr,a
+    mov dptr,#_coil_test_period
+    mov a,#0x06
+    movx @dptr,a
+    anl _ignition_port,#0xfb
+    sjmp 01008$
+    01010$:
+    mov r2,#0x12
+    01008$:
+    ret
+}
