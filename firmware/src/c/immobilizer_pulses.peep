@@ -1,0 +1,263 @@
+// Retain CY from the comparison with the timeout and the shared long exit.
+replace {
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT7,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    jb _immobilizer_input,%4
+    ljmp %5
+    %4:
+    mov dptr,#_message_timeout
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x3c
+    cjne a,_ACC,%6
+    sjmp %7
+    %6:
+    ljmp %5
+    %7:
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl acc,#0x7f
+    movx @dptr,a
+    ljmp %3
+    %5:
+} by {
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    jnb _ACC_BIT7,%1
+    jnb _immobilizer_input,%5
+    mov dptr,#_message_timeout
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,#0x3c,%5
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl a,#0x7f
+    movx @dptr,a
+    %1:
+    ljmp %3
+    %5:
+}
+
+// Qualify a low pulse and use the original CY polarity for both thresholds.
+replace {
+    mov dptr,#_pulse_phase
+    movx a,@dptr
+    jz %1
+    ljmp %2
+    %1:
+    clr c
+    mov a,#0x50
+    subb a,_throttle_position
+    jc %3
+    ljmp %2
+    %3:
+    clr _immobilizer_signal
+    mov dptr,#_pulse_elapsed_ticks
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov a,_ACC
+    movx @dptr,a
+    clr c
+    mov a,_ACC
+    subb a,#0xfa
+    jnc %4
+    ljmp %5
+    %4:
+    setb _immobilizer_signal
+    mov dptr,#_pulse_phase
+    mov a,#0x01
+    movx @dptr,a
+    mov dptr,#_pulse_elapsed_ticks
+    mov a,#0x00
+    movx @dptr,a
+    ljmp %6
+    %5:
+    mov dptr,#_message_timeout
+    mov a,#0x00
+    movx @dptr,a
+    ljmp %7
+    %2:
+} by {
+    mov dptr,#_pulse_phase
+    movx a,@dptr
+    jnz %2
+    mov a,#0x50
+    cjne a,_throttle_position,%1
+    %1:
+    jnc %2
+    clr _immobilizer_signal
+    mov dptr,#_pulse_elapsed_ticks
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    cjne a,#0xfa,%4
+    %4:
+    jc %5
+    setb _immobilizer_signal
+    mov a,#0x01
+    mov dptr,#_pulse_phase
+    movx @dptr,a
+    clr a
+    mov dptr,#_pulse_elapsed_ticks
+    movx @dptr,a
+    sjmp %6
+    %5:
+    clr a
+    mov dptr,#_message_timeout
+    movx @dptr,a
+    sjmp %7
+    %2:
+}
+
+// Finish a pulse and advance the four-bit pulse count.
+replace {
+    clr c
+    mov a,#0x0a
+    subb a,_throttle_position
+    jc %1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    setb _immobilizer_signal
+    mov dptr,#_pulse_phase
+    mov a,#0x00
+    movx @dptr,a
+    mov dptr,#_pulse_elapsed_ticks
+    movx a,@dptr
+    jz %4
+    ljmp %5
+    %4:
+    ljmp %3
+    %5:
+    mov dptr,#_received_pulse_count
+    movx a,@dptr
+    mov r7,a
+    inc r7
+    mov a,#0x0f
+    anl a,r7
+    movx @dptr,a
+    mov _ACC,#0x00
+    mov dptr,#_pulse_elapsed_ticks
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_message_timeout
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %3
+} by {
+    mov a,#0x0a
+    cjne a,_throttle_position,%1
+    %1:
+    jc %3
+    setb _immobilizer_signal
+    clr a
+    mov dptr,#_pulse_phase
+    movx @dptr,a
+    mov dptr,#_pulse_elapsed_ticks
+    movx a,@dptr
+    jz %3
+    mov dptr,#_received_pulse_count
+    movx a,@dptr
+    inc a
+    anl a,#0x0f
+    movx @dptr,a
+    clr a
+    mov dptr,#_pulse_elapsed_ticks
+    movx @dptr,a
+    mov dptr,#_message_timeout
+    movx @dptr,a
+    sjmp %3
+}
+
+// Preserve both marker cases and the accumulator passed to the nibble store.
+replace {
+    mov dptr,#_received_pulse_count
+    movx a,@dptr
+    mov _ACC,a
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl acc,#0xeb
+    movx @dptr,a
+    ljmp %3
+    %2:
+    clr c
+    mov a,_ACC
+    subb a,#0x0a
+    jnc %4
+    ljmp %3
+    %4:
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl acc,#0xfb
+    movx @dptr,a
+    %3:
+    mov dptr,#_received_nibble_count
+    movx a,@dptr
+    add a,#0x01
+    movx @dptr,a
+    lcall _store_immobilizer_nibble
+} by {
+    mov dptr,#_received_pulse_count
+    movx a,@dptr
+    jnz %2
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl a,#0xeb
+    movx @dptr,a
+    sjmp %3
+    %2:
+    cjne a,#0x0a,%4
+    %4:
+    jc %3
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    anl a,#0xfb
+    movx @dptr,a
+    %3:
+    mov dptr,#_received_nibble_count
+    movx a,@dptr
+    inc a
+    movx @dptr,a
+    lcall _store_immobilizer_nibble
+}
+
+replace {
+    mov _ACC,#0x00
+    mov dptr,#_pulse_elapsed_ticks
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_received_pulse_count
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#_message_timeout
+    mov a,_ACC
+    movx @dptr,a
+} by {
+    clr a
+    mov dptr,#_pulse_elapsed_ticks
+    movx @dptr,a
+    mov dptr,#_received_pulse_count
+    movx @dptr,a
+    mov dptr,#_message_timeout
+    movx @dptr,a
+}
