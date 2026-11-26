@@ -33,9 +33,9 @@ extern void monitor_handler_eb0f(void);
 extern void measure_monitor_adc_window(void);
 extern void monitor_handler_e978(void);
 extern void monitor_handler_ebc1(void);
-extern void monitor_handler_ea58(void);
+extern void fill_or_read_monitor_eeprom(void);
 extern void monitor_handler_eae0(void);
-extern void monitor_handler_eaab(void);
+extern void check_blank_monitor_eeprom(void);
 
 #define MONITOR_COMMAND(index, handler)              \
     do {                                             \
@@ -105,7 +105,7 @@ void dispatch_monitor_request(void)
     MONITOR_COMMAND(8, measure_monitor_adc_window);
     MONITOR_COMMAND(9, monitor_handler_e978);
     MONITOR_COMMAND(10, monitor_handler_ebc1);
-    MONITOR_COMMAND(11, monitor_handler_ea58);
+    MONITOR_COMMAND(11, fill_or_read_monitor_eeprom);
     MONITOR_COMMAND(12, monitor_handler_eae0);
-    MONITOR_COMMAND(13, monitor_handler_eaab);
+    MONITOR_COMMAND(13, check_blank_monitor_eeprom);
 }

@@ -294,7 +294,7 @@ replace {
     %36:
     ljmp %38
     %37:
-    lcall _monitor_handler_ea58
+    lcall _fill_or_read_monitor_eeprom
     ljmp %3
     %38:
     mov a,#0x0c
@@ -312,7 +312,7 @@ replace {
     %42:
     ljmp %3
     %43:
-    lcall _monitor_handler_eaab
+    lcall _check_blank_monitor_eeprom
     %3:
     ret
 } by {
@@ -347,7 +347,7 @@ replace {
     ljmp _measure_monitor_adc_window
     ljmp _monitor_handler_e978
     ljmp _monitor_handler_ebc1
-    ljmp _monitor_handler_ea58
+    ljmp _fill_or_read_monitor_eeprom
     ljmp _monitor_handler_eae0
-    ljmp _monitor_handler_eaab
+    ljmp _check_blank_monitor_eeprom
 }

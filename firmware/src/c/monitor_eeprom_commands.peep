@@ -1,0 +1,248 @@
+// Preserve device selection, buffer preparation and two ordered write-and-verify calls.
+replace {
+    mov _stock_r2,#0x00
+    mov _ACC,_monitor_eeprom_request
+    jb _ACC_SIGN,%1
+    ljmp %2
+    %1:
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r0,#0x00
+    mov a,_ACC
+    anl a,#0x7f
+    mov _monitor_eeprom_device,a
+    lcall _monitor_eeprom_readback_256
+    ljmp %3
+    %2:
+    mov _monitor_eeprom_device,_ACC
+    mov a,_ACC
+    jnz %4
+    ljmp %5
+    %4:
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov a,#0xe0
+    add a, r6
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r7
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _stock_r2,#0x0f
+    lcall _append_monitor_word_checksum
+    mov _stock_r2,#0xe0
+    %5:
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    %6:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,#0xff
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %7
+    ljmp %6
+    %7:
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r0,#0x00
+    mov _stock_r2,#0x80
+    lcall _monitor_eeprom_write_and_verify
+    jnb _CY,%8
+    ljmp %3
+    %8:
+    lcall _poll_monitor_exit
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov a,#0x80
+    add a, r6
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r7
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _stock_r0,#0x80
+    mov _stock_r2,#0x80
+    lcall _monitor_eeprom_write_and_verify
+    jnb _CY,%9
+    ljmp %3
+    %9:
+    lcall _poll_monitor_exit
+    %3:
+    mov c,_CY
+    mov _monitor_checksum_failed,c
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    %10:
+    ret
+} by {
+    mov r2,#0x00
+    mov a,_monitor_eeprom_request
+    jnb acc.7,00970$
+    mov dptr,#_monitor_eeprom_buffer
+    mov r0,#0x00
+    clr acc.7
+    mov _monitor_eeprom_device,a
+    lcall _monitor_eeprom_readback_256
+    sjmp 00971$
+    00970$:
+    mov _monitor_eeprom_device,a
+    jz 00972$
+    mov dptr,#(_monitor_eeprom_buffer + 0xe0)
+    mov r2,#0x0f
+    lcall _append_monitor_word_checksum
+    mov r2,#0xe0
+    00972$:
+    mov dptr,#_monitor_eeprom_buffer
+    mov a,#0xff
+    00973$:
+    movx @dptr,a
+    inc dptr
+    djnz r2,00973$
+    mov dptr,#_monitor_eeprom_buffer
+    mov r0,#0x00
+    mov r2,#0x80
+    lcall _monitor_eeprom_write_and_verify
+    jc 00971$
+    lcall _poll_monitor_exit
+    mov dptr,#(_monitor_eeprom_buffer + 0x80)
+    mov r0,#0x80
+    mov r2,#0x80
+    lcall _monitor_eeprom_write_and_verify
+    jc 00971$
+    lcall _poll_monitor_exit
+    00971$:
+    mov _monitor_checksum_failed,c
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+}
+
+// Keep the two distinct blank-check lengths and error propagation.
+replace {
+    mov _monitor_eeprom_device,#0x00
+    lcall _monitor_eeprom_readback_256
+    jnb _CY,%1
+    ljmp %2
+    %1:
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r1,#0x00
+    %3:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,#0xff
+    cjne a,_ACC,%4
+    ljmp %5
+    %4:
+    setb _CY
+    ljmp %2
+    %5:
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %6
+    ljmp %3
+    %6:
+    lcall _poll_monitor_exit
+    mov _monitor_eeprom_device,#0x01
+    lcall _monitor_eeprom_readback_256
+    jnb _CY,%7
+    ljmp %2
+    %7:
+    mov r6,#_monitor_eeprom_buffer
+    mov r7,#(_monitor_eeprom_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r1,#0xe0
+    %8:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,#0xff
+    cjne a,_ACC,%9
+    ljmp %10
+    %9:
+    setb _CY
+    ljmp %2
+    %10:
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %11
+    ljmp %8
+    %11:
+    clr _CY
+    %2:
+    mov c,_CY
+    mov _monitor_checksum_failed,c
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    %12:
+    ret
+} by {
+    mov _monitor_eeprom_device,#0x00
+    lcall _monitor_eeprom_readback_256
+    jc 00974$
+    mov dptr,#_monitor_eeprom_buffer
+    mov r1,#0x00
+    00975$:
+    movx a,@dptr
+    inc dptr
+    cjne a,#0xff,00974$
+    djnz r1,00975$
+    lcall _poll_monitor_exit
+    mov _monitor_eeprom_device,#0x01
+    lcall _monitor_eeprom_readback_256
+    jc 00974$
+    mov dptr,#_monitor_eeprom_buffer
+    mov r1,#0xe0
+    00976$:
+    movx a,@dptr
+    inc dptr
+    cjne a,#0xff,00974$
+    djnz r1,00976$
+    clr c
+    00974$:
+    mov _monitor_checksum_failed,c
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+}
