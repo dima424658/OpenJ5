@@ -896,6 +896,9 @@ SYMBOLS = {
     "_advance_crank_tooth": 0x0247,
     "_reset_crank_tooth_and_phase": 0x0290,
     "_dispatch_crank_tooth_event": 0x02C1,
+    "_publish_half_turn_period": 0x02FE,
+    "_prepare_tooth_knock_event": 0x035C,
+    "_update_crank_angular_outputs": 0x0390,
     "_irq_crank_epilogue": 0x04AD,
     "_irq_crank_reti": 0x04B3,
     "_timer1_interrupt_entry": 0x04B4,
@@ -924,6 +927,7 @@ SYMBOLS = {
 C_SECTIONS = {
     "code_00e0": 359,
     "code_0247": 122,
+    "code_02c1": 207,
     "code_04b4": 342,
     "code_060a": 244,
     "code_06fe": 142,
