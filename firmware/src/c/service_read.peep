@@ -1,0 +1,236 @@
+// The inactive-session exit lies outside the short branch range.
+replace {
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    setb _service_request_seen
+    jb _serial_extended_length,%3
+    ljmp %4
+    %3:
+} by {
+    jb _service_session_active,%1
+    ljmp %2
+    %1:
+    setb _service_request_seen
+    jnb _serial_extended_length,%4
+}
+
+// Both request layouts load the same stock registers.
+replace {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#%2
+    movx a,@dptr
+    mov _stock_r1,a
+    mov dptr,#%3
+    movx a,@dptr
+    mov _stock_r3,a
+    mov dptr,#%4
+    movx a,@dptr
+    mov _stock_r2,a
+} by {
+    mov dptr,#%1
+    movx a,@dptr
+    mov _B,a
+    inc dptr
+    movx a,@dptr
+    mov r1,a
+    inc dptr
+    movx a,@dptr
+    mov r3,a
+    inc dptr
+    movx a,@dptr
+    mov r2,a
+}
+
+replace {
+    mov r2,a
+    ljmp %1
+} by {
+    mov r2,a
+    sjmp %1
+}
+
+// Keep the stock comparison order and carry results.
+replace {
+    mov _ACC,_B
+    mov a,_ACC
+    jz %1
+    ljmp %2
+    %1:
+    mov _ACC,_stock_r2
+    mov a,_ACC
+    jnz %3
+    ljmp %4
+    %3:
+    clr c
+    mov a,_ACC
+    subb a,#0x78
+    jc %5
+    ljmp %4
+    %5:
+    clr c
+    mov a,_stock_r1
+    subb a,#0xfd
+    jnc %6
+    ljmp %7
+    %6:
+    mov a,#0xff
+    cjne a,_stock_r1,%8
+    sjmp %9
+    %8:
+    ljmp %10
+    %9:
+    ljmp %4
+    %7:
+    mov a,#0xf9
+    xrl a,_stock_r1
+    mov _ACC,a
+    mov a,_ACC
+    jz %11
+    ljmp %4
+    %11:
+    clr c
+    mov a,_stock_r3
+    subb a,#0x30
+    jc %12
+    ljmp %4
+    %12:
+    %10:
+} by {
+    mov a,_B
+    jnz %2
+    mov a,r2
+    jz %4
+    cjne a,#0x78,%5
+    %5:
+    jnc %4
+    cjne r1,#0xfd,%6
+    %6:
+    jc %7
+    cjne r1,#0xff,%8
+    %8:
+    jnc %4
+    sjmp %10
+    %7:
+    mov a,#0xf9
+    xrl a,r1
+    jnz %4
+    cjne r3,#0x30,%12
+    %12:
+    jnc %4
+    %10:
+}
+
+// Stream the reply header in bank 7, keeping the caller's selector on the stack.
+replace {
+    mov _ACC,#0x80
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,_ACC
+    movx @dptr,a
+    mov _stock_r0,#0xa6
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov a,_ACC
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov r6,_stock_r2
+    inc r6
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,r6
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,#0x63
+    movx @dptr,a
+    mov r6,_stock_r2
+    mov a,#0x05
+    add a,r6
+    mov _serial_tx_count,a
+} by {
+    mov a,#0x80
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    movx @dptr,a
+    mov r0,#0xa6
+    mov a,@r0
+    inc dptr
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,r2
+    inc a
+    movx @dptr,a
+    inc dptr
+    mov a,#0x63
+    movx @dptr,a
+    mov a,r2
+    add a,#0x05
+    mov _serial_tx_count,a
+}
+
+// Set up the copy using the original high and low address registers.
+replace {
+    mov _DPSEL,#0x04
+    mov r5,#(_serial_tx_buffer + 0x0005)
+    mov r6,#((_serial_tx_buffer + 0x0005) >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    mov _DPSEL,#0x03
+    mov r5,_stock_r1
+    mov r6,#0x00
+    mov ar6,r5
+    mov r5,#0x00
+    mov r3,_stock_r3
+    mov r4,#0x00
+    mov a,r3
+    orl ar5,a
+    mov a,r4
+    orl ar6,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r5
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r6
+    push ar7
+    lcall _copy_xdata_bytes
+    pop ar7
+    mov _DPSEL,r7
+    lcall _append_serial_checksum
+    ljmp %1
+} by {
+    mov _DPSEL,#0x04
+    mov dptr,#(_serial_tx_buffer + 0x0005)
+    mov _DPSEL,#0x03
+    mov a,r1
+    mov dph,a
+    mov a,r3
+    mov dpl,a
+    lcall _copy_xdata_bytes
+    pop _DPSEL
+    lcall _append_serial_checksum
+    sjmp %1
+}
+
+replace {
+    mov _stock_r3,#0xc8
+    mov _stock_r4,%1
+    lcall _append_code_string_to_serial
+} by {
+    mov r3,#0xc8
+    mov r4,%1
+    lcall _append_code_string_to_serial
+}
+
+replace {
+    lcall _append_code_string_to_serial
+    ljmp %1
+} by {
+    lcall _append_code_string_to_serial
+    sjmp %1
+}
