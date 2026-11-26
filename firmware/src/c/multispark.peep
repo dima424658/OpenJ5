@@ -1,0 +1,217 @@
+// Use short branches and the stock timer and coil registers within the interrupt slot.
+replace {
+    _service_multispark_and_speed:
+    jb _primary_spark_pending,%1
+    ljmp %2
+    %1:
+    jb _early_cranking,%3
+    ljmp %4
+    %3:
+    jnb _second_ignition_coil,%5
+    ljmp %6
+    %5:
+    jb _coil_1_level,%7
+    ljmp %8
+    %7:
+    anl _coil_compare_enable,#0xfd
+    anl _coil_compare_flags,#0xfd
+    ljmp %9
+    %6:
+    jb _coil_2_level,%10
+    ljmp %8
+    %10:
+    anl _coil_compare_enable,#0xfb
+    anl _coil_compare_flags,#0xfb
+    %9:
+    mov dptr,#_additional_spark_count
+    clr a
+    movc a,@a+dptr
+    mov _remaining_sparks,a
+    mov a,_remaining_sparks
+    jz %11
+    ljmp %12
+    %11:
+    ljmp %4
+    %2:
+    mov a,_remaining_sparks
+    jnz %13
+    ljmp %8
+    %13:
+    mov a,_spark_phase_ticks
+    dec a
+    mov r7,a
+    mov _spark_phase_ticks,r7
+    mov a,r7
+    jz %14
+    ljmp %8
+    %14:
+    jnb _second_ignition_coil,%15
+    ljmp %16
+    %15:
+    jnb _coil_1_level,%17
+    ljmp %18
+    %17:
+    setb _coil_1_level
+    ljmp %19
+    %18:
+    clr _coil_1_level
+    ljmp %20
+    %16:
+    jnb _coil_2_level,%21
+    ljmp %22
+    %21:
+    setb _coil_2_level
+    ljmp %19
+    %22:
+    clr _coil_2_level
+    %20:
+    mov dptr,#_supply_voltage_raw
+    movx a,@dptr
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    mov a,r7
+    add a, #_ignition_dwell_raw
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_ignition_dwell_raw >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0x0f
+    mov r7,a
+    mov a,r7
+    inc a
+    mov _spark_phase_ticks,a
+    ljmp %8
+    %19:
+    mov a,_remaining_sparks
+    dec a
+    mov r7,a
+    mov _remaining_sparks,r7
+    mov a,r7
+    jnz %23
+    ljmp %8
+    %23:
+    %12:
+    mov dptr,#_additional_spark_interval_raw
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    swap a
+    anl a,#0x0f
+    mov _spark_phase_ticks,a
+    %4:
+    clr _primary_spark_pending
+    %8:
+    jnb _vehicle_speed_input,%24
+    ljmp %25
+    %24:
+    setb _speed_input_was_low
+    ljmp %26
+    %25:
+    jb _speed_input_was_low,%27
+    ljmp %26
+    %27:
+    clr _speed_input_was_low
+    mov a,#0xff
+    cjne a,_speed_pulse_count,%28
+    ljmp %26
+    %28:
+    inc _speed_pulse_count
+    %26:
+} by {
+    _service_multispark_and_speed:
+    jb _primary_spark_pending,00904$
+    mov a,_remaining_sparks
+    jz 00909$
+    djnz _spark_phase_ticks,00909$
+    jb _second_ignition_coil,00900$
+    jnb _coil_1_level,00902$
+    clr _coil_1_level
+    sjmp 00901$
+    00900$:
+    jnb _coil_2_level,00903$
+    clr _coil_2_level
+    00901$:
+    mov dptr,#_supply_voltage_raw
+    movx a,@dptr
+    swap a
+    anl a,#0x0f
+    mov dptr,#_ignition_dwell_raw
+    movc a,@a+dptr
+    swap a
+    anl a,#0x0f
+    inc a
+    mov _spark_phase_ticks,a
+    sjmp 00909$
+    00902$:
+    setb _coil_1_level
+    djnz _remaining_sparks,00907$
+    sjmp 00909$
+    00903$:
+    setb _coil_2_level
+    djnz _remaining_sparks,00907$
+    sjmp 00909$
+    00904$:
+    jnb _early_cranking,00908$
+    jb _second_ignition_coil,00905$
+    jnb _coil_1_level,00909$
+    anl _coil_compare_enable,#0xfd
+    anl _coil_compare_flags,#0xfd
+    sjmp 00906$
+    00905$:
+    jnb _coil_2_level,00909$
+    anl _coil_compare_enable,#0xfb
+    anl _coil_compare_flags,#0xfb
+    00906$:
+    mov dptr,#_additional_spark_count
+    clr a
+    movc a,@a+dptr
+    mov _remaining_sparks,a
+    jz 00908$
+    00907$:
+    mov dptr,#_additional_spark_interval_raw
+    clr a
+    movc a,@a+dptr
+    swap a
+    anl a,#0x0f
+    mov _spark_phase_ticks,a
+    00908$:
+    clr _primary_spark_pending
+    00909$:
+    jnb _vehicle_speed_input,00911$
+    jbc _speed_input_was_low,00910$
+    sjmp 00912$
+    00910$:
+    mov a,_speed_pulse_count
+    inc a
+    jz 00912$
+    mov _speed_pulse_count,a
+    sjmp 00912$
+    00911$:
+    setb _speed_input_was_low
+    00912$:
+}
+
+// Retain the Timer 1 overflow that arrives during this invocation.
+replace {
+    jb _timer1_overflow,%1
+    ljmp %2
+    %1:
+    setb _pending_timer1_overflow
+    %2:
+    reti
+    %3:
+} by {
+    jnb _timer1_overflow,00913$
+    setb _pending_timer1_overflow
+    00913$:
+    reti
+}

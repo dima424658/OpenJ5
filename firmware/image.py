@@ -886,6 +886,7 @@ SYMBOLS = {
     "_idle_airflow_rpm_gain_q8": 0x98F2,
     "_maf_transfer_raw": 0x99B9,
     **{f"_irq_unused_{address:04x}": address for address in UNUSED_VECTORS},
+    "_service_multispark_and_speed": 0x06FE,
     "_additional_spark_interval_raw": 0x6055,
     "_additional_spark_count": 0x6056,
     "_iac_acceleration_steps": 0x60CC,
@@ -903,6 +904,7 @@ SYMBOLS = {
     "_alternate_throttle_breakpoints": 0x8DFA,
 }
 C_SECTIONS = {
+    "code_06fe": 142,
     "code_2041": 12,
     "code_280e": 10,
     "code_2291": 151,
