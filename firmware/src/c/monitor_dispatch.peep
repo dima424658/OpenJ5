@@ -240,7 +240,7 @@ replace {
     %18:
     ljmp %20
     %19:
-    lcall _monitor_handler_e6b0
+    lcall _count_monitor_edges
     ljmp %3
     %20:
     mov a,#0x06
@@ -341,7 +341,7 @@ replace {
     ljmp _monitor_handler_e470
     ljmp _reject_monitor_request
     ljmp _mirror_monitor_input
-    ljmp _monitor_handler_e6b0
+    ljmp _count_monitor_edges
     ljmp _sample_monitor_adc
     ljmp _monitor_handler_eb0f
     ljmp _monitor_handler_e7c0

@@ -1,0 +1,76 @@
+// Preserve edge acknowledgement, output polarity and the stock rollover path.
+replace {
+    mov _monitor_pulse_count_low,#0x00
+    mov _monitor_pulse_count_high,#0x00
+    mov a,#0x30
+    cjne a,_monitor_request_kind,%1
+    ljmp %2
+    %1:
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    lcall _resume_service_monitor
+    ljmp %3
+    %2:
+    mov a,_monitor_output_request
+    anl a,#0x01
+    mov r7,a
+    mov a,r7
+    add a,#0xff
+    mov _port3_bit4,c
+    %4:
+    jb _monitor_edge_pending,%5
+    ljmp %6
+    %5:
+    clr _monitor_edge_pending
+    cpl _monitor_output_ed
+    mov r7,_monitor_pulse_count_low
+    mov a,r7
+    inc a
+    mov _ACC,a
+    mov _monitor_pulse_count_low,_ACC
+    mov a,_ACC
+    jz %7
+    ljmp %6
+    %7:
+    mov _monitor_pulse_count_high,#0x00
+    mov _monitor_pulse_count_high,#0x01
+    %6:
+    lcall _poll_monitor_exit_and_io
+    ljmp %4
+    %3:
+    ret
+} by {
+    mov _monitor_pulse_count_low,#0x00
+    mov _monitor_pulse_count_high,#0x00
+    mov a,_monitor_request_kind
+    cjne a,#0x30,00970$
+    mov a,_monitor_output_request
+    mov c,acc.0
+    mov _port3_bit4,c
+    00972$:
+    mov c,_monitor_edge_pending
+    jnc 00971$
+    clr _monitor_edge_pending
+    mov c,_monitor_output_ed
+    cpl c
+    cpl c
+    cpl c
+    mov _monitor_output_ed,c
+    mov a,_monitor_pulse_count_low
+    inc a
+    mov _monitor_pulse_count_low,a
+    jnz 00971$
+    mov _monitor_pulse_count_high,a
+    inc a
+    mov _monitor_pulse_count_high,a
+    jnz 00971$
+    mov _monitor_pulse_count_low,#0xff
+    mov _monitor_pulse_count_high,#0xff
+    00971$:
+    lcall _poll_monitor_exit_and_io
+    sjmp 00972$
+    00970$:
+    clr _monitor_command_active
+    setb _monitor_request_invalid
+    ljmp _resume_service_monitor
+}

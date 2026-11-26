@@ -26,7 +26,7 @@ extern void toggle_monitor_output(void);
 extern void monitor_handler_e470(void);
 extern void reject_monitor_request(void);
 extern void mirror_monitor_input(void);
-extern void monitor_handler_e6b0(void);
+extern void count_monitor_edges(void);
 extern void sample_monitor_adc(void);
 extern void monitor_handler_eb0f(void);
 extern void monitor_handler_e7c0(void);
@@ -117,7 +117,7 @@ void dispatch_monitor_request(void)
     MONITOR_COMMAND(2, monitor_handler_e470);
     MONITOR_COMMAND(3, reject_monitor_request);
     MONITOR_COMMAND(4, mirror_monitor_input);
-    MONITOR_COMMAND(5, monitor_handler_e6b0);
+    MONITOR_COMMAND(5, count_monitor_edges);
     MONITOR_COMMAND(6, sample_monitor_adc);
     MONITOR_COMMAND(7, monitor_handler_eb0f);
     MONITOR_COMMAND(8, monitor_handler_e7c0);
