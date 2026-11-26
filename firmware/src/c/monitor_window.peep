@@ -1,0 +1,434 @@
+// Select the ADC window channel and preserve the first P9 command.
+replace {
+    mov r6,#_monitor_window_adc_channels
+    mov r7,#(_monitor_window_adc_channels >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _select_monitor_adc_channel
+    mov _ACC,#0x2c
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov dptr,#0xe7bc
+    lcall _select_monitor_adc_channel
+    mov a,#0x2c
+    anl a,#0x3f
+    orl a,#0x00
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00972$:
+    rlc a
+    jnc 00970$
+    orl _P9,#0x80
+    sjmp 00971$
+    00970$:
+    anl _P9,#0x7f
+    00971$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00972$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Preserve the second P9 command.
+replace {
+    mov _ACC,#0x6c
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0x2c
+    anl a,#0x3f
+    orl a,#0x40
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00975$:
+    rlc a
+    jnc 00973$
+    orl _P9,#0x80
+    sjmp 00974$
+    00973$:
+    anl _P9,#0x7f
+    00974$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00975$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Preserve the third P9 command.
+replace {
+    mov _ACC,#0x82
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0x02
+    anl a,#0x3f
+    orl a,#0x80
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00978$:
+    rlc a
+    jnc 00976$
+    orl _P9,#0x80
+    sjmp 00977$
+    00976$:
+    anl _P9,#0x7f
+    00977$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00978$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Preserve the fourth P9 command.
+replace {
+    mov _ACC,#0xdf
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,#0x1f
+    anl a,#0x1f
+    orl a,#0xc0
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00981$:
+    rlc a
+    jnc 00979$
+    orl _P9,#0x80
+    sjmp 00980$
+    00979$:
+    anl _P9,#0x7f
+    00980$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00981$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Pack the channel bit into the fifth P9 command.
+replace {
+    mov r7,_stock_r4
+    anl ar7,#0x01
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0xe1
+    orl a,r7
+    mov _ACC,a
+    anl _P9,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    jb _CY,%2
+    ljmp %3
+    %2:
+    orl _P9,#0x80
+    ljmp %4
+    %3:
+    anl _P9,#0x7f
+    %4:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    orl _P9,#0x20
+} by {
+    mov a,r4
+    rrc a
+    clr a
+    rlc a
+    rlc a
+    orl a,#0xe1
+    anl _P9,#0xdf
+    mov _B,#0x08
+    00984$:
+    rlc a
+    jnc 00982$
+    orl _P9,#0x80
+    sjmp 00983$
+    00982$:
+    anl _P9,#0x7f
+    00983$:
+    anl _P9,#0xef
+    orl _P9,#0x10
+    djnz _B,00984$
+    rlc a
+    orl _P9,#0x20
+}
+
+// Keep the measurement gate open until timer 0 overflows.
+replace {
+    setb _measurement_window
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0xeb
+    mov _TH0,#0xcb
+    clr _timer0_overflow
+    setb _timer0_running
+    %1:
+    jb _timer0_overflow,%2
+    ljmp %1
+    %2:
+    clr _measurement_window
+} by {
+    setb _measurement_window
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0xeb
+    mov _TH0,#0xcb
+    clr _timer0_overflow
+    setb _timer0_running
+    00985$:
+    jnb _timer0_overflow,00985$
+    clr _measurement_window
+}
+
+// Read the ADC result in stock order and publish one sample.
+replace {
+    mov _adc_channel,#0x07
+    orl _adc_channel,#0x40
+    mov _adc_start_result_low,#0x00
+    %1:
+    jnb _adc_busy,%2
+    ljmp %1
+    %2:
+    mov _ACC,_adc_result_high
+    mov _B,_adc_start_result_low
+    mov _monitor_adc_mean_low,_B
+    mov _monitor_adc_mean_high,_ACC
+    mov _monitor_adc_minimum,_ACC
+    mov _monitor_adc_maximum,_ACC
+    mov _monitor_adc_span,#0x00
+    lcall _poll_monitor_exit_and_io
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    %3:
+    ret
+} by {
+    mov _adc_channel,#0x07
+    orl _adc_channel,#0x40
+    mov _adc_start_result_low,#0x00
+    00986$:
+    jb _adc_busy,00986$
+    mov a,_adc_result_high
+    mov _B,_adc_start_result_low
+    mov _monitor_adc_mean_low,_B
+    mov _monitor_adc_mean_high,a
+    mov _monitor_adc_minimum,a
+    mov _monitor_adc_maximum,a
+    mov _monitor_adc_span,#0x00
+    lcall _poll_monitor_exit_and_io
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+}

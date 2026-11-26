@@ -9,5 +9,6 @@ struct MonitorAdcChannel {
 };
 
 extern __code const struct MonitorAdcChannel monitor_adc_channels[];
+extern __code const struct MonitorAdcChannel monitor_window_adc_channels[];
 
 #endif
