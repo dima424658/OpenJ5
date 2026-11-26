@@ -1,0 +1,265 @@
+// Accumulate the little-endian words and return the zero test in carry.
+replace {
+    mov _stock_r01,#0x01
+    mov (_stock_r01 + 1),#0x00
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r6,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r5,#0x00
+    mov ar5,r6
+    mov r6,#0x00
+    mov r4,#0x00
+    mov a,r7
+    orl ar6,a
+    mov a,r4
+    orl ar5,a
+    mov a,r6
+    add a, _stock_r01
+    mov _stock_r01,a
+    mov a,r5
+    addc a, (_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    mov a,_stock_r0
+    orl a,_stock_r1
+    mov _ACC,a
+    mov a,_ACC
+    cjne a,#0x01,%3
+    %3:
+    mov _verify_monitor_word_checksum_sloc0_1_0,c
+    mov c,_verify_monitor_word_checksum_sloc0_1_0
+    cpl c
+    mov _CY,c
+    %4:
+    ret
+} by {
+    mov r0,#0x01
+    mov r1,#0x00
+    00970$:
+    clr c
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    addc a,r1
+    mov r1,a
+    inc dptr
+    djnz r2,00970$
+    orl a,r0
+    clr c
+    jz 00971$
+    setb c
+    00971$:
+    ret
+}
+
+// Write the two-byte additive complement through DPTR.
+replace {
+    mov _stock_r01,#0x01
+    mov (_stock_r01 + 1),#0x00
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r6,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r5,#0x00
+    mov ar5,r6
+    mov r6,#0x00
+    mov r4,#0x00
+    mov a,r7
+    orl ar6,a
+    mov a,r4
+    orl ar5,a
+    mov a,r6
+    add a, _stock_r01
+    mov _stock_r01,a
+    mov a,r5
+    addc a, (_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    clr c
+    clr a
+    subb a,_stock_r01
+    mov r6,a
+    clr a
+    subb a,(_stock_r01 + 1)
+    mov r7,a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov ar5,r6
+    mov a,r5
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _ACC,r7
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    %3:
+    ret
+} by {
+    mov r0,#0x01
+    mov r1,#0x00
+    00972$:
+    clr c
+    movx a,@dptr
+    add a,r0
+    mov r0,a
+    inc dptr
+    movx a,@dptr
+    addc a,r1
+    mov r1,a
+    inc dptr
+    djnz r2,00972$
+    clr c
+    clr a
+    subb a,r0
+    movx @dptr,a
+    inc dptr
+    clr a
+    subb a,r1
+    movx @dptr,a
+    ret
+}
+
+// Preserve the reply write, DPTR bank and stack cleanup at the buffer limit.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_ACC
+    add a, _stock_r2
+    mov _stock_r2,a
+    mov a,#0x81
+    cjne a,((_STOCK_DPTR >> 0) & 0xFF),%1
+    mov a,#0xfb
+    cjne a,((_STOCK_DPTR >> 8) & 0xFF),%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _DPSEL,r7
+    lcall _clear_flag_21_0_f275
+    ljmp %4
+    %3:
+    mov _DPSEL,r7
+    %4:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    add a,r2
+    mov r2,a
+    mov a,dpl
+    cjne a,#0x81,00970$
+    mov a,dph
+    cjne a,#0xfb,00970$
+    pop _DPSEL
+    pop acc
+    pop acc
+    ljmp _clear_flag_21_0_f275
+    00970$:
+    pop _DPSEL
+    ret
+}
+
+// Append the byte complement and fall through to DPTR bank zero.
+replace {
+    clr c
+    clr a
+    subb a,_stock_r2
+    mov _ACC,a
+    mov _DPSEL,#0x07
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _monitor_reply_end_low,((_STOCK_DPTR >> 0) & 0xFF)
+    mov r6,#_monitor_reply_buffer
+    mov r7,#(_monitor_reply_buffer >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _select_data_pointer_zero
+    %1:
+    ret
+} by {
+    mov a,r2
+    cpl a
+    inc a
+    mov _DPSEL,#0x07
+    movx @dptr,a
+    inc dptr
+    mov _monitor_reply_end_low,dpl
+    mov dptr,#_monitor_reply_buffer
+}
