@@ -1,0 +1,28 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00404b9c at 0x404b9c
+// REA Evidence ev_4dcbd1cb50113d210de8e0072c71f9aac4ec2748fa330b309d9ada08dee1e6d5
+
+void FUN_00404b9c(byte param_1,byte param_2)
+
+{
+  undefined1 *puVar1;
+  undefined4 uVar2;
+  undefined4 uVar3;
+  int iVar4;
+
+  DAT_004ec6c4 = param_1 + 3;
+  DAT_004ec6c5 = param_2 & 0xf | 0x10;
+  FUN_004c14f8();
+  puVar1 = &DAT_004ec6c6;
+  for (iVar4 = 0; iVar4 < (int)(uint)param_1; iVar4 = iVar4 + 1) {
+    puVar1 = puVar1 + 1;
+  }
+  uVar2 = CONCAT31((int3)((uint)puVar1 >> 8),DAT_004ec6c4);
+  uVar3 = FUN_0042f83c();
+  FUN_0042f83c(uVar3,DAT_004ec6c5,uVar2,DAT_004ec6c5);
+  for (iVar4 = 0; iVar4 < (int)(uint)param_1; iVar4 = iVar4 + 1) {
+    FUN_0042f83c();
+  }
+  FUN_0042f83c();
+  FUN_0042f8e8();
+  return;
+}

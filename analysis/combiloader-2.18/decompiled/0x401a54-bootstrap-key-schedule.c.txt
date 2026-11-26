@@ -1,0 +1,112 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00401a54 at 0x401a54
+// REA Evidence ev_ee830935d1581be2edfbcfd028ebdd6d61a87a8a96f70e6db616e6928711a54a
+
+void FUN_00401a54(void)
+
+{
+  uint *puVar1;
+  int iVar2;
+  uint uVar3;
+  int *piVar4;
+  int iVar5;
+  int iVar6;
+  int local_78 [8];
+  int local_58 [8];
+  uint local_38 [4];
+  uint local_28;
+  uint local_24;
+  uint local_20;
+  uint local_1c;
+  uint *local_18;
+  uint *local_14;
+  int *local_10;
+  int *local_c;
+  int local_8;
+
+  FUN_004c1568();
+  FUN_004c14f8();
+  iVar5 = 0x5a827999;
+  iVar6 = 0x13;
+  local_8 = 0;
+  puVar1 = local_38;
+  do {
+    uVar3 = *puVar1;
+    *puVar1 = uVar3 << 0x18 | (uVar3 & 0xff00) << 8 | uVar3 >> 8 & 0xff00 | uVar3 >> 0x18;
+    puVar1 = puVar1 + 1;
+    local_8 = local_8 + 1;
+  } while (local_8 < 8);
+  local_8 = 0;
+  local_18 = &DAT_004ec5e4;
+  local_14 = &DAT_004ec524;
+  do {
+    iVar2 = 0;
+    local_c = local_58;
+    piVar4 = local_78;
+    do {
+      *piVar4 = iVar5;
+      piVar4 = piVar4 + 1;
+      iVar5 = iVar5 + 0x6ed9eba1;
+      iVar2 = iVar2 + 1;
+      *local_c = iVar6;
+      local_c = local_c + 1;
+      iVar6 = iVar6 + 0x11;
+    } while (iVar2 < 8);
+    uVar3 = FUN_0040194c();
+    local_20 = local_20 | uVar3;
+    uVar3 = FUN_004019a4();
+    local_24 = local_24 | uVar3;
+    uVar3 = FUN_004019fc();
+    local_28 = local_28 | uVar3;
+    uVar3 = FUN_0040194c();
+    local_38[3] = local_38[3] | uVar3;
+    uVar3 = FUN_004019a4();
+    local_38[2] = local_38[2] | uVar3;
+    uVar3 = FUN_004019fc();
+    local_38[1] = local_38[1] | uVar3;
+    uVar3 = FUN_0040194c();
+    local_38[0] = local_38[0] | uVar3;
+    uVar3 = FUN_004019a4();
+    local_1c = local_1c | uVar3;
+    iVar2 = 0;
+    local_10 = local_58;
+    piVar4 = local_78;
+    do {
+      *piVar4 = iVar5;
+      piVar4 = piVar4 + 1;
+      iVar5 = iVar5 + 0x6ed9eba1;
+      iVar2 = iVar2 + 1;
+      *local_10 = iVar6;
+      local_10 = local_10 + 1;
+      iVar6 = iVar6 + 0x11;
+    } while (iVar2 < 8);
+    uVar3 = FUN_0040194c();
+    local_20 = local_20 | uVar3;
+    uVar3 = FUN_004019a4();
+    local_24 = local_24 | uVar3;
+    uVar3 = FUN_004019fc();
+    local_28 = local_28 | uVar3;
+    uVar3 = FUN_0040194c();
+    local_38[3] = local_38[3] | uVar3;
+    uVar3 = FUN_004019a4();
+    local_38[2] = local_38[2] | uVar3;
+    uVar3 = FUN_004019fc();
+    local_38[1] = local_38[1] | uVar3;
+    uVar3 = FUN_0040194c();
+    local_38[0] = local_38[0] | uVar3;
+    uVar3 = FUN_004019a4();
+    local_1c = local_1c | uVar3;
+    *local_14 = local_38[0] & 0x1f;
+    local_14[1] = local_38[2] & 0x1f;
+    local_14[2] = local_28 & 0x1f;
+    local_14[3] = local_20 & 0x1f;
+    *local_18 = local_1c;
+    local_18[1] = local_24;
+    local_18[2] = local_38[3];
+    local_18[3] = local_38[1];
+    local_8 = local_8 + 1;
+    local_18 = local_18 + 4;
+    local_14 = local_14 + 4;
+  } while (local_8 < 0xc);
+  FUN_004c1568();
+  return;
+}

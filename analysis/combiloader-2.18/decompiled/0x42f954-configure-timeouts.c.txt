@@ -1,0 +1,18 @@
+// REA / Ghidra 12.2 pseudocode, FUN_0042f954 at 0x42f954
+// REA Evidence ev_4dcbd1cb50113d210de8e0072c71f9aac4ec2748fa330b309d9ada08dee1e6d5
+
+void FUN_0042f954(void)
+
+{
+  undefined4 in_stack_00000004;
+  undefined4 in_stack_00000008;
+  undefined4 in_stack_0000000c;
+
+  DAT_0073c8f8 = in_stack_00000004;
+  DAT_0073c8fc = in_stack_00000008;
+  DAT_0073c900 = in_stack_0000000c;
+  DAT_0073c904 = 100;
+  DAT_0073c908 = 100;
+  SetCommTimeouts(DAT_0073c8d8,(LPCOMMTIMEOUTS)&DAT_0073c8f8);
+  return;
+}

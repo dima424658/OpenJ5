@@ -1,0 +1,13 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00404d50 at 0x404d50
+// REA Evidence ev_2355a31f0da184a45ebba29c42a09c5f05d50354102b8b8607e30dca8222064c
+
+void FUN_00404d50(void)
+
+{
+  FUN_004045bc();
+  Sleep(500);
+  FUN_0042f82c();
+  FUN_00404b9c(1,8,&DAT_004d36a8);
+  FUN_00404c54();
+  return;
+}

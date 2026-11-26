@@ -1,0 +1,21 @@
+// REA / Ghidra 12.2 pseudocode, entry at 0x40141a
+// REA Evidence ev_2355a31f0da184a45ebba29c42a09c5f05d50354102b8b8607e30dca8222064c
+
+/* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+
+void entry(undefined4 param_1,undefined4 param_2)
+
+{
+  HMODULE pHVar1;
+  undefined4 uVar2;
+
+  _DAT_004d108f = 0;
+  pHVar1 = GetModuleHandleA((LPCSTR)0x0);
+  uVar2 = FUN_004c10b8(pHVar1,pHVar1);
+  FUN_004c101c(uVar2,param_2);
+  FUN_004c10f8();
+  FUN_004c2610();
+  DAT_004d1093 = GetModuleHandleA((LPCSTR)0x0);
+  FUN_004cb648();
+  return;
+}

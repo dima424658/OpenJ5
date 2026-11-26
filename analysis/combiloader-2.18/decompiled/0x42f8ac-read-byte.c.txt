@@ -1,0 +1,17 @@
+// REA / Ghidra 12.2 pseudocode, FUN_0042f8ac at 0x42f8ac
+// REA Evidence ev_2355a31f0da184a45ebba29c42a09c5f05d50354102b8b8607e30dca8222064c
+
+undefined4 FUN_0042f8ac(void)
+
+{
+  BOOL BVar1;
+  DWORD local_8;
+  undefined4 local_4;
+
+  local_4 = 0;
+  BVar1 = ReadFile(DAT_0073c8d8,&local_4,1,&local_8,(LPOVERLAPPED)0x0);
+  if ((BVar1 == 0) || (local_8 == 0)) {
+    return 0xffffffff;
+  }
+  return local_4;
+}

@@ -1,0 +1,17 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00404e90 at 0x404e90
+// REA Evidence ev_4dcbd1cb50113d210de8e0072c71f9aac4ec2748fa330b309d9ada08dee1e6d5
+
+uint FUN_00404e90(void)
+
+{
+  int iVar1;
+
+  iVar1 = FUN_00404d78(1,3,&DAT_004d36a8);
+  if (iVar1 != 0) {
+    return 0xfffffffe;
+  }
+  if (DAT_004ec758 == 'U') {
+    return (uint)DAT_004ec759;
+  }
+  return 0xfffffffd;
+}

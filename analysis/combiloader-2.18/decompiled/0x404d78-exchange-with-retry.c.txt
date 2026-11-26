@@ -1,0 +1,27 @@
+// REA / Ghidra 12.2 pseudocode, FUN_00404d78 at 0x404d78
+// REA Evidence ev_4dcbd1cb50113d210de8e0072c71f9aac4ec2748fa330b309d9ada08dee1e6d5
+
+undefined4 FUN_00404d78(undefined4 param_1,undefined1 param_2,undefined4 param_3)
+
+{
+  int iVar1;
+  undefined4 uVar2;
+  int iVar3;
+
+  iVar3 = 0;
+  do {
+    iVar3 = iVar3 + 1;
+    FUN_00404b9c(param_1,param_2,param_3);
+    iVar1 = FUN_00404c54();
+    if (iVar1 < 0) {
+      FUN_00404d50();
+    }
+  } while (((iVar1 != 0) || ((DAT_004ec6c5 & 0xf) != (DAT_004ec757 & 0xf))) && (iVar3 < 4));
+  if ((iVar1 == 0) && ((DAT_004ec6c5 & 0xf) == (DAT_004ec757 & 0xf))) {
+    uVar2 = 0;
+  }
+  else {
+    uVar2 = 0xffffffff;
+  }
+  return uVar2;
+}
