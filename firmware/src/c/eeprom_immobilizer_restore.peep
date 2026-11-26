@@ -1,0 +1,188 @@
+// DPTR is the stock argument to the buffer routines.
+replace {
+    mov r6,#%1
+    mov r7,#(%1 >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+} by {
+    mov dptr,#%1
+}
+
+// Load the EEPROM argument registers in the current PSW bank.
+replace {
+    mov _stock_r4,%1
+    mov _stock_r1,#0x04
+    mov _stock_r0,#0x94
+} by {
+    mov r4,%1
+    mov r1,#0x04
+    mov r0,#0x94
+}
+
+replace {
+    mov _stock_r7,%1
+} by {
+    mov r7,%1
+}
+
+replace {
+    mov a,_stock_r7
+} by {
+    mov a,r7
+}
+
+replace {
+    mov _ACC,_stock_r7
+} by {
+    mov a,r7
+}
+
+replace {
+    orl _stock_r7,%1
+} by {
+    mov a,r7
+    orl a,%1
+    mov r7,a
+}
+
+// The carry test is between the processing of each EEPROM copy.
+replace {
+    jb _CARRY,%1
+    ljmp %2
+    %1:
+} by {
+    jnc %2
+}
+
+replace {
+    jnb _CARRY,%1
+    ljmp %2
+    %1:
+} by {
+    jc %2
+}
+
+replace {
+    jnz %1
+    ljmp %2
+    %1:
+} by {
+    jz %2
+}
+
+// Initialize the status from the selected record's low status bit.
+replace {
+    mov dptr,#(_selected_record + 0x0003)
+    movx a,@dptr
+    mov _ACC,a
+    mov dptr,#_immobilizer_status
+    mov a,#0xfe
+    orl a,_ACC
+    movx @dptr,a
+} by {
+    mov dptr,#(_selected_record + 0x0003)
+    movx a,@dptr
+    mov dptr,#_immobilizer_status
+    orl a,#0xfe
+    movx @dptr,a
+}
+
+// The repair path tests both mismatch bits using CY.
+replace {
+    mov a,r7
+    anl a,#0x0f
+    jnz %1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov a,r7
+    jb _ACC_BIT4,%4
+    ljmp %5
+    %4:
+    jb _ACC_BIT5,%6
+    ljmp %5
+    %6:
+} by {
+    mov a,r7
+    anl a,#0x0f
+    jnz %3
+    mov a,r7
+    mov c,_ACC_BIT4
+    anl c,_ACC_BIT5
+    jnc %5
+}
+
+// The final two writes have a shared return and a shared failure flag.
+replace {
+    mov a,r7
+    jb _ACC_BIT4,%1
+    ljmp %2
+    %1:
+    mov dptr,#_selected_record
+    lcall _copy_xdata_to_eeprom_buffer
+    mov r4,#0x0c
+    mov r1,#0x04
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jc %3
+    ljmp %4
+    %2:
+    jb _ACC_BIT5,%5
+    ljmp %6
+    %5:
+    mov dptr,#_selected_record
+    lcall _copy_xdata_to_eeprom_buffer
+    mov r4,#0x2c
+    mov r1,#0x04
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jc %3
+    %6:
+    ljmp %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+} by {
+    mov a,r7
+    jb _ACC_BIT4,%1
+    jb _ACC_BIT5,%5
+    sjmp %4
+    %1:
+    mov dptr,#_selected_record
+    lcall _copy_xdata_to_eeprom_buffer
+    mov r4,#0x0c
+    mov r1,#0x04
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc %4
+    sjmp %3
+    %5:
+    mov dptr,#_selected_record
+    lcall _copy_xdata_to_eeprom_buffer
+    mov r4,#0x2c
+    mov r1,#0x04
+    mov r0,#0x94
+    lcall _write_eeprom_bytes
+    jnc %4
+    %3:
+    setb _eeprom_io_failed
+    %4:
+}
+
+replace {
+    lcall _write_eeprom_bytes
+    jc %1
+    ljmp %2
+} by {
+    lcall _write_eeprom_bytes
+    jnc %2
+    sjmp %1
+}
+
+// The unconditional exits are local branches in the original routine.
+replace {
+    ljmp %1
+} by {
+    sjmp %1
+}

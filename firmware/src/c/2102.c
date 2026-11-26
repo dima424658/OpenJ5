@@ -19,7 +19,7 @@ extern void read_eeprom_record_f474(void);
 extern void read_eeprom_record_f480(void);
 extern void check_eeprom_record_9d(void);
 extern void restore_startup_eeprom_bd12(void);
-extern void restore_startup_eeprom_c470(void);
+extern void restore_immobilizer_records(void);
 extern void restart_runtime_init(void);
 
 void continue_startup_sensor_test(void)
@@ -43,7 +43,7 @@ void continue_startup_sensor_test(void)
         if (stock_r5 != 0x55 || (retained_status & 0x02)) {
             restore_startup_eeprom_bd12();
         }
-        restore_startup_eeprom_c470();
+        restore_immobilizer_records();
         restart_runtime_init();
         return;
     }

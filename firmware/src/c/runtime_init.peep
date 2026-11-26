@@ -100,7 +100,7 @@ replace {
     %15:
     lcall _restore_startup_eeprom_bd12
     %17:
-    lcall _restore_startup_eeprom_c470
+    lcall _restore_immobilizer_records
     lcall _restart_runtime_init
     ljmp %18
     %12:
@@ -181,7 +181,7 @@ replace {
     00971$:
     lcall _restore_startup_eeprom_bd12
     00972$:
-    lcall _restore_startup_eeprom_c470
+    lcall _restore_immobilizer_records
 }
 
 // Keep the indirect RAM clear loops in R0.
