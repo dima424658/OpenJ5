@@ -1351,6 +1351,7 @@ C_SECTIONS = {
     "code_d6ff": 141,
     "code_d78c": 73,
     "code_e665": 75,
+    "code_ed22": 135,
     "code_f090": 4,
     "code_f275": 3,
     "const_4a89": 12,

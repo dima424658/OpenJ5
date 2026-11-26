@@ -1,0 +1,220 @@
+// Preserve normal return and the stack-discarding monitor exit.
+replace {
+    mov a,_sfr_dd
+    anl a,#0x08
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    clr _monitor_command_active
+    setb _monitor_flag_01
+    lcall _resume_service_monitor
+    ljmp %3
+    %2:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    %3:
+    ret
+} by {
+    mov a,_sfr_dd
+    anl a,#0x08
+    jz 00970$
+    clr _monitor_command_active
+    setb _monitor_flag_01
+    pop acc
+    pop acc
+    ljmp _resume_service_monitor
+    00970$:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    ret
+}
+
+// Preserve the exit check before the port transaction.
+replace {
+    mov a,_sfr_dd
+    anl a,#0x08
+    mov _ACC,a
+    mov a,_ACC
+    jnz %1
+    ljmp %2
+    %1:
+    clr _monitor_command_active
+    setb _monitor_flag_01
+    lcall _resume_service_monitor
+    ljmp %3
+    %2:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+} by {
+    mov a,_sfr_dd
+    anl a,#0x08
+    jz 00971$
+    clr _monitor_command_active
+    setb _monitor_flag_01
+    pop acc
+    pop acc
+    ljmp _resume_service_monitor
+    00971$:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+}
+
+// Preserve register saves, P9 timing and the stable-level latch updates.
+replace {
+    mov r7,_B
+    mov r6,_stock_r0
+    mov r5,_stock_r1
+    anl _P9,#0xfb
+    mov _ACC,_monitor_transfer_bytes
+    mov _STOCK_DPL,(_monitor_transfer_bytes + 0x0001)
+    mov (_monitor_transfer_bytes + 0x0001),_ACC
+    mov _B,#0x08
+    %1:
+    jb _CY,%2
+    ljmp %3
+    %2:
+    mov r4,#0x80
+    ljmp %4
+    %3:
+    mov r4,#0x00
+    %4:
+    mov a,_ACC
+    anl a,#0x01
+    mov r3,a
+    mov a,r3
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r3,a
+    mov a,r4
+    orl a,r3
+    mov _ACC,a
+    jb _CY,%5
+    ljmp %6
+    %5:
+    orl _P9,#0x08
+    ljmp %7
+    %6:
+    anl _P9,#0xf7
+    %7:
+    orl _P9,#0x01
+    mov r4,_P9
+    anl ar4,#0x40
+    mov a,r4
+    cjne a,#0x01,%8
+    %8:
+    mov _poll_monitor_exit_and_io_sloc0_1_0,c
+    mov c,_poll_monitor_exit_and_io_sloc0_1_0
+    cpl c
+    mov _CY,c
+    anl _P9,#0xfe
+    mov a,_B
+    dec a
+    mov r4,a
+    mov _B,r4
+    mov a,r4
+    jz %9
+    ljmp %1
+    %9:
+    jb _CY,%10
+    ljmp %11
+    %10:
+    mov r4,#0x80
+    ljmp %12
+    %11:
+    mov r4,#0x00
+    %12:
+    mov a,_ACC
+    anl a,#0x01
+    mov r3,a
+    mov a,r3
+    add a,#0xff
+    mov _CY,c
+    mov a,_ACC
+    clr c
+    rrc a
+    mov r3,a
+    mov a,r4
+    orl a,r3
+    mov _ACC,a
+    mov a,_STOCK_DPL
+    xrl a,_ACC
+    cpl a
+    mov _STOCK_DPH,a
+    mov a,#0xff
+    xrl a,_STOCK_DPL
+    anl a,_STOCK_DPH
+    orl a,_monitor_latched_events
+    mov _monitor_latched_events,a
+    mov a,_STOCK_DPH
+    anl a,_STOCK_DPL
+    orl a,(_monitor_latched_events + 0x0001)
+    mov (_monitor_latched_events + 0x0001),a
+    orl _P9,#0x04
+    mov _stock_r1,r5
+    mov _ACC,r6
+    mov _stock_r0,_ACC
+    mov _B,r7
+    %13:
+    ret
+} by {
+    push _B
+    push _stock_r1
+    mov a,r0
+    push acc
+    mov r0,#_monitor_transfer_bytes
+    mov a,r1
+    push acc
+    mov r1,#_monitor_latched_events
+    anl _P9,#0xfb
+    00975$:
+    mov a,@r0
+    inc r0
+    mov dpl,@r0
+    mov @r0,a
+    mov _B,#0x08
+    00974$:
+    rrc a
+    jnc 00972$
+    orl _P9,#0x08
+    sjmp 00973$
+    00972$:
+    anl _P9,#0xf7
+    00973$:
+    orl _P9,#0x01
+    push acc
+    mov a,_P9
+    mov c,acc.6
+    pop acc
+    anl _P9,#0xfe
+    djnz _B,00974$
+    rrc a
+    xrl a,dpl
+    cpl a
+    mov dph,a
+    mov a,dpl
+    cpl a
+    anl a,dph
+    orl a,@r1
+    mov @r1,a
+    inc r1
+    mov a,dpl
+    anl a,dph
+    orl a,@r1
+    mov @r1,a
+    inc r1
+    inc r0
+    cjne r0,#0x80,00975$
+    orl _P9,#0x04
+    pop acc
+    mov r1,a
+    pop acc
+    mov r0,a
+    pop _stock_r1
+    pop _B
+    ret
+}
