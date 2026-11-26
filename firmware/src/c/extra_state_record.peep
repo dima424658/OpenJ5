@@ -1,0 +1,108 @@
+// Use the accumulator and hardware carry throughout each rotation.
+replace {
+    mov c,_CARRY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CARRY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+} by {
+    rlc a
+}
+
+replace {
+    mov c,%1
+    mov _CARRY,c
+    rlc a
+} by {
+    mov c,%1
+    rlc a
+}
+
+replace {
+    mov r1,_stock_r1
+    mov _ACC,@r1
+} by {
+    mov a,@r1
+}
+
+replace {
+    mov r1,_stock_r1
+    mov @r1,_ACC
+} by {
+    mov @r1,a
+}
+
+replace {
+    mov c,_CARRY
+    mov _input_bit,c
+} by {
+    mov _input_bit,c
+}
+
+replace {
+    mov _stock_r1,#%1
+} by {
+    mov r1,#%1
+}
+
+replace {
+    inc _stock_r1
+} by {
+    inc r1
+}
+
+// The nested counts use direct RAM even when the pointer uses the active bank.
+replace {
+    mov a,%1
+    dec a
+    mov r7,a
+    mov %1,r7
+    mov a,r7
+    jz %2
+    ljmp %3
+    %2:
+} by {
+    djnz %1,%3
+}
+
+// Transfer the transformed record from the scratch buffer to XDATA.
+replace {
+    mov _stock_r2,#0x06
+    mov _stock_r0,#0x25
+    mov r6,#_output_record
+    mov r7,#(_output_record >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    %1:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    djnz _stock_r2,%1
+} by {
+    mov r2,#0x06
+    mov r0,#0x25
+    mov dptr,#_output_record
+    %1:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r2,%1
+}
