@@ -249,7 +249,7 @@ replace {
     %21:
     ljmp %23
     %22:
-    lcall _monitor_handler_e7a9
+    lcall _sample_monitor_adc
     ljmp %3
     %23:
     mov a,#0x07
@@ -342,7 +342,7 @@ replace {
     ljmp _reject_monitor_request
     ljmp _mirror_monitor_input
     ljmp _monitor_handler_e6b0
-    ljmp _monitor_handler_e7a9
+    ljmp _sample_monitor_adc
     ljmp _monitor_handler_eb0f
     ljmp _monitor_handler_e7c0
     ljmp _monitor_handler_e978

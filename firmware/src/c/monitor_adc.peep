@@ -1,0 +1,216 @@
+// Preserve the 24-bit accumulator, extrema scan, and stock register results.
+replace {
+    mov r6,#_monitor_adc_samples
+    mov r7,#(_monitor_adc_samples >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _B,#0x00
+    mov a,#0x00
+    mov _stock_r01,a
+    mov (_stock_r01 + 1),a
+    mov _stock_r2,a
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r6,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov r4,_stock_r01
+    mov r5,(_stock_r01 + 1)
+    mov r3,#0x00
+    mov ar3,r6
+    mov r6,#0x00
+    mov r2,#0x00
+    mov a,r7
+    orl ar6,a
+    mov a,r2
+    orl ar3,a
+    mov a,r6
+    add a, _stock_r01
+    mov _stock_r01,a
+    mov a,r3
+    addc a, (_stock_r01 + 1)
+    mov (_stock_r01 + 1),a
+    clr c
+    mov a,_stock_r01
+    subb a,r4
+    mov a,(_stock_r01 + 1)
+    subb a,r5
+    jc %2
+    ljmp %3
+    %2:
+    inc _stock_r2
+    %3:
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %4
+    ljmp %1
+    %4:
+    mov _monitor_adc_mean_low,_stock_r1
+    mov _monitor_adc_mean_high,_stock_r2
+    mov r6,#_monitor_adc_samples
+    mov r7,#(_monitor_adc_samples >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _B,#0xff
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _stock_r0,_ACC
+    mov _stock_r1,_ACC
+    %5:
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    clr c
+    mov a,_ACC
+    subb a,_stock_r0
+    jc %6
+    ljmp %7
+    %6:
+    mov _stock_r0,_ACC
+    %7:
+    clr c
+    mov a,_ACC
+    subb a,_stock_r1
+    jnc %8
+    ljmp %9
+    %8:
+    mov _stock_r1,_ACC
+    %9:
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %10
+    ljmp %5
+    %10:
+    mov _monitor_adc_minimum,_stock_r0
+    mov _monitor_adc_maximum,_stock_r1
+    mov a,_stock_r1
+    clr c
+    subb a,_stock_r0
+    mov _ACC,a
+    mov _monitor_adc_span,_ACC
+    %11:
+    ret
+} by {
+    mov dptr,#_monitor_adc_samples
+    mov _B,#0x00
+    mov r0,#0x00
+    mov r1,#0x00
+    mov r2,#0x00
+    00970$:
+    movx a,@dptr
+    inc dptr
+    add a,r0
+    mov r0,a
+    movx a,@dptr
+    inc dptr
+    addc a,r1
+    mov r1,a
+    mov a,#0x00
+    addc a,r2
+    mov r2,a
+    djnz _B,00970$
+    mov _monitor_adc_mean_low,r1
+    mov _monitor_adc_mean_high,r2
+    mov dptr,#_monitor_adc_samples
+    mov _B,#0xff
+    inc dptr
+    movx a,@dptr
+    inc dptr
+    mov r0,a
+    mov r1,a
+    00975$:
+    inc dptr
+    movx a,@dptr
+    inc dptr
+    cjne a,0x00,00971$
+    00971$:
+    jnc 00972$
+    mov r0,a
+    00972$:
+    cjne a,_stock_r1,00973$
+    00973$:
+    jc 00974$
+    mov r1,a
+    00974$:
+    djnz _B,00975$
+    mov _monitor_adc_minimum,r0
+    mov _monitor_adc_maximum,r1
+    mov a,r1
+    clr c
+    subb a,r0
+    mov _monitor_adc_span,a
+    ret
+}
+
+// Select the monitor ADC channel, capture samples, and publish the result.
+replace {
+    mov r6,#_monitor_adc_channels
+    mov r7,#(_monitor_adc_channels >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _select_monitor_adc_channel
+    lcall _capture_monitor_adc_samples
+    lcall _summarize_monitor_adc_samples
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    lcall _resume_service_monitor
+    %1:
+    ret
+} by {
+    mov dptr,#0xe6ee
+    lcall _select_monitor_adc_channel
+    lcall _capture_monitor_adc_samples
+    lcall _summarize_monitor_adc_samples
+    clr _monitor_command_active
+    setb _monitor_result_ready
+    ljmp _resume_service_monitor
+}
