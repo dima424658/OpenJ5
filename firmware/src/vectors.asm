@@ -7,7 +7,7 @@
         .globl _crank_interrupt_entry
         .globl _restart_firmware
 
-irq_handler_04b4 = 0x04b4
+        .globl _timer1_interrupt_entry
 serial0_handler_5a25 = 0x5a25
 irq_handler_0119 = 0x0119
 
@@ -26,7 +26,7 @@ irq_vector_0003:
         .org 0x0014
         .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00
 irq_vector_001b:
-        ljmp    irq_handler_04b4
+        ljmp    _timer1_interrupt_entry
         .db 0x00,0x00,0x00,0x00,0x00
 irq_vector_0023:
         ljmp    serial0_handler_5a25

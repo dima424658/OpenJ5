@@ -886,6 +886,9 @@ SYMBOLS = {
     "_idle_airflow_rpm_gain_q8": 0x98F2,
     "_maf_transfer_raw": 0x99B9,
     **{f"_irq_unused_{address:04x}": address for address in UNUSED_VECTORS},
+    "_timer1_interrupt_entry": 0x04B4,
+    "_service_timer1_serial": 0x0525,
+    "_service_timer1_coil_test": 0x05CA,
     "_service_timer1_iac": 0x060A,
     "_sample_timer1_airflow": 0x06C4,
     "_maf_transfer_high": 0x9AB9,
@@ -907,6 +910,7 @@ SYMBOLS = {
     "_alternate_throttle_breakpoints": 0x8DFA,
 }
 C_SECTIONS = {
+    "code_04b4": 342,
     "code_060a": 244,
     "code_06fe": 142,
     "code_2041": 12,

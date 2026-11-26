@@ -1,0 +1,446 @@
+// Preserve the interrupt timing, tick divider and startup serial exchange.
+replace {
+    clr _interrupts_enabled
+    clr _timer1_running
+    mov a,_timer1_high
+    jnz %1
+    ljmp %2
+    %1:
+    mov _timer1_low,#0xff
+    %2:
+    mov r7,_timer1_low
+    mov r6,#0x00
+    mov a,#0xcb
+    add a, r7
+    mov r7,a
+    mov a,#0xfa
+    addc a, r6
+    mov r6,a
+    mov _timer1_low,r7
+    mov _timer1_high,r6
+    setb _timer1_running
+    setb _interrupts_enabled
+    mov a,_tick_divider
+    dec a
+    mov r7,a
+    mov _tick_divider,r7
+    mov a,r7
+    jz %3
+    ljmp %4
+    %3:
+    mov _tick_divider,#0x14
+    setb _tick_20ms
+    %4:
+    jnb _startup_serial_mode,%5
+    ljmp %6
+    %5:
+    lcall _service_timer1_serial
+    ljmp %7
+    %6:
+    inc _service_event_timer
+    mov a,#0x01
+    cjne a,_service_event_timer,%8
+    sjmp %9
+    %8:
+    ljmp %10
+    %9:
+    mov _SBUF,#0x00
+    ljmp %11
+    %10:
+    mov a,#0x32
+    cjne a,_service_event_timer,%12
+    sjmp %13
+    %12:
+    ljmp %11
+    %13:
+    mov _service_event_timer,#0x00
+    mov a,_serial_tx_count
+    inc a
+    mov r7,a
+    mov _serial_tx_count,r7
+    cjne r7,#0x03,%14
+    sjmp %15
+    %14:
+    ljmp %11
+    %15:
+    mov _service_event_timer,#0x32
+    mov _serial_reload_low,#0xd0
+    mov _serial_reload_high,#0x03
+    %11:
+    mov a,#0xbe
+    cjne a,_service_event_timer,%16
+    sjmp %17
+    %16:
+    ljmp %18
+    %17:
+    mov _serial_tx_count,#0x00
+    mov _service_event_timer,#0x00
+    clr _startup_serial_mode
+    setb _service_inhibit_69
+    setb _serial_interrupt_enabled
+    %18:
+    lcall _service_timer1_iac
+    %7:
+} by {
+    clr _interrupts_enabled
+    clr _timer1_running
+    mov a,_timer1_high
+    jz 00970$
+    mov _timer1_low,#0xff
+    00970$:
+    mov a,_timer1_low
+    add a,#0xcb
+    mov _timer1_low,a
+    mov a,#0xfa
+    addc a,#0x00
+    mov _timer1_high,a
+    setb _timer1_running
+    setb _interrupts_enabled
+    djnz _tick_divider,00971$
+    mov _tick_divider,#0x14
+    setb _tick_20ms
+    00971$:
+    jnb _startup_serial_mode,_service_timer1_serial
+    inc _service_event_timer
+    mov a,_service_event_timer
+    xrl a,#0x01
+    jnz 00972$
+    mov _SBUF,#0x00
+    sjmp 00973$
+    00972$:
+    mov a,_service_event_timer
+    xrl a,#0x32
+    jnz 00973$
+    mov _service_event_timer,#0x00
+    inc _serial_tx_count
+    mov a,_serial_tx_count
+    xrl a,#0x03
+    jnz 00973$
+    mov _service_event_timer,#0x32
+    mov _serial_reload_low,#0xd0
+    mov _serial_reload_high,#0x03
+    00973$:
+    mov a,_service_event_timer
+    xrl a,#0xbe
+    jnz 00974$
+    mov _serial_tx_count,#0x00
+    mov _service_event_timer,#0x00
+    clr _startup_serial_mode
+    setb _service_inhibit_69
+    setb _serial_interrupt_enabled
+    00974$:
+    ljmp _service_timer1_iac
+}
+
+// Keep the serial timeout paths within their stock branch ranges.
+replace {
+    jb _service_inhibit_69,%1
+    ljmp %2
+    %1:
+    inc _service_event_timer
+    jb _service_request_79,%3
+    ljmp %4
+    %3:
+    jnb _serial_receive_enabled,%5
+    ljmp %6
+    %5:
+    clr c
+    mov a,_service_event_timer
+    subb a,#0x02
+    jnc %7
+    ljmp %4
+    %7:
+    mov r0,#_serial_rx_state
+    mov @r0,#0x00
+    setb _serial_receive_enabled
+    ljmp %4
+    %6:
+    clr c
+    mov a,_service_event_timer
+    subb a,#0xc8
+    jnc %8
+    ljmp %4
+    %8:
+    clr _serial_receive_enabled
+    clr _service_request_79
+    setb _service_event_pending
+    setb _service_dispatch_7c
+    mov _service_event_timer,#0x0c
+    mov dptr,#_serial_reply_byte_3
+    movx a,@dptr
+    mov r7,a
+    cjne r7,#0xa0,%9
+    sjmp %10
+    %9:
+    ljmp %11
+    %10:
+    mov r7,#0x06
+    ljmp %12
+    %11:
+    mov r7,#0x0e
+    %12:
+    mov _serial_tx_count,r7
+    %4:
+    lcall _service_timer1_iac
+    ljmp %13
+    %2:
+    jnb _service_request_79,%14
+    ljmp %15
+    %14:
+    jb _serial_receive_enabled,%16
+    ljmp %17
+    %16:
+    jnb _service_event_pending,%18
+    ljmp %17
+    %18:
+    clr c
+    mov a,_service_event_timer
+    subb a,#0x28
+    jnc %19
+    ljmp %15
+    %19:
+    clr _serial_receive_enabled
+    anl _serial_control_be,#0xf7
+    clr _service_flag_7a
+    setb _service_event_pending
+    mov _service_event_timer,#0x00
+    ljmp %15
+    %17:
+    jb _service_event_pending,%20
+    ljmp %15
+    %20:
+    inc _service_event_timer
+    %15:
+    jb _service_request_79,%21
+    ljmp %22
+    %21:
+    mov a,_service_event_timer
+    inc a
+    mov r7,a
+    mov _service_event_timer,r7
+    cjne r7,#0x64,%23
+    sjmp %24
+    %23:
+    ljmp %22
+    %24:
+    mov _service_event_timer,#0x00
+    mov r0,#_serial_tx_state
+    inc @r0
+    mov r0,#_serial_tx_state
+    cjne @r0,#0x01,%25
+    sjmp %26
+    %25:
+    ljmp %27
+    %26:
+    mov r0,#_serial_default_reload
+    mov _serial_reload_low,@r0
+    mov r0,#_serial_rx_state
+    mov @r0,#0x00
+    setb _serial_receive_enabled
+    ljmp %22
+    %27:
+    mov r0,#_serial_tx_state
+    cjne @r0,#0x32,%28
+    %28:
+    jnc %29
+    ljmp %22
+    %29:
+    clr _serial_receive_enabled
+    clr _service_request_79
+    clr _service_flag_7d
+    clr _service_flag_7e
+    mov _output_override_flags,#0x00
+    mov _ignition_override_7a,#0x00
+    mov _knock_override_7b,#0x00
+    mov _output_flags_7c,#0x00
+    mov _sensor_override_7d,#0x00
+    mov r0,#_serial_rx_state
+    mov @r0,#0x00
+    lcall _reset_serial_receive_buffer
+    setb _serial_receive_enabled
+    %22:
+    lcall _service_timer1_coil_test
+    %13:
+    ret
+} by {
+    jb _service_inhibit_69,00975$
+    jb _service_request_79,00976$
+    jnb _serial_receive_enabled,00977$
+    jb _service_event_pending,00977$
+    mov a,_service_event_timer
+    clr c
+    subb a,#0x28
+    jc 00978$
+    clr _serial_receive_enabled
+    anl _serial_control_be,#0xf7
+    clr _service_flag_7a
+    setb _service_event_pending
+    mov _service_event_timer,#0x00
+    sjmp 00978$
+    00977$:
+    jnb _service_event_pending,00978$
+    inc _service_event_timer
+    00978$:
+    jnb _service_request_79,00979$
+    00976$:
+    inc _service_event_timer
+    mov a,_service_event_timer
+    xrl a,#0x64
+    jnz 00979$
+    mov _service_event_timer,a
+    mov r0,#_serial_tx_state
+    inc @r0
+    mov a,@r0
+    xrl a,#0x01
+    jnz 00980$
+    mov r0,#_serial_default_reload
+    mov _serial_reload_low,@r0
+    mov r0,#_serial_rx_state
+    mov @r0,#0x00
+    setb _serial_receive_enabled
+    sjmp 00979$
+    00980$:
+    mov a,@r0
+    clr c
+    subb a,#0x32
+    jc 00979$
+    clr _serial_receive_enabled
+    clr _service_request_79
+    clr _service_flag_7d
+    clr _service_flag_7e
+    clr a
+    mov _output_override_flags,a
+    mov _ignition_override_7a,a
+    mov _knock_override_7b,a
+    mov _output_flags_7c,a
+    mov _sensor_override_7d,a
+    mov r0,#_serial_rx_state
+    mov @r0,a
+    lcall _reset_serial_receive_buffer
+    setb _serial_receive_enabled
+    00979$:
+    sjmp _service_timer1_coil_test
+    00975$:
+    inc _service_event_timer
+    jnb _service_request_79,_service_timer1_iac
+    jb _serial_receive_enabled,00981$
+    mov a,_service_event_timer
+    clr c
+    subb a,#0x02
+    jc _service_timer1_iac
+    mov r0,#_serial_rx_state
+    mov @r0,#0x00
+    setb _serial_receive_enabled
+    sjmp _service_timer1_iac
+    00981$:
+    mov a,_service_event_timer
+    clr c
+    subb a,#0xc8
+    jc _service_timer1_iac
+    clr _serial_receive_enabled
+    clr _service_request_79
+    setb _service_event_pending
+    setb _service_dispatch_7c
+    mov _service_event_timer,#0x0c
+    mov dptr,#_serial_reply_byte_3
+    movx a,@dptr
+    xrl a,#0xa0
+    jnz 00982$
+    mov _serial_tx_count,#0x06
+    sjmp 00983$
+    00982$:
+    mov _serial_tx_count,#0x0e
+    00983$:
+    sjmp _service_timer1_iac
+}
+
+// Keep the independently timed diagnostic coil outputs in the Timer 1 slot.
+replace {
+    jnb _fuel_mode_flag_56,%1
+    ljmp %2
+    %1:
+    mov a,_output_flags_7c
+    anl a,#0x30
+    jnz %3
+    ljmp %2
+    %3:
+    mov dptr,#_coil_test_duration
+    movx a,@dptr
+    mov r7,a
+    dec r7
+    mov a,r7
+    jz %4
+    ljmp %5
+    %4:
+    orl _P5,#0x06
+    ljmp %2
+    %5:
+    mov dptr,#_coil_test_duration
+    mov a,r7
+    movx @dptr,a
+    mov dptr,#_coil_test_period
+    movx a,@dptr
+    dec a
+    mov r7,a
+    mov a,r7
+    movx @dptr,a
+    mov a,r7
+    jz %6
+    ljmp %2
+    %6:
+    mov dptr,#_coil_test_period
+    mov a,#0x05
+    movx @dptr,a
+    mov a,_output_flags_7c
+    jb acc.4,%7
+    ljmp %8
+    %7:
+    cpl _coil_1_level
+    ljmp %2
+    %8:
+    cpl _coil_2_level
+    %2:
+    lcall _service_timer1_iac
+    %9:
+    ret
+} by {
+    jb _fuel_mode_flag_56,00986$
+    mov a,_output_flags_7c
+    anl a,#0x10
+    jz 00984$
+    mov dptr,#_coil_test_duration
+    movx a,@dptr
+    dec a
+    jz 00985$
+    movx @dptr,a
+    mov dptr,#_coil_test_period
+    movx a,@dptr
+    dec a
+    movx @dptr,a
+    jnz 00986$
+    mov a,#0x05
+    movx @dptr,a
+    cpl _coil_1_level
+    sjmp 00986$
+    00984$:
+    mov a,_output_flags_7c
+    anl a,#0x20
+    jz 00986$
+    mov dptr,#_coil_test_duration
+    movx a,@dptr
+    dec a
+    jz 00985$
+    movx @dptr,a
+    mov dptr,#_coil_test_period
+    movx a,@dptr
+    dec a
+    movx @dptr,a
+    jnz 00986$
+    mov a,#0x05
+    movx @dptr,a
+    cpl _coil_2_level
+    sjmp 00986$
+    00985$:
+    orl _P5,#0x06
+    00986$:
+}
