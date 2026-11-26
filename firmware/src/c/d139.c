@@ -12,20 +12,20 @@ extern void append_xdata_string_to_serial(void);
 extern void append_serial_checksum(void);
 extern void copy_xdata_bytes(void);
 
-#define WRITE_DIAG_HEADER(format)                            \
+#define WRITE_DIAG_HEADER(format, service)                   \
     do {                                                     \
         DPSEL = 7;                                           \
         serial_tx_buffer[0] = (format);                      \
         serial_tx_buffer[1] = serial_response_address;       \
         serial_tx_buffer[2] = 0x10;                          \
-        serial_tx_buffer[3] = 0x61;                          \
+        serial_tx_buffer[3] = (service);                     \
         serial_tx_buffer[4] = stock_r4;                      \
     } while (0)
 
 #define COPY_DIAG_RECORD(offset, size)                       \
     do {                                                     \
         const uint8_t saved = DPSEL;                         \
-        WRITE_DIAG_HEADER((uint8_t)(0x82u + (size)));        \
+        WRITE_DIAG_HEADER((uint8_t)(0x82u + (size)), 0x61);  \
         DPSEL = 4;                                           \
         STOCK_DPTR = (uint16_t)serial_tx_buffer + 5;         \
         stock_r2 = (size);                                   \
@@ -37,10 +37,10 @@ extern void copy_xdata_bytes(void);
         append_serial_checksum();                            \
     } while (0)
 
-#define APPEND_DIAG_STRING(offset, format)                   \
+#define APPEND_DIAG_STRING(offset, format, service)          \
     do {                                                     \
         const uint8_t saved = DPSEL;                         \
-        WRITE_DIAG_HEADER(format);                           \
+        WRITE_DIAG_HEADER(format, service);                  \
         STOCK_DPTR = (uint16_t)serial_tx_buffer + 5;         \
         serial_tx_count = 5;                                 \
         DPSEL = saved;                                       \
@@ -62,15 +62,26 @@ void build_diag_record_e0(void)
 
 void build_diag_record_a1(void)
 {
-    APPEND_DIAG_STRING(0xf485, 0x89);
+    APPEND_DIAG_STRING(0xf485, 0x89, 0x61);
 }
 
 void build_diag_record_a2(void)
 {
-    APPEND_DIAG_STRING(0xf48d, 0x89);
+    APPEND_DIAG_STRING(0xf48d, 0x89, 0x61);
 }
 
 void build_diag_record_a3(void)
 {
-    APPEND_DIAG_STRING(0xf495, 0x8c);
+    APPEND_DIAG_STRING(0xf495, 0x8c, 0x61);
+}
+
+
+void build_identification_90(void)
+{
+    APPEND_DIAG_STRING(0xf460, 0x95, 0x5a);
+}
+
+void build_identification_98(void)
+{
+    APPEND_DIAG_STRING(0xf474, 0x89, 0x5a);
 }

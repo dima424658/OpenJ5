@@ -508,3 +508,133 @@ replace {
     lcall _append_serial_checksum
     ret
 }
+
+// Preserve the dynamic 90 identification record.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x95
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0x5a
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov r5,#_serial_tx_buffer
+    mov r6,#(_serial_tx_buffer >> 8)
+    mov a,#0x05
+    add a, r5
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _serial_tx_count,#0x05
+    mov _DPSEL,r7
+    mov _stock_r3,#0xf4
+    mov _stock_r4,#0x60
+    lcall _append_xdata_string_to_serial
+    lcall _append_serial_checksum
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x95
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0x5a
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x05
+    pop _DPSEL
+    mov r3,#0xf4
+    mov r4,#0x60
+    lcall _append_xdata_string_to_serial
+    lcall _append_serial_checksum
+    ret
+}
+
+// Preserve the dynamic 98 identification record.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x89
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0001)
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0002)
+    mov a,#0x10
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0003)
+    mov a,#0x5a
+    movx @dptr,a
+    mov dptr,#(_serial_tx_buffer + 0x0004)
+    mov a,_stock_r4
+    movx @dptr,a
+    mov r5,#_serial_tx_buffer
+    mov r6,#(_serial_tx_buffer >> 8)
+    mov a,#0x05
+    add a, r5
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov _serial_tx_count,#0x05
+    mov _DPSEL,r7
+    mov _stock_r3,#0xf4
+    mov _stock_r4,#0x74
+    lcall _append_xdata_string_to_serial
+    lcall _append_serial_checksum
+    %1:
+    ret
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x07
+    mov dptr,#_serial_tx_buffer
+    mov a,#0x89
+    movx @dptr,a
+    inc dptr
+    mov r0,#_serial_response_address
+    mov a,@r0
+    movx @dptr,a
+    inc dptr
+    mov a,#0x10
+    movx @dptr,a
+    inc dptr
+    mov a,#0x5a
+    movx @dptr,a
+    inc dptr
+    mov a,r4
+    movx @dptr,a
+    inc dptr
+    mov _serial_tx_count,#0x05
+    pop _DPSEL
+    mov r3,#0xf4
+    mov r4,#0x74
+    lcall _append_xdata_string_to_serial
+    lcall _append_serial_checksum
+    ret
+}
