@@ -93,6 +93,8 @@ replace {
     lcall _clear_flag_21_0_f275
     ljmp %1
 } by {
+    .globl _reject_monitor_extended_frame
+    _reject_monitor_extended_frame = .
     ljmp _clear_flag_21_0_f275
 }
 

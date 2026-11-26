@@ -135,6 +135,8 @@ replace {
     movx a,@dptr
     jnz 00988$
     00972$:
+    .globl _reject_monitor_frame
+    _reject_monitor_frame = .
     ljmp _clear_flag_21_0_f275
     00988$:
 }

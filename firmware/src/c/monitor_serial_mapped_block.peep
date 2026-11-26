@@ -1,0 +1,230 @@
+// Keep A as the command, and use the original data-space selector in R1.
+replace {
+    mov a,#%1
+    cjne a,_ACC,%2
+    sjmp %3
+    %2:
+    ljmp %4
+    %3:
+} by {
+    cjne a,#%1,%4
+}
+
+replace {
+    mov _stock_r1,#0x01
+    ljmp %1
+} by {
+    mov r1,#0x01
+    sjmp %1
+}
+
+replace {
+    mov _stock_r1,#0x00
+} by {
+    mov r1,#0x00
+}
+
+replace {
+    mov a,#0x03
+    cjne a,_stock_r3,%1
+    ljmp %2
+    %1:
+    lcall _reject_monitor_extended_frame
+    ljmp %3
+    %2:
+} by {
+    mov a,r3
+    cjne a,#0x03,_reject_monitor_extended_frame
+}
+
+// Advance only the selected DPTR and preserve the accumulator and CY.
+replace {
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+} by {
+    inc dptr
+}
+
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+} by {
+    movx a,@dptr
+}
+
+replace {
+    mov _stock_r0,a
+} by {
+    mov r0,a
+}
+
+replace {
+    mov _stock_r3,a
+} by {
+    mov r3,a
+}
+
+replace {
+    mov _ACC,_B
+} by {
+    mov a,_B
+}
+
+replace {
+    mov _ACC,_stock_r0
+} by {
+    mov a,r0
+}
+
+replace {
+    mov _ACC,_stock_r3
+    lcall _append_monitor_reply_byte
+} by {
+    mov a,r3
+    lcall _append_monitor_reply_byte
+}
+
+replace {
+    mov _DPH,_stock_r0
+} by {
+    mov _DPH,r0
+}
+
+replace {
+    mov a,_stock_r3
+    dec a
+    mov r7,a
+    mov _stock_r3,r7
+    mov a,r7
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    djnz r3,%2
+}
+
+replace {
+    lcall _start_monitor_reply
+    ljmp %1
+} by {
+    ljmp _start_monitor_reply
+}
+
+// Reject a short frame before reading the write header.
+replace {
+    mov a,#0x26
+    cjne a,_ACC,%1
+    ljmp %2
+    %1:
+    lcall _dispatch_monitor_register_frame
+    ljmp %3
+    %2:
+} by {
+    cjne a,#0x26,_dispatch_monitor_register_frame
+}
+
+replace {
+    mov _ACC,_stock_r3
+    clr c
+    mov a,_ACC
+    subb a,#0x04
+    jc %1
+    ljmp %2
+    %1:
+    lcall _reject_monitor_extended_frame
+    ljmp %3
+    %2:
+    mov r7,_ACC
+    mov a,r7
+    add a,#0xfd
+    mov _B,a
+} by {
+    mov a,r3
+    cjne a,#0x04,%2
+    %2:
+    jc _reject_monitor_extended_frame
+    subb a,#0x03
+    mov _B,a
+}
+
+// Give the validated count to R3 and the low address byte to A.
+replace {
+    mov _ACC,a
+    mov a,_B
+    cjne a,_ACC,%1
+    ljmp %2
+    %1:
+    lcall _clear_flag_21_0_f275
+    ljmp %3
+    %2:
+    inc dptr
+    mov r7,_stock_r3
+    mov _stock_r3,_ACC
+    mov _ACC,r7
+    mov _DPSEL,#0x01
+    mov _DPH,r0
+    mov _DPL,_ACC
+} by {
+    cjne a,_B,_clear_flag_21_0_f275
+    inc dptr
+    xch a,r3
+    mov _DPSEL,#0x01
+    mov _DPH,r0
+    mov _DPL,a
+}
+
+replace {
+    movx a,@dptr
+    mov _ACC,a
+    inc dptr
+    mov _DPSEL,#0x01
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    mov _B,_ACC
+} by {
+    movx a,@dptr
+    inc dptr
+    mov _DPSEL,#0x01
+    movx @dptr,a
+    mov _B,a
+}
+
+replace {
+    mov a,_B
+    cjne a,_ACC,%1
+    sjmp %2
+    %1:
+    ljmp %3
+    %2:
+} by {
+    cjne a,_B,%3
+}
+
+replace {
+    mov _ACC,#0x00
+    ljmp %1
+} by {
+    clr a
+    sjmp %1
+}
+
+replace {
+    mov _ACC,#0x01
+} by {
+    mov a,#0x01
+}
+
+replace {
+    lcall _append_monitor_result
+    %1:
+    ret
+} by {
+    ljmp _append_monitor_result
+}

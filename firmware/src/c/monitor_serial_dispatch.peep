@@ -129,6 +129,8 @@ replace {
     ljmp %1
 } by {
     mov _B,@r0
+    .globl _append_monitor_reg_result
+    _append_monitor_reg_result = .
     mov a,r0
     sjmp %1
 }
@@ -168,6 +170,8 @@ replace {
 }
 
 replace {
+    %3:
+    lcall _append_monitor_reply_byte
     lcall _start_monitor_reply
     ljmp %1
     %2:
@@ -175,5 +179,9 @@ replace {
     %1:
     ret
 } by {
+    %3:
+    .globl _append_monitor_result
+    _append_monitor_result = .
+    lcall _append_monitor_reply_byte
     ljmp _start_monitor_reply
 }
