@@ -1,0 +1,116 @@
+// Save the selector on the stack and initialize the two pointer banks.
+replace {
+    mov r7,_DPSEL
+    mov _DPSEL,#0x04
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#0x85
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf6
+    mov _DPSEL,#0x03
+    mov ((_STOCK_DPTR >> 0) & 0xFF),#%1
+    mov ((_STOCK_DPTR >> 8) & 0xFF),#0xf4
+    mov _stock_r2,#%2
+} by {
+    push _DPSEL
+    mov _DPSEL,#0x04
+    mov dptr,#0xf685
+    mov _DPSEL,#0x03
+    mov dptr,#(0xf400 | %1)
+    mov r2,#%2
+}
+
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+} by {
+    movx a,@dptr
+}
+
+replace {
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+} by {
+    inc dptr
+}
+
+// The first mismatch stops the comparison without advancing the request pointer.
+replace {
+    mov r6,a
+    mov a,%1
+    xrl a,r6
+    mov _ACC,a
+    mov a,_ACC
+    jz %2
+    ljmp %3
+    %2:
+} by {
+    xrl a,%1
+    jnz %3
+}
+
+replace {
+    mov _stock_r3,a
+} by {
+    mov r3,a
+}
+
+replace {
+    xrl a,_stock_r3
+} by {
+    xrl a,r3
+}
+
+replace {
+    mov a,_stock_r2
+    dec a
+    mov r6,a
+    mov _stock_r2,r6
+    mov a,r6
+    jz %1
+    ljmp %2
+    %1:
+} by {
+    djnz r2,%2
+}
+
+// Only the six-byte record sets the ready bit and may restart outputs.
+replace {
+    jnb _event_irq_high_priority,%1
+    ljmp %2
+    %1:
+    jnb _reset_inhibited,%3
+    ljmp %2
+    %3:
+    push ar7
+    lcall _reset_after_supply_return
+    pop ar7
+    ljmp %2
+} by {
+    jb _event_irq_high_priority,%2
+    jb _reset_inhibited,%2
+    lcall _reset_after_supply_return
+    sjmp %2
+}
+
+replace {
+    ljmp %1
+    %2:
+    clr _service_link_ready
+    %1:
+    mov _DPSEL,r7
+} by {
+    sjmp %1
+    %2:
+    clr _service_link_ready
+    %1:
+    pop _DPSEL
+}
+
+replace {
+    mov _DPSEL,r7
+} by {
+    pop _DPSEL
+}
