@@ -1,0 +1,166 @@
+// Preserve descriptor order, page-write pacing and verification of the original range.
+replace {
+    mov _B,_stock_r0
+    mov _stock_r01,((_STOCK_DPTR >> 0) & 0xFF)
+    mov (_stock_r01 + 1),((_STOCK_DPTR >> 8) & 0xFF)
+    mov dptr,#_monitor_eeprom_progress
+    mov a,_stock_r0
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_progress + 0x0001)
+    mov a,_stock_r1
+    movx @dptr,a
+    mov dptr,#_monitor_eeprom_original
+    mov a,_stock_r0
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_original + 0x0001)
+    mov a,_stock_r1
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_progress + 0x0002)
+    mov a,_B
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_original + 0x0002)
+    mov a,_B
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_progress + 0x0003)
+    mov a,_stock_r2
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_original + 0x0003)
+    mov a,_stock_r2
+    movx @dptr,a
+    %1:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    lcall _monitor_eeprom_write_page_step
+    jb _CY,%2
+    ljmp %3
+    %2:
+    ljmp %4
+    %3:
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0xeb
+    mov _TH0,#0xcb
+    clr _timer0_overflow
+    setb _timer0_running
+    %5:
+    jb _timer0_overflow,%6
+    ljmp %5
+    %6:
+    mov dptr,#(_monitor_eeprom_progress + 0x0003)
+    movx a,@dptr
+    jz %7
+    ljmp %1
+    %7:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov dptr,#(_monitor_eeprom_original + 0x0002)
+    movx a,@dptr
+    mov _stock_r0,a
+    mov dptr,#(_monitor_eeprom_original + 0x0003)
+    movx a,@dptr
+    mov _stock_r1,a
+    mov dptr,#(_monitor_eeprom_original + 0x0001)
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_monitor_eeprom_original
+    movx a,@dptr
+    mov _ACC,a
+    mov r6,_B
+    mov r7,#0x00
+    mov ar7,r6
+    mov r6,#0x00
+    mov r4,_ACC
+    mov r5,#0x00
+    mov a,r4
+    orl ar6,a
+    mov a,r5
+    orl ar7,a
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _monitor_eeprom_verify_fragment
+    %4:
+    ret
+} by {
+    mov _B,r0
+    mov r0,dpl
+    mov r1,dph
+    mov dptr,#_monitor_eeprom_progress
+    mov a,r0
+    movx @dptr,a
+    inc dptr
+    mov a,r1
+    movx @dptr,a
+    mov dptr,#_monitor_eeprom_original
+    mov a,r0
+    movx @dptr,a
+    inc dptr
+    mov a,r1
+    movx @dptr,a
+    mov a,_B
+    mov dptr,#(_monitor_eeprom_progress + 2)
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_original + 2)
+    movx @dptr,a
+    mov a,r2
+    mov dptr,#(_monitor_eeprom_progress + 3)
+    movx @dptr,a
+    mov dptr,#(_monitor_eeprom_original + 3)
+    movx @dptr,a
+    00972$:
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    lcall _monitor_eeprom_write_page_step
+    jc 00970$
+    mov _TMOD,#0x01
+    clr _timer0_running
+    mov _TL0,#0xeb
+    mov _TH0,#0xcb
+    clr _timer0_overflow
+    setb _timer0_running
+    00971$:
+    jnb _timer0_overflow,00971$
+    mov dptr,#(_monitor_eeprom_progress + 3)
+    movx a,@dptr
+    jnz 00972$
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov dptr,#(_monitor_eeprom_original + 2)
+    movx a,@dptr
+    mov r0,a
+    mov dptr,#(_monitor_eeprom_original + 3)
+    movx a,@dptr
+    mov r1,a
+    mov dptr,#(_monitor_eeprom_original + 1)
+    movx a,@dptr
+    mov _B,a
+    mov dptr,#_monitor_eeprom_original
+    movx a,@dptr
+    mov dpl,a
+    mov dph,_B
+    lcall _monitor_eeprom_verify_fragment
+    00970$:
+    ret
+}
+
+// Read the full EEPROM page into the stock readback buffer.
+replace {
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov r6,#_monitor_eeprom_readback
+    mov r7,#(_monitor_eeprom_readback >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r0,#0x00
+    mov _stock_r1,#0x00
+    lcall _monitor_eeprom_read_fragment
+    %1:
+    ret
+} by {
+    setb _iac_tick_interrupt_enabled
+    setb _iac_tick_high_priority
+    mov dptr,#_monitor_eeprom_readback
+    mov r0,#0x00
+    mov r1,#0x00
+    lcall _monitor_eeprom_read_fragment
+    ret
+}
