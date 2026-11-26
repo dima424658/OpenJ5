@@ -1,0 +1,601 @@
+// Run the purge timer and refresh the duty when the purge is active.
+replace {
+    jb _evap_fitted,%1
+    ljmp %2
+    %1:
+    mov a,_fuel_control_7b
+    jnb acc.2,%3
+    ljmp %2
+    %3:
+    mov dptr,#_cold_purge_temperature
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,r7
+    jnc %4
+    ljmp %2
+    %4:
+    jb _one_second_tick,%5
+    ljmp %6
+    %5:
+    mov dptr,#_purge_timer
+    movx a,@dptr
+    jnz %7
+    ljmp %6
+    %7:
+    mov dptr,#_purge_timer
+    movx a,@dptr
+    dec a
+    movx @dptr,a
+    %6:
+    mov dptr,#_purge_timer
+    movx a,@dptr
+    mov _ACC,a
+    jb _oxygen_sensor_configured,%8
+    ljmp %9
+    %8:
+    jnb _learning_sweep_active,%10
+    ljmp %2
+    %10:
+    %9:
+    jb _purge_active,%11
+    ljmp %12
+    %11:
+    mov a,_ACC
+    jz %13
+    ljmp %14
+    %13:
+    mov a,_fuel_control_7b
+    jnb acc.2,%15
+    ljmp %16
+    %15:
+    mov dptr,#_purge_duty
+    mov a,#0x00
+    movx @dptr,a
+    %16:
+    mov dptr,#_purge_interval
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_purge_timer
+    movx @dptr,a
+    clr _purge_active
+    clr _fuel_mode_flag_5c
+    ljmp %2
+    %14:
+    mov a,_fuel_control_7b
+    jnb acc.2,%17
+    ljmp %2
+    %17:
+    mov r6,#_purge_duty_raw
+    mov r7,#(_purge_duty_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov dptr,#_purge_duty
+    mov a,_ACC
+    movx @dptr,a
+    ljmp %2
+    %12:
+    mov a,_ACC
+    jz %18
+    ljmp %2
+    %18:
+    mov dptr,#_hot_purge_duration
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_purge_timer
+    movx @dptr,a
+    clr _fuel_mode_flag_5c
+    setb _purge_active
+    %2:
+    lcall _publish_evap_purge
+    %19:
+    ret
+} by {
+    jnb _evap_fitted,_publish_evap_purge
+    mov a,_fuel_control_7b
+    anl a,#0x04
+    jnz _publish_evap_purge
+    mov dptr,#_cold_purge_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_temperature_raw
+    clr c
+    subb a,_B
+    jc _publish_evap_purge
+    jnb _one_second_tick,00970$
+    mov dptr,#_purge_timer
+    movx a,@dptr
+    jz 00970$
+    dec a
+    mov dptr,#_purge_timer
+    movx @dptr,a
+    00970$:
+    mov dptr,#_purge_timer
+    movx a,@dptr
+    jnb _oxygen_sensor_configured,00971$
+    jb _learning_sweep_active,_publish_evap_purge
+    00971$:
+    jnb _purge_active,00972$
+    jnz 00973$
+    mov a,_fuel_control_7b
+    anl a,#0x04
+    jnz 00974$
+    mov a,#0x00
+    mov dptr,#_purge_duty
+    movx @dptr,a
+    00974$:
+    mov dptr,#_purge_interval
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_purge_timer
+    movx @dptr,a
+    clr _purge_active
+    clr _fuel_mode_flag_5c
+    sjmp _publish_evap_purge
+    00973$:
+    mov a,_fuel_control_7b
+    anl a,#0x04
+    jnz 00975$
+    mov dptr,#_purge_duty_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov dptr,#_purge_duty
+    movx @dptr,a
+    00975$:
+    sjmp _publish_evap_purge
+    00972$:
+    jnz _publish_evap_purge
+    mov dptr,#_hot_purge_duration
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_purge_timer
+    movx @dptr,a
+    clr _fuel_mode_flag_5c
+    setb _purge_active
+}
+
+// Suppress purge on airflow sensor faults and publish both output registers.
+replace {
+    jnb _maf_adc_low,%1
+    ljmp %2
+    %1:
+    jnb _maf_adc_high,%3
+    ljmp %2
+    %3:
+    jnb _throttle_adc_low,%4
+    ljmp %2
+    %4:
+    jb _throttle_adc_high,%5
+    ljmp %6
+    %5:
+    %2:
+    mov a,_fuel_control_7b
+    jnb acc.2,%7
+    ljmp %6
+    %7:
+    mov dptr,#_purge_duty
+    mov a,#0x00
+    movx @dptr,a
+    %6:
+    mov dptr,#_purge_duty
+    movx a,@dptr
+    mov _ACC,a
+    mov _sfr_f3,_ACC
+    mov _sfr_f2,_ACC
+    lcall _select_oxygen_mixture
+    %8:
+    ret
+} by {
+    mov c,_maf_adc_low
+    orl c,_maf_adc_high
+    orl c,_throttle_adc_low
+    orl c,_throttle_adc_high
+    jnc 00976$
+    mov a,_fuel_control_7b
+    anl a,#0x04
+    jnz 00976$
+    mov a,#0x00
+    mov dptr,#_purge_duty
+    movx @dptr,a
+    00976$:
+    mov dptr,#_purge_duty
+    movx a,@dptr
+    mov _sfr_f3,a
+    mov _sfr_f2,a
+}
+
+// Select closed-loop targets, check eligibility and dispatch oxygen feedback.
+replace {
+    jb _oxygen_sensor_configured,%1
+    ljmp %2
+    %1:
+    mov dptr,#_oxygen_enable_temperature
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,r7
+    jnc %3
+    ljmp %2
+    %3:
+    mov dptr,#_oxygen_disable_temperature
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    clr c
+    mov a,_coolant_temperature_raw
+    subb a,r7
+    jc %4
+    ljmp %2
+    %4:
+    mov dptr,#_startup_coolant_temperature_raw
+    movx a,@dptr
+    mov r7,a
+    mov dptr,#_oxygen_warmup_temperature
+    clr a
+    movc a,@a+dptr
+    mov r6,a
+    clr c
+    mov a,r7
+    subb a,r6
+    jc %5
+    ljmp %6
+    %5:
+    mov dptr,#_oxygen_warmup_cold_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    ljmp %7
+    %6:
+    mov dptr,#_oxygen_warmup_hot_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    %7:
+    mov dptr,#_engine_run_seconds
+    movx a,@dptr
+    mov r7,a
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %8
+    ljmp %2
+    %8:
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    jb acc.0,%9
+    ljmp %2
+    %9:
+    mov r6,#_catalyst_mixture_raw
+    mov r7,#(_catalyst_mixture_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    push ar7
+    push ar6
+    lcall _interp_bilinear_u8
+    pop ar6
+    pop ar7
+    mov _requested_mixture,_ACC
+    jnb _idle_regulating,%10
+    ljmp %11
+    %10:
+    mov a,_fuel_cut_phase
+    jz %12
+    ljmp %11
+    %12:
+    mov a,_ignition_and_airflow_control_7a
+    jnb acc.2,%13
+    ljmp %11
+    %13:
+    mov r4,#_oxygen_ignition_raw
+    mov r5,#(_oxygen_ignition_raw >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r4
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r5
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    push ar7
+    push ar6
+    lcall _interp_bilinear_u8
+    pop ar6
+    pop ar7
+    mov _requested_ignition,_ACC
+    %11:
+    mov a,_operating_point_index
+    add a, #_operating_zone_flags
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_operating_zone_flags >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov r5,a
+    mov a,r5
+    jb acc.2,%14
+    ljmp %2
+    %14:
+    jnb _oxygen_adc_low,%15
+    ljmp %2
+    %15:
+    jnb _oxygen_adc_high,%16
+    ljmp %2
+    %16:
+    jnb _oxygen_adaptation_fault_2c,%17
+    ljmp %2
+    %17:
+    jnb _oxygen_adaptation_fault_2d,%18
+    ljmp %2
+    %18:
+    jnb _oxygen_heater_fault,%19
+    ljmp %2
+    %19:
+    mov dptr,#_retained_status
+    movx a,@dptr
+    jnb acc.7,%20
+    ljmp %2
+    %20:
+    push ar7
+    push ar6
+    lcall _limit_mixture_change_rate
+    pop ar6
+    pop ar7
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    mov _stock_r2,_rpm_q4
+    mov _stock_r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov a,_requested_mixture
+    cjne a,_ACC,%21
+    sjmp %22
+    %21:
+    ljmp %23
+    %22:
+    jnb _idle_regulating,%24
+    ljmp %25
+    %24:
+    lcall _blend_power_mode_mixture
+    jnb _at_or_above_power_boundary,%26
+    ljmp %27
+    %26:
+    %25:
+    mov a,_oxygen_control_7d
+    jb acc.1,%28
+    ljmp %29
+    %28:
+    clr _fuel_mode_flag_5c
+    %29:
+    lcall _update_oxygen_feedback
+    lcall _continue_fuel_mixture_checks
+    ljmp %30
+    %2:
+    lcall _limit_mixture_change_rate
+    %23:
+    jnb _idle_regulating,%31
+    ljmp %27
+    %31:
+    lcall _blend_power_mode_mixture
+    %27:
+    lcall _apply_open_loop_coolant_mix
+    %30:
+    ret
+} by {
+    jb _oxygen_sensor_configured,00977$
+    00979$:
+    ljmp 00978$
+    00977$:
+    mov dptr,#_oxygen_enable_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_temperature_raw
+    clr c
+    subb a,_B
+    jc 00979$
+    mov dptr,#_oxygen_disable_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_coolant_temperature_raw
+    clr c
+    subb a,_B
+    jnc 00979$
+    mov dptr,#_oxygen_warmup_temperature
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov dptr,#_startup_coolant_temperature_raw
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jnc 00980$
+    mov dptr,#_oxygen_warmup_cold_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    sjmp 00981$
+    00980$:
+    mov dptr,#_oxygen_warmup_hot_seconds
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    00981$:
+    mov dptr,#_engine_run_seconds
+    movx a,@dptr
+    clr c
+    subb a,_B
+    jc 00978$
+    mov dptr,#_oxygen_diagnostic_status
+    movx a,@dptr
+    jnb acc.0,00978$
+    mov dptr,#_catalyst_mixture_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _requested_mixture,a
+    jb _idle_regulating,00982$
+    mov a,_fuel_cut_phase
+    jnz 00982$
+    mov a,_ignition_and_airflow_control_7a
+    anl a,#0x04
+    jnz 00982$
+    mov dptr,#_oxygen_ignition_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    mov _requested_ignition,a
+    00982$:
+    mov dptr,#_operating_zone_flags
+    mov a,_operating_point_index
+    movc a,@a+dptr
+    jnb acc.2,00978$
+    mov c,_oxygen_adc_low
+    orl c,_oxygen_adc_high
+    orl c,_oxygen_adaptation_fault_2c
+    orl c,_oxygen_adaptation_fault_2d
+    orl c,_oxygen_heater_fault
+    mov dptr,#_retained_status
+    movx a,@dptr
+    orl c,acc.7
+    jc 00978$
+    lcall _limit_mixture_change_rate
+    mov dptr,#_catalyst_mixture_raw
+    mov r2,_rpm_q4
+    mov r3,_charge_q4
+    lcall _interp_bilinear_u8
+    cjne a,_requested_mixture,00983$
+    jb _idle_regulating,00984$
+    lcall _blend_power_mode_mixture
+    jb _at_or_above_power_boundary,_apply_open_loop_coolant_mix
+    00984$:
+    mov a,_oxygen_control_7d
+    anl a,#0x02
+    jz 00985$
+    clr _fuel_mode_flag_5c
+    00985$:
+    lcall _update_oxygen_feedback
+    sjmp _continue_fuel_mixture_checks
+    00978$:
+    lcall _limit_mixture_change_rate
+    00983$:
+    jb _idle_regulating,_apply_open_loop_coolant_mix
+    lcall _blend_power_mode_mixture
+}
+
+// Apply the temperature-dependent mixture blend using the stock multiplication.
+replace {
+    jb _idle_regulating,%1
+    ljmp %2
+    %1:
+    lcall _finish_catalyst_enrichment
+    ljmp %3
+    %2:
+    mov dptr,#_warmed_engine_coolant_index
+    clr a
+    movc a,@a+dptr
+    mov r7,a
+    mov a,r7
+    add a, #_base_mixture_by_coolant
+    mov dpl,a
+    mov a,#0x00
+    addc a, #(_base_mixture_by_coolant >> 8)
+    mov dph,a
+    clr a
+    movc a,@a+dptr
+    mov _B,a
+    mov r7,_requested_mixture
+    clr c
+    mov a,r7
+    subb a,_B
+    jnc %4
+    ljmp %5
+    %4:
+    mov a,r7
+    clr c
+    subb a,_B
+    mov r7,a
+    ljmp %6
+    %5:
+    mov r7,#0x00
+    %6:
+    mov _stock_r1,r7
+    mov dptr,#_coolant_axis_index
+    movx a,@dptr
+    mov _stock_r2,a
+    mov dptr,#_coolant_axis_fraction
+    movx a,@dptr
+    mov _stock_r3,a
+    mov r6,#_base_mixture_temp_correction
+    mov r7,#(_base_mixture_temp_correction >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_curve_u8
+    mov r7,_ACC
+    mov r6,_stock_r1
+    mov b,r7
+    mov a,r6
+    mul ab
+    mov r7,a
+    mov r5,b
+    mov _stock_r1,r5
+    mov dptr,#_coolant_axis_index
+    movx a,@dptr
+    mov _stock_r2,a
+    mov dptr,#_coolant_axis_fraction
+    movx a,@dptr
+    mov _stock_r3,a
+    mov r6,#_base_mixture_by_coolant
+    mov r7,#(_base_mixture_by_coolant >> 8)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),r6
+    mov ((_STOCK_DPTR >> 8) & 0xFF),r7
+    lcall _interp_curve_u8
+    mov a,_stock_r1
+    add a, _ACC
+    mov _requested_mixture,a
+    %3:
+    ret
+} by {
+    jb _idle_regulating,_finish_catalyst_enrichment
+    mov dptr,#_warmed_engine_coolant_index
+    clr a
+    movc a,@a+dptr
+    mov dptr,#_base_mixture_by_coolant
+    movc a,@a+dptr
+    mov _B,a
+    mov a,_requested_mixture
+    clr c
+    subb a,_B
+    jnc 00986$
+    clr a
+    00986$:
+    mov r1,a
+    mov dptr,#_coolant_axis_index
+    movx a,@dptr
+    mov r2,a
+    mov dptr,#_coolant_axis_fraction
+    movx a,@dptr
+    mov r3,a
+    mov dptr,#_base_mixture_temp_correction
+    lcall _interp_curve_u8
+    mov _B,r1
+    mul ab
+    mov r1,_B
+    mov dptr,#_coolant_axis_index
+    movx a,@dptr
+    mov r2,a
+    mov dptr,#_coolant_axis_fraction
+    movx a,@dptr
+    mov r3,a
+    mov dptr,#_base_mixture_by_coolant
+    lcall _interp_curve_u8
+    add a,r1
+    mov _requested_mixture,a
+}

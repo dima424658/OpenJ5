@@ -44,6 +44,14 @@ replace {
     mov _requested_mixture,a
 }
 
+// Fall through to the shared exit when enrichment runs.
+replace {
+    lcall _finish_catalyst_enrichment
+    %1:
+    ret
+} by {
+}
+
 // The fuel checks follow this section directly.
 replace {
     lcall _continue_fuel_mixture_checks

@@ -9,6 +9,8 @@ extern volatile __code const uint8_t catalyst_protection_temperature;
 extern volatile __code const uint8_t catalyst_protection_enrichment;
 extern void continue_fuel_mixture_checks(void);
 
+void finish_catalyst_enrichment(void);
+
 void apply_catalyst_enrichment(void)
 {
     B = catalyst_protection_temperature;
@@ -17,6 +19,11 @@ void apply_catalyst_enrichment(void)
         const uint8_t mixture = requested_mixture;
         requested_mixture = mixture >= B ? mixture - B : 0;
     }
+    finish_catalyst_enrichment();
+}
+
+void finish_catalyst_enrichment(void)
+{
     fuel_mode_flag_5c = 0;
     continue_fuel_mixture_checks();
 }
