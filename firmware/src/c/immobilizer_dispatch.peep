@@ -1,0 +1,55 @@
+// Preserve the order of status tests and the shared return.
+replace {
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    mov _ACC,a
+    jb _ACC_BIT6,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    jnb _ACC_BIT7,%4
+    ljmp %5
+    %4:
+    jb _immobilizer_input,%6
+    ljmp %7
+    %6:
+    cpl _immobilizer_signal
+    %7:
+    ljmp %3
+    %5:
+    lcall _poll_immobilizer_pulses
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    mov _ACC,a
+    jnb _ACC_BIT1,%8
+    ljmp %9
+    %8:
+    lcall _process_immobilizer_message
+    ljmp %3
+    %9:
+    jnb _ACC_BIT0,%10
+    ljmp %3
+    %10:
+    lcall _compare_immobilizer_records
+    %3:
+} by {
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    jb _ACC_BIT6,%3
+    jb _ACC_BIT7,%5
+    jnb _immobilizer_input,%3
+    cpl _immobilizer_signal
+    sjmp %3
+    %5:
+    lcall _poll_immobilizer_pulses
+    mov dptr,#_immobilizer_status
+    movx a,@dptr
+    jb _ACC_BIT1,%9
+    lcall _process_immobilizer_message
+    sjmp %3
+    %9:
+    jb _ACC_BIT0,%3
+    lcall _compare_immobilizer_records
+    %3:
+}
