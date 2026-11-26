@@ -1257,6 +1257,7 @@ C_SECTIONS = {
     "const_9972": 32,
     "const_9992": 39,
     "code_a8b7": 171,
+    "code_e000": 542,
     "code_e41b": 56,
     "code_e453": 29,
     "code_5952": 28,
