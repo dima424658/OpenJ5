@@ -923,6 +923,7 @@ SYMBOLS = {
 }
 C_SECTIONS = {
     "code_00e0": 359,
+    "code_0247": 122,
     "code_04b4": 342,
     "code_060a": 244,
     "code_06fe": 142,
