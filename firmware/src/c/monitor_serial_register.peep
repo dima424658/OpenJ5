@@ -1,0 +1,111 @@
+// The next section starts at the common rejection handler.
+replace {
+    mov a,#0x41
+    cjne a,_ACC,%2
+    sjmp %3
+    %2:
+    ljmp %4
+    %3:
+} by {
+    cjne a,#0x41,00990$
+}
+
+replace {
+    mov a,#%1
+    cjne a,_ACC,%2
+    sjmp %3
+    %2:
+    ljmp %4
+    %3:
+} by {
+    cjne a,#%1,%4
+}
+
+replace {
+    mov a,#%1
+    cjne a,_stock_r3,%2
+    sjmp %3
+    %2:
+    ljmp %4
+    %3:
+} by {
+    mov a,r3
+    cjne a,#%1,00990$
+}
+
+replace {
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+} by {
+    inc dptr
+}
+
+replace {
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+} by {
+}
+
+replace {
+    mov _stock_r0,a
+} by {
+    mov r0,a
+}
+
+replace {
+    mov r0,a
+    inc dptr
+    ljmp %1
+} by {
+    mov r0,a
+    inc dptr
+    sjmp %1
+}
+
+replace {
+    mov _ACC,_B
+    lcall 0xFA00
+    mov _B,_ACC
+    lcall _append_monitor_reg_result
+    ljmp %1
+} by {
+    mov a,_B
+    lcall 0xfa00
+    mov _B,a
+    ljmp _append_monitor_reg_result
+}
+
+// Test the latched transmit status and push each saved return byte directly.
+replace {
+    %1:
+    mov _ACC,_SCON
+    jb _ACC_BIT1,%2
+    ljmp %1
+    %2:
+} by {
+    %1:
+    mov a,_SCON
+    jnb _ACC_BIT1,%1
+}
+
+replace {
+    mov _ACC,a
+    inc _SP
+    mov r1,_SP
+    mov @r1,_ACC
+} by {
+    push _ACC
+}
+
+replace {
+    lcall _clear_flag_21_0_f275
+    %1:
+    ret
+} by {
+    ljmp _clear_flag_21_0_f275
+    00990$:
+}

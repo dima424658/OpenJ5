@@ -1523,6 +1523,7 @@ C_SECTIONS = {
     "code_f0db": 121,
     "code_f154": 77,
     "code_f1a1": 132,
+    "code_f225": 80,
     "code_f278": 14,
     "code_f286": 14,
     "code_f090": 4,
@@ -1906,6 +1907,9 @@ def verify(image, reference, linker_map):
             raise ValueError(f"linker map: expected {size} bytes in {section}")
 
     verify_absolute_c_data(linker_map)
+
+    if sum(C_SECTIONS.values()) + sum(C_ABSOLUTE_DATA.values()) != ROM_SIZE:
+        raise ValueError("C code and data sections must cover the full ROM image")
 
     flash = sum(image) & 0xFFFF
     complement = int.from_bytes(image[0xFFFA:0xFFFC], "little")
