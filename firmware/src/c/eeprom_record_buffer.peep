@@ -1,0 +1,116 @@
+// Copy between the active DPTR and the IRAM pointer in the active bank.
+replace {
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x04
+    %1:
+    mov r1,_stock_r0
+    mov _ACC,@r1
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    mov a,_ACC
+    movx @dptr,a
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+} by {
+    mov r0,#0x94
+    mov r1,#0x04
+    %1:
+    mov a,@r0
+    movx @dptr,a
+    inc r0
+    inc dptr
+    djnz r1,%1
+}
+
+replace {
+    mov _stock_r0,#0x94
+    mov _stock_r1,#0x04
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    mov r1,_stock_r0
+    mov @r1,_ACC
+    inc _stock_r0
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+} by {
+    mov r0,#0x94
+    mov r1,#0x04
+    %1:
+    movx a,@dptr
+    mov @r0,a
+    inc r0
+    inc dptr
+    djnz r1,%1
+}
+
+// Preserve the fixed pointers and the final CY and R2 values.
+replace {
+    clr _CARRY
+    mov _stock_r0,#0x94
+    %1:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov r7,a
+    mov r1,_stock_r0
+    mov ar6,@r1
+    mov a,r6
+    xrl a,r7
+    mov _ACC,a
+    mov a,_ACC
+    jnz %2
+    ljmp %3
+    %2:
+    setb _CARRY
+    ljmp %4
+    %3:
+    mov a,_stock_r2
+    dec a
+    mov r7,a
+    mov _stock_r2,r7
+    mov a,r7
+    jz %5
+    ljmp %1
+    %5:
+    %4:
+} by {
+    clr c
+    mov r0,#0x94
+    %1:
+    movx a,@dptr
+    xrl a,@r0
+    jnz %2
+    djnz r2,%1
+    sjmp %4
+    %2:
+    setb c
+    %4:
+}
