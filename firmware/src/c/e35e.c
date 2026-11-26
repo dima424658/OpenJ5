@@ -1,3 +1,4 @@
+#include "monitor_port9_io.h"
 #include "stock_registers.h"
 
 static __sfr __at (0x80) P0;
@@ -35,13 +36,6 @@ extern void monitor_handler_ebc1(void);
 extern void monitor_handler_ea58(void);
 extern void monitor_handler_eae0(void);
 extern void monitor_handler_eaab(void);
-
-#define ROTATE_RIGHT_THROUGH_CARRY()                 \
-    do {                                             \
-        const uint8_t carry_in = CY ? 0x80 : 0;      \
-        CY = ACC & 1;                                \
-        ACC = (ACC >> 1) | carry_in;                 \
-    } while (0)
 
 #define MONITOR_COMMAND(index, handler)              \
     do {                                             \
@@ -84,19 +78,7 @@ void dispatch_monitor_request(void)
     ACC = *((volatile __idata uint8_t *)stock_r0);
     ++stock_r0;
     *((volatile __idata uint8_t *)stock_r0) = ACC;
-    B = 8;
-    do {
-        ROTATE_RIGHT_THROUGH_CARRY();
-        if (CY) {
-            P9 |= 0x08;
-        } else {
-            P9 &= 0xf7;
-        }
-        P9 |= 1;
-        CY = (P9 & 0x40) != 0;
-        P9 &= 0xfe;
-    } while (--B);
-    ROTATE_RIGHT_THROUGH_CARRY();
+    SHIFT_PORT9_BYTE();
     ++stock_r0;
     P9 |= 4;
     stock_r0 = request;

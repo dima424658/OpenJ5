@@ -1,3 +1,4 @@
+#include "monitor_port9_io.h"
 #include "stock_registers.h"
 
 static __sfr __at (0x82) STOCK_DPL;
@@ -32,13 +33,6 @@ extern void resume_service_monitor(void);
         iac_tick_high_priority = 1;                     \
     } while (0)
 
-#define ROTATE_SERIAL_BIT()                             \
-    do {                                                \
-        const uint8_t carry_in = CY ? 0x80 : 0;         \
-        CY = ACC & 1;                                   \
-        ACC = (ACC >> 1) | carry_in;                    \
-    } while (0)
-
 void poll_monitor_exit(void)
 {
     POLL_MONITOR_EXIT();
@@ -56,19 +50,7 @@ void poll_monitor_exit_and_io(void)
     ACC = monitor_transfer_bytes[0];
     STOCK_DPL = monitor_transfer_bytes[1];
     monitor_transfer_bytes[1] = ACC;
-    B = 8;
-    do {
-        ROTATE_SERIAL_BIT();
-        if (CY) {
-            P9 |= 0x08;
-        } else {
-            P9 &= 0xf7;
-        }
-        P9 |= 1;
-        CY = (P9 & 0x40) != 0;
-        P9 &= 0xfe;
-    } while (--B);
-    ROTATE_SERIAL_BIT();
+    SHIFT_PORT9_BYTE();
 
     /* Record a bit only when it matches the previous sample. */
     STOCK_DPH = (uint8_t)~(ACC ^ STOCK_DPL);
