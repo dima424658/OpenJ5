@@ -1,0 +1,258 @@
+// Preserve monitor EEPROM transmission timing and stop on NACK.
+replace {
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    mov _B,#0x08
+    %1:
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    mov c,_CY
+    mov _eeprom_sda,c
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    clr _eeprom_scl
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    mov c,_eeprom_sda
+    mov _CY,c
+    clr _eeprom_scl
+    lcall _monitor_eeprom_delay
+    jb _CY,%3
+    ljmp %4
+    %3:
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    lcall _monitor_eeprom_delay
+    %4:
+    ret
+} by {
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    mov _B,#0x08
+    00970$:
+    rlc a
+    mov _eeprom_sda,c
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    clr _eeprom_scl
+    djnz _B,00970$
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    mov c,_eeprom_sda
+    clr _eeprom_scl
+    lcall _monitor_eeprom_delay
+    jnc 00971$
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    lcall _monitor_eeprom_delay
+    00971$:
+    ret
+}
+
+// Preserve the eight input clocks and the low ninth bit.
+replace {
+    mov _B,#0x08
+    clr _eeprom_scl
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    %1:
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    mov c,_eeprom_sda
+    mov _CY,c
+    mov c,_CY
+    clr a
+    rlc a
+    mov r7,a
+    mov c,_ACC_SIGN
+    mov _CY,c
+    mov a,_ACC
+    add a,acc
+    mov r6,a
+    mov a,r7
+    orl a,r6
+    mov _ACC,a
+    clr _eeprom_scl
+    mov a,_B
+    dec a
+    mov r7,a
+    mov _B,r7
+    mov a,r7
+    jz %2
+    ljmp %1
+    %2:
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    %3:
+    ret
+} by {
+    mov _B,#0x08
+    clr _eeprom_scl
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    00972$:
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    mov c,_eeprom_sda
+    rlc a
+    clr _eeprom_scl
+    djnz _B,00972$
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    ret
+}
+
+// Preserve device selection and byte-counting in R1 and DPTR.
+replace {
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    lcall _monitor_eeprom_delay
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    clr _eeprom_scl
+    mov r7,_monitor_eeprom_device
+    anl ar7,#0x6f
+    mov a,r7
+    add a,acc
+    mov r7,a
+    mov a,#0xa0
+    orl a,r7
+    mov _ACC,a
+    lcall _monitor_eeprom_send_byte
+    jb _CY,%1
+    ljmp %2
+    %1:
+    ljmp %3
+    %2:
+    mov _ACC,_stock_r0
+    lcall _monitor_eeprom_send_byte
+    jb _CY,%4
+    ljmp %5
+    %4:
+    ljmp %3
+    %5:
+    mov dpl,((_STOCK_DPTR >> 0) & 0xFF)
+    mov dph,((_STOCK_DPTR >> 8) & 0xFF)
+    movx a,@dptr
+    mov _ACC,a
+    lcall _monitor_eeprom_send_byte
+    jb _CY,%6
+    ljmp %7
+    %6:
+    ljmp %3
+    %7:
+    mov a,#0x01
+    add a, ((_STOCK_DPTR >> 0) & 0xFF)
+    mov ((_STOCK_DPTR >> 0) & 0xFF),a
+    mov a,#0x00
+    addc a, ((_STOCK_DPTR >> 8) & 0xFF)
+    mov ((_STOCK_DPTR >> 8) & 0xFF),a
+    mov a,_stock_r1
+    dec a
+    mov r7,a
+    mov _stock_r1,r7
+    mov a,r7
+    jz %8
+    ljmp %5
+    %8:
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    lcall _monitor_eeprom_delay
+    %3:
+    ret
+} by {
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    lcall _monitor_eeprom_delay
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    clr _eeprom_scl
+    mov a,_monitor_eeprom_device
+    anl a,#0x6f
+    rl a
+    orl a,#0xa0
+    lcall _monitor_eeprom_send_byte
+    jc 00973$
+    mov a,r0
+    lcall _monitor_eeprom_send_byte
+    jc 00973$
+    00974$:
+    movx a,@dptr
+    lcall _monitor_eeprom_send_byte
+    jc 00973$
+    inc dptr
+    djnz r1,00974$
+    orl _sfr_b9,#0x80
+    anl _P1,#0xdf
+    clr _eeprom_sda
+    lcall _monitor_eeprom_delay
+    setb _eeprom_scl
+    lcall _monitor_eeprom_delay
+    setb _eeprom_sda
+    orl _sfr_b9,#0x80
+    orl _P1,#0x20
+    lcall _monitor_eeprom_delay
+    00973$:
+    ret
+}
